@@ -1,0 +1,12 @@
+# Web dashboard only (src/dashboard.py). The CLI, library and Tkinter GUI need
+# nothing here - install these on top of requirements.txt to run the dashboard:
+#
+#   pip install -r requirements.txt -r requirements-dashboard.txt
+#   streamlit run src/dashboard.py
+
+streamlit>=1.50
+
+# Tap-to-pick coordinates. Optional: without it the dashboard still runs and
+# falls back to the coordinate grid overlay. Version 0.4.0 imports a type alias
+# that Streamlit has since removed, which src/dashboard.py shims on import.
+streamlit-image-coordinates>=0.4.0
