@@ -181,6 +181,7 @@ from .smoothing import gaussian_blur, median_filter, bilateral_filter
 from .registry import (
     FILTER_REGISTRY,
     FilterSpec,
+    CATEGORY_ORDER,
     resolve_filter,
     filter_function,
     list_filters,
@@ -272,6 +273,6 @@ __all__ = [
     'horizon_from_vanishing_points', 'line_through', 'measure_height',
     'resolve_horizon', 'vanishing_point',
     # registry
-    'FILTER_REGISTRY', 'FilterSpec', 'resolve_filter', 'filter_function',
+    'FILTER_REGISTRY', 'FilterSpec', 'CATEGORY_ORDER', 'resolve_filter', 'filter_function',
     'list_filters', 'apply_preset',
 ]

@@ -26,6 +26,7 @@ from PIL import Image
 
 from src.core import FilterStep, Pipeline, ReportGenerator, save_image
 from src.filters import (
+    CATEGORY_ORDER,
     FILTER_REGISTRY,
     dynamic_range_used,
     filter_function,
@@ -80,11 +81,18 @@ def _require_auth() -> None:
 
 # ---- state ------------------------------------------------------------
 
+def _ordered_filter_names() -> list:
+    """Registry names grouped by function family, A-Z within each family."""
+    return [name for category in CATEGORY_ORDER
+            for name in sorted(n for n, spec in FILTER_REGISTRY.items()
+                                if spec.category == category)]
+
+
 def _init_state() -> None:
     st.session_state.setdefault('pipeline', None)
     st.session_state.setdefault('metadata', {})
     st.session_state.setdefault('source_name', None)
-    st.session_state.setdefault('selected_filter', sorted(FILTER_REGISTRY)[0])
+    st.session_state.setdefault('selected_filter', _ordered_filter_names()[0])
     st.session_state.setdefault('picks', [])
     st.session_state.setdefault('last_tap', None)
 
@@ -253,11 +261,17 @@ def _sidebar() -> None:
     st.sidebar.header('Add filter')
 
     query = st.sidebar.text_input('Search filters')
-    names = sorted(FILTER_REGISTRY)
+    names = _ordered_filter_names()
     if query:
         q = query.lower()
         names = [n for n in names
                   if q in n.lower() or q in FILTER_REGISTRY[n].description.lower()]
+
+    categories = ['All'] + [c for c in CATEGORY_ORDER
+                             if any(FILTER_REGISTRY[n].category == c for n in names)]
+    category = st.sidebar.selectbox('Category', categories, key='filter_category')
+    if category != 'All':
+        names = [n for n in names if FILTER_REGISTRY[n].category == category]
 
     if not names:
         st.sidebar.caption('No matching filters.')
@@ -265,7 +279,11 @@ def _sidebar() -> None:
 
     if st.session_state.selected_filter not in names:
         st.session_state.selected_filter = names[0]
-    name = st.sidebar.selectbox('Filter', names,
+    # Prefix with the family when showing every category, so the flat list
+    # still reads as grouped - a selectbox has no option groups.
+    label = ((lambda n: f'{FILTER_REGISTRY[n].category} - {n}') if category == 'All'
+             else (lambda n: n))
+    name = st.sidebar.selectbox('Filter', names, format_func=label,
                                  index=names.index(st.session_state.selected_filter),
                                  key='selected_filter')
     spec = resolve_filter(name)
