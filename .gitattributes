@@ -1,0 +1,14 @@
+* text=auto
+
+# Binary assets — never apply line-ending conversion, it corrupts them.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.jfif binary
+*.bmp binary
+*.tif binary
+*.tiff binary
+*.webp binary
+*.avi binary
+*.exe binary
