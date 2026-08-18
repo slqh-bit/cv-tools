@@ -25,6 +25,7 @@ from .filters.clone_detection import detect_copy_move
 from .filters.compression_analysis import compression_report
 from .filters.curves import curve_from_string
 from .filters.ela import ela_stats
+from .filters.jpeg_ghost import ghost_report
 from .filters.perspective_correction import KNOWN_RATIOS
 from .filters.frame_averaging import (
     average_frames,
@@ -263,6 +264,10 @@ def build_parser() -> argparse.ArgumentParser:
     forensic.add_argument('--deblur-defocus', nargs='*', metavar='KEY=VALUE',
                           action=ChainAction,
                           help='Wiener defocus deblur. Params: radius (float), noise (float)')
+    forensic.add_argument('--ghost', nargs='*', metavar='KEY=VALUE', action=ChainAction,
+                          help='JPEG ghost map: best-match quality per block. Params: '
+                               'block (int), min (int), max (int), step (int) for the '
+                               'quality sweep. JPEG originals only.')
 
     # ---- Geometric filters ----
     geom = parser.add_argument_group('geometric filters')
@@ -300,6 +305,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help='Print copy-move detection results without altering the image')
     out.add_argument('--compression-stats', action='store_true',
                      help='Print JPEG blocking measures and, for a JPEG source, its quality')
+    out.add_argument('--ghost-stats', action='store_true',
+                     help='Print JPEG ghost detection results without altering the image')
     out.add_argument('--info', action='store_true',
                      help='Print source metadata (dimensions, EXIF, SHA-256)')
     out.add_argument('--report', metavar='PATH',
@@ -518,6 +525,18 @@ def translate_step(
         if 'noise' in params:
             params['noise_power'] = float(params.pop('noise'))
         return 'deblur_defocus', params
+
+    if dest == 'ghost':
+        params = parse_kv(value or [])
+        mapped: Dict[str, Any] = {}
+        if 'block' in params:
+            mapped['block_size'] = int(params.pop('block'))
+        low = int(params.pop('min', 50))
+        high = int(params.pop('max', 100))
+        step = int(params.pop('step', 5))
+        mapped['qualities'] = list(range(low, high + 1, step))
+        mapped.update(params)
+        return 'ghost', mapped
 
     # ---- Adjust ----
     if dest == 'curves':
@@ -838,6 +857,19 @@ def print_compression_stats(report: Dict[str, Any]) -> None:
     print("  note: blocking indicates compression strength, not manipulation")
 
 
+def print_ghost_stats(report: Dict[str, Any]) -> None:
+    """Print JPEG ghost detection results."""
+    print(f"JPEG ghost detection (qualities {report['qualities'][0]}-{report['qualities'][-1]}, "
+          f"{report['block_size']}px blocks):")
+    print(f"  dominant quality: {report['dominant_quality']}")
+    print(f"  outlier blocks: {report['outlier_count']} "
+          f"({report['outlier_fraction'] * 100:.1f}% of blocks)")
+    for outlier in report['outliers'][:5]:
+        print(f"    block at ({outlier['x']}, {outlier['y']}): "
+              f"best match quality {outlier['quality']}")
+    print("  note: only meaningful on a single-JPEG composite; any re-save erases it")
+
+
 def resolve_batch_output(
     output: Optional[str],
     source: Path,
@@ -925,6 +957,9 @@ def run_one(
 
     if args.compression_stats:
         print_compression_stats(compression_report(result, path=path))
+
+    if args.ghost_stats:
+        print_ghost_stats(ghost_report(result))
 
     try:
         if output_path is not None:
@@ -1022,7 +1057,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     analysis_only = (args.info or args.analyze_roi or args.hist_stats or args.histogram
                      or args.noise_stats or args.ela_stats or args.clone_stats
-                     or args.compression_stats)
+                     or args.compression_stats or args.ghost_stats)
     # Combining frames is a transformation in its own right, so it counts as
     # work even with no filter chain behind it
     if not steps and not preset and not analysis_only and args.frames <= 0:

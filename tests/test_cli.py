@@ -484,7 +484,8 @@ class TestCLIRun(CLITestCase):
                      ['--fft'], ['--fft-filter', 'type=lowpass', 'cutoff=20'],
                      ['--remove-periodic'], ['--noise-map'], ['--noise-map', '16'],
                      ['--deblur', 'length=9', 'angle=0'],
-                     ['--deblur-defocus', 'radius=3']):
+                     ['--deblur-defocus', 'radius=3'],
+                     ['--ghost'], ['--ghost', 'block=8', 'min=40', 'max=100', 'step=10']):
             with self.subTest(flag=flag):
                 out = self.dir / 'f.png'
                 code, _ = self.run_cli([str(self.input)] + flag + ['-o', str(out)])
@@ -661,6 +662,12 @@ class TestCLICatalogue(CLITestCase):
         code, output = self.run_cli([str(jpeg), '--compression-stats'])
         self.assertEqual(code, 0)
         self.assertIn('estimated quality', output)
+
+    def test_ghost_stats_printed(self):
+        code, output = self.run_cli([str(self.input), '--ghost-stats'])
+        self.assertEqual(code, 0)
+        self.assertIn('JPEG ghost detection', output)
+        self.assertIn('dominant quality', output)
 
     def test_catalogue_filters_survive_a_preset_roundtrip(self):
         preset = self.dir / 'p.json'

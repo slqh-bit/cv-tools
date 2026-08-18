@@ -32,6 +32,7 @@ image. Registry names (the `name` column) are what appear in JSON presets and re
 | `remove_periodic` | `remove_periodic_noise` | `src.filters.fft_analysis` | 3 |
 | `noise_map` | `noise_map` | `src.filters.noise_analysis` | 3 |
 | `clone_detect` | `highlight_clones` | `src.filters.clone_detection` | 3 |
+| `ghost` | `ghost_map` | `src.filters.jpeg_ghost` | 3 |
 | `deblur_motion` | `deblur_motion` | `src.filters.motion_deblur` | 3 |
 | `deblur_defocus` | `deblur_defocus` | `src.filters.motion_deblur` | 3 |
 | `curves` / `s_curve` | `apply_curve` / `s_curve` | `src.filters.curves` | — |
@@ -490,6 +491,36 @@ CLI: `--clone-detect block=16 step=1 matches=8 variance=12`, `--clone-stats`
 
 `detect_copy_move` returns the full result dict (mask, shift vectors, block counts);
 `draw_clone_regions` tints it onto the image.
+
+## JPEG Ghost Detection — `ghost`
+
+Recompresses the image across a range of JPEG qualities and diffs each pass against the
+source, the same trick ELA uses once. Re-quantising an already-JPEG'd region at its own
+prior quality is nearly lossless, so each block's error-versus-quality curve dips sharply
+right at that quality — the "ghost". A block's minimum locates its likely prior compression
+quality from pixel evidence alone, even once the file's own quantisation tables are gone.
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `qualities` | list[int] | `50,55,...,100` | Ascending quality steps to sweep |
+| `block_size` | int | `16` | Side length of the analysis blocks |
+| `upscale` | bool | `True` | Resize the block grid back to the input's dimensions |
+
+The output map encodes, per block, the *index* into `qualities` of the best match — darker
+means an earlier (lower-quality) step. A region whose shade differs sharply from its
+surroundings had a different JPEG history.
+
+**Limits.** A uniform JPEG resave of the whole composite is a blind spot: every block then
+shares one true last quality, and its trivially-near-zero dip there swamps any subtler trace
+of what a region was compressed at before a splice. The technique reads a composite that was
+never unified by a later full-frame JPEG save — a PNG built from JPEG sources is the common
+case it catches. Flat, low-texture regions dip only shallowly at every quality and read as
+ambiguous by design.
+
+CLI: `--ghost block=16 min=50 max=100 step=5`, `--ghost-stats`
+
+`ghost_map` returns the visual map; `ghost_report` adds the dominant quality and the list of
+outlier blocks.
 
 ## Wiener Deblurring — `deblur_motion`, `deblur_defocus`
 

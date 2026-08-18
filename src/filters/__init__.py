@@ -78,6 +78,7 @@ from .fisheye_correction import (
     estimate_straightness,
 )
 from .invert import invert, invert_channel, invert_luminance, solarize
+from .jpeg_ghost import DEFAULT_QUALITIES as GHOST_QUALITIES, ghost_map, ghost_report
 from .measure_3d import (
     VERTICAL_AT_INFINITY,
     draw_height_measurement,
@@ -235,6 +236,8 @@ __all__ = [
     'adjust_color_balance', 'adjust_cmyk', 'channel_mixer',
     # invert
     'invert', 'invert_channel', 'invert_luminance', 'solarize',
+    # jpeg ghost
+    'GHOST_QUALITIES', 'ghost_map', 'ghost_report',
     # nl means
     'nl_means_denoise', 'nl_means_denoise_auto', 'nl_means_denoise_frames',
     'estimate_h',

@@ -23,6 +23,8 @@ from src.filters import (
     fft_magnitude_spectrum,
     focus_score,
     frame_difference,
+    ghost_map,
+    ghost_report,
     highlight_clones,
     integrate_frames,
     median_frames,
@@ -231,6 +233,65 @@ class TestFFT(unittest.TestCase):
     def test_invalid_notch_radius_raises(self):
         with self.assertRaises(ValueError):
             remove_periodic_noise(textured(), notch_radius=0)
+
+
+class TestJpegGhost(unittest.TestCase):
+
+    def test_map_matches_input_size(self):
+        image = textured()
+        result = ghost_map(image, block_size=16)
+        self.assertEqual(result.shape[:2], image.shape[:2])
+        self.assertEqual(result.dtype, np.uint8)
+
+    def test_map_without_upscale_is_a_block_grid(self):
+        image = textured()  # 128x160
+        result = ghost_map(image, block_size=16, upscale=False)
+        self.assertEqual(result.shape, (128 // 16, 160 // 16))
+
+    def test_rejects_too_few_qualities(self):
+        with self.assertRaises(ValueError):
+            ghost_map(textured(), qualities=[80])
+
+    def test_rejects_tiny_block(self):
+        with self.assertRaises(ValueError):
+            ghost_map(textured(), block_size=1)
+
+    def test_rejects_oversized_block(self):
+        with self.assertRaises(ValueError):
+            ghost_map(textured(64, 64), block_size=128)
+
+    def test_report_finds_the_prior_compression_quality(self):
+        # Requantising an already-JPEG'd image at its own quality is nearly
+        # lossless, so that quality should stand out as the block minimum.
+        image = recompress(textured(256, 256), quality=70)
+        report = ghost_report(image, qualities=(50, 60, 70, 80, 90, 100), block_size=16)
+        self.assertEqual(report['dominant_quality'], 70)
+
+    def test_report_flags_a_spliced_region(self):
+        # A patch pasted straight in from a differently-compressed source,
+        # with no unifying resave afterwards - each region keeps its own
+        # single-generation quantisation history intact.
+        background = recompress(textured(128, 128, seed=2), quality=60)
+        patch_source = recompress(textured(128, 128, seed=11), quality=95)
+        composite = background.copy()
+        composite[48:96, 48:96] = patch_source[48:96, 48:96]
+
+        report = ghost_report(composite, qualities=(40, 50, 60, 70, 80, 90, 100), block_size=16)
+        dominant_index = report['qualities'].index(report['dominant_quality'])
+        patch_index = report['block_grid'][48 // 16, 48 // 16]
+        self.assertEqual(report['dominant_quality'], 60)
+        self.assertNotEqual(int(patch_index), dominant_index)
+
+    def test_outlier_blocks_include_coordinates(self):
+        background = recompress(textured(128, 128, seed=2), quality=60)
+        patch_source = recompress(textured(128, 128, seed=11), quality=95)
+        composite = background.copy()
+        composite[48:96, 48:96] = patch_source[48:96, 48:96]
+
+        report = ghost_report(composite, qualities=(40, 50, 60, 70, 80, 90, 100), block_size=16)
+        self.assertGreater(report['outlier_count'], 0)
+        self.assertIn('x', report['outliers'][0])
+        self.assertIn('y', report['outliers'][0])
 
 
 class TestNoiseAnalysis(unittest.TestCase):

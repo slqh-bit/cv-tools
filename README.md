@@ -35,6 +35,7 @@ exported as a JSON preset or a forensic-style processing report.
 | FFT Analysis | `filters/fft_analysis.py` | Spectrum, frequency filtering, periodic noise removal |
 | Noise Analysis | `filters/noise_analysis.py` | Noise sigma, SNR, per-block noise map |
 | Clone Detection | `filters/clone_detection.py` | Copy-move forgery detection |
+| JPEG Ghost | `filters/jpeg_ghost.py` | Per-block prior JPEG quality from pixel evidence |
 | Motion Deblur | `filters/motion_deblur.py` | Wiener deconvolution, PSF construction |
 | Frame Averaging | `filters/frame_averaging.py` | Multi-frame denoise, background reconstruction |
 
@@ -63,12 +64,13 @@ exported as a JSON preset or a forensic-style processing report.
 
 See [docs/filters.md](docs/filters.md) for the full parameter reference.
 
-> **On the forensic filters.** ELA, clone detection and noise analysis locate things
-> *worth examining*; none of them establishes that an image was manipulated. Texture
-> raises ELA error levels, genuine repetition (tiles, windows, text) is real duplication,
-> and any re-save destroys the traces these tools read. Deconvolution with a guessed PSF
-> invents detail that was never recorded. Read [docs/filters.md](docs/filters.md) before
-> relying on any of them.
+> **On the forensic filters.** ELA, clone detection, noise analysis and JPEG ghost detection
+> locate things *worth examining*; none of them establishes that an image was manipulated.
+> Texture raises ELA error levels, genuine repetition (tiles, windows, text) is real
+> duplication, and any re-save destroys the traces these tools read — a JPEG ghost's blind
+> spot is a uniform resave of the whole composite, which erases any single region's earlier
+> history. Deconvolution with a guessed PSF invents detail that was never recorded. Read
+> [docs/filters.md](docs/filters.md) before relying on any of them.
 
 ## Installation
 
@@ -279,6 +281,10 @@ python -m src.cli photo.jpg --clone-detect -o clones.png
 # Noise level, SNR, and per-block uniformity
 python -m src.cli photo.jpg --noise-stats
 python -m src.cli photo.jpg --noise-map 32 -o noise.png
+
+# JPEG ghost detection — per-block prior compression quality from pixels alone
+python -m src.cli photo.jpg --ghost-stats
+python -m src.cli photo.jpg --ghost block=16 min=50 max=100 step=5 -o ghost.png
 
 # Frequency domain: spectrum, filtering, and periodic pattern removal
 python -m src.cli scan.png --fft -o spectrum.png

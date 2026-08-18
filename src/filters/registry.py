@@ -32,6 +32,7 @@ from .ela import error_level_analysis
 from .fft_analysis import fft_filter, fft_magnitude_spectrum, remove_periodic_noise
 from .fisheye_correction import correct_barrel_distortion, correct_fisheye
 from .invert import invert, invert_channel, invert_luminance, solarize
+from .jpeg_ghost import ghost_map
 from .measure_3d import draw_height_measurement
 from .motion_deblur import deblur_defocus, deblur_motion
 from .nl_means_denoise import nl_means_denoise, nl_means_denoise_auto
@@ -248,6 +249,9 @@ FILTER_REGISTRY: Dict[str, FilterSpec] = {
                    'Wiener deconvolution of linear motion blur', 'Forensic'),
         FilterSpec('deblur_defocus', deblur_defocus, 'src.filters.motion_deblur',
                    'Wiener deconvolution of defocus blur', 'Forensic'),
+        FilterSpec('ghost', ghost_map, 'src.filters.jpeg_ghost',
+                   'JPEG ghost map: best-match recompression quality per block',
+                   'Forensic'),
         # ---- Special ----
         FilterSpec('stain', extract_stain, 'src.filters.color_deconvolution',
                    'Extract one colorant by colour deconvolution', 'Special'),

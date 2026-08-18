@@ -33,6 +33,7 @@ préréglages JSON et les rapports.
 | `remove_periodic` | `remove_periodic_noise` | `src.filters.fft_analysis` | 3 |
 | `noise_map` | `noise_map` | `src.filters.noise_analysis` | 3 |
 | `clone_detect` | `highlight_clones` | `src.filters.clone_detection` | 3 |
+| `ghost` | `ghost_map` | `src.filters.jpeg_ghost` | 3 |
 | `deblur_motion` | `deblur_motion` | `src.filters.motion_deblur` | 3 |
 | `deblur_defocus` | `deblur_defocus` | `src.filters.motion_deblur` | 3 |
 | `curves` / `s_curve` | `apply_curve` / `s_curve` | `src.filters.curves` | — |
@@ -508,6 +509,38 @@ CLI : `--clone-detect block=16 step=1 matches=8 variance=12`, `--clone-stats`
 
 `detect_copy_move` renvoie le dictionnaire de résultat complet (masque, vecteurs de décalage,
 comptes de blocs) ; `draw_clone_regions` le superpose en teinte sur l'image.
+
+## Détection de fantôme JPEG — `ghost`
+
+Recompresse l'image sur une plage de qualités JPEG et calcule la différence de chaque passage
+par rapport à la source, la même astuce que l'ELA utilise une seule fois. Requantifier une
+région déjà en JPEG à sa qualité antérieure est quasi sans perte, donc la courbe
+erreur-en-fonction-de-la-qualité de chaque bloc chute nettement à cette qualité précise — le
+« fantôme ». Le minimum d'un bloc localise sa qualité de compression antérieure probable à
+partir des seuls pixels, même une fois les tables de quantification du fichier disparues.
+
+| Paramètre | Type | Défaut | Remarques |
+|---|---|---|---|
+| `qualities` | list[int] | `50,55,...,100` | Paliers de qualité croissants à balayer |
+| `block_size` | int | `16` | Côté des blocs d'analyse |
+| `upscale` | bool | `True` | Redimensionne la grille de blocs à la taille de l'image d'entrée |
+
+La carte produite encode, par bloc, l'*indice* dans `qualities` de la meilleure correspondance
+— plus sombre signifie un palier plus ancien (qualité plus basse). Une région dont la teinte
+diffère nettement de son voisinage a une histoire JPEG différente.
+
+**Limites.** Un nouvel enregistrement JPEG uniforme de tout le montage est un angle mort :
+chaque bloc partage alors une même qualité finale réelle, et son creux quasi nul à cette
+qualité noie toute trace plus subtile de la compression antérieure d'une région avant un
+collage. La technique lit un montage qui n'a jamais été unifié par un enregistrement JPEG
+ultérieur sur l'image entière — un PNG construit à partir de sources JPEG est le cas courant
+qu'elle détecte. Les régions plates et peu texturées ne creusent que faiblement à chaque
+qualité et se lisent comme ambiguës par construction.
+
+CLI : `--ghost block=16 min=50 max=100 step=5`, `--ghost-stats`
+
+`ghost_map` renvoie la carte visuelle ; `ghost_report` ajoute la qualité dominante et la liste
+des blocs atypiques.
 
 ## Défloutage de Wiener — `deblur_motion`, `deblur_defocus`
 
