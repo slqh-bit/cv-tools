@@ -14,6 +14,10 @@ Filters needing arguments a signature cannot supply - a region, a set of
 corners, a calibration file - are listed in ARGUMENTS below. Any such filter
 missing from that table is reported as skipped with its reason, rather than
 counted as a failure.
+
+A few filters read a property the default sample does not have, and render
+blank on it however correct they are. Those are listed in SOURCES, which
+overrides the input image for that filter alone.
 """
 
 import argparse
@@ -28,7 +32,8 @@ import cv2
 import numpy as np
 
 # Import from the project root regardless of where this is run from
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 
 from src.core import ImageLoader, save_image                      # noqa: E402
 from src.filters import FILTER_REGISTRY, CameraCalibration        # noqa: E402
@@ -61,6 +66,13 @@ ARGUMENTS: Dict[str, Dict[str, Any]] = {
                    'horizon': 0.30, 'reference_height': 1800.0,
                    '_relative_points': True},
     'undistort': {'calibration_path': None},   # written during the run
+}
+
+# Filters whose output is meaningless on the default sample. `ghost` reads JPEG
+# quantisation history, which a never-compressed PNG simply has none of: every
+# block matches best at the top quality and the map comes out uniformly white.
+SOURCES: Dict[str, str] = {
+    'ghost': 'samples/jpeg_ghost.png',
 }
 
 
@@ -178,11 +190,24 @@ def run(source: Path, output_dir: Path, only: Optional[List[str]] = None,
 
     for name in names:
         spec = FILTER_REGISTRY[name]
-        params = _scale_arguments(name, image.shape)
+
+        source_image = image
+        override = SOURCES.get(name)
+        if override is not None:
+            override_path = ROOT / override
+            if override_path.exists():
+                with ImageLoader(override_path) as loader:
+                    source_image = loader.load()
+            else:
+                failures.append((name, f'needs {override}, run samples/generate_samples.py'))
+                print(f"{name:<24}{'skipped':<10}needs {override_path.name}")
+                continue
+
+        params = _scale_arguments(name, source_image.shape)
 
         start = time.perf_counter()
         try:
-            result = spec.fn(image, **params)
+            result = spec.fn(source_image, **params)
             elapsed = (time.perf_counter() - start) * 1000
 
             save_image(result, output_dir / f'{name}.png')

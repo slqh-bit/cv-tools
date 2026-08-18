@@ -90,7 +90,8 @@ python samples/generate_samples.py
 
 This writes a dark CCTV-style plate scene, a low-contrast grey chart, a colour chart, a
 forged image containing a copy-pasted region, an image with periodic interference, a JPEG
-original for ELA, and a 24-frame video of a static scene with one moving object.
+original for ELA, a composite whose centre region carries a different JPEG quality (for
+ghost detection), and a 24-frame video of a static scene with one moving object.
 
 ## CLI Usage
 
@@ -489,7 +490,7 @@ The GUI tests skip automatically where Tkinter has no display.
 
 ## Trying every filter
 
-The tests prove the filters are correct; this shows what they look like. It runs all 66
+The tests prove the filters are correct; this shows what they look like. It runs all 67
 with their default parameters, writes one PNG each, and tiles them into a labelled contact
 sheet.
 
@@ -500,6 +501,10 @@ python scripts/filter_gallery.py --only clahe,sharpen,curves
 ```
 
 Exit status is non-zero if any filter fails, so it doubles as a smoke test.
+
+A filter that reads a property the default sample lacks renders from its own source
+instead, listed in the script's `SOURCES` table — `ghost` needs an image with real JPEG
+history, and comes out uniformly white on a never-compressed PNG.
 
 ## Project Structure
 

@@ -131,6 +131,36 @@ def _periodic_noise_scene() -> np.ndarray:
     return np.clip(image, 0, 255).astype(np.uint8)
 
 
+def _recompress(image: np.ndarray, quality: int) -> np.ndarray:
+    """Round-trip an RGB image through JPEG at a given quality."""
+    bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    _, buffer = cv2.imencode('.jpg', bgr, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+    return cv2.cvtColor(cv2.imdecode(buffer, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
+
+
+def _jpeg_ghost_scene() -> np.ndarray:
+    """
+    One scene whose centre region carries a different JPEG history.
+
+    The whole frame is compressed at quality 60, then a region of the *same*
+    scene compressed at 95 is pasted over it. The result looks like a single
+    coherent photograph - the splice is invisible to the eye - but the pasted
+    block's error curve dips at a different quality than its surroundings.
+
+    Saved as PNG deliberately: a further full-frame JPEG save would give every
+    block one shared last quality and bury the trace, which is the technique's
+    documented blind spot.
+    """
+    scene = _textured_scene()
+    low = _recompress(scene, 60)
+    high = _recompress(scene, 95)
+
+    composite = low.copy()
+    # Block-aligned so the region lands on whole analysis blocks
+    composite[128:256, 176:336] = high[128:256, 176:336]
+    return composite
+
+
 def _write_sequence(path: Path, frames: int = 24) -> None:
     """
     Write a short AVI of a static noisy scene with one object crossing it.
@@ -170,6 +200,7 @@ def generate_all(output_dir: Path = SAMPLES_DIR) -> list:
         'color_chart.png': _color_chart(),
         'cloned_region.png': _cloned_scene(),
         'periodic_noise.png': _periodic_noise_scene(),
+        'jpeg_ghost.png': _jpeg_ghost_scene(),
     }
 
     written = []
