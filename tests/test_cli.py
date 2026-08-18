@@ -669,6 +669,25 @@ class TestCLICatalogue(CLITestCase):
         self.assertIn('JPEG ghost detection', output)
         self.assertIn('dominant quality', output)
 
+    def test_metadata_stats_printed(self):
+        code, output = self.run_cli([str(self.input), '--metadata-stats'])
+        self.assertEqual(code, 0)
+        self.assertIn('Metadata forensics', output)
+        self.assertIn('EXIF', output)
+
+    def test_metadata_stats_reports_findings(self):
+        from PIL import Image
+        path = self.dir / 'edited.jpg'
+        image = Image.fromarray(self.image)
+        tags = image.getexif()
+        tags[305] = 'Adobe Photoshop 25.0'
+        image.save(path, 'JPEG', exif=tags, quality=90)
+
+        code, output = self.run_cli([str(path), '--metadata-stats'])
+        self.assertEqual(code, 0)
+        self.assertIn('[FLAG]', output)
+        self.assertIn('editing_software', output)
+
     def test_catalogue_filters_survive_a_preset_roundtrip(self):
         preset = self.dir / 'p.json'
         direct = self.dir / 'd.png'

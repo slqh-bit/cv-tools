@@ -79,6 +79,14 @@ from .fisheye_correction import (
 )
 from .invert import invert, invert_channel, invert_luminance, solarize
 from .jpeg_ghost import DEFAULT_QUALITIES as GHOST_QUALITIES, ghost_map, ghost_report
+from .metadata_forensics import (
+    EDITOR_SIGNATURES,
+    check_timestamps,
+    detect_editing_software,
+    metadata_report,
+    parse_exif_datetime,
+    read_exif,
+)
 from .measure_3d import (
     VERTICAL_AT_INFINITY,
     draw_height_measurement,
@@ -238,6 +246,9 @@ __all__ = [
     'invert', 'invert_channel', 'invert_luminance', 'solarize',
     # jpeg ghost
     'GHOST_QUALITIES', 'ghost_map', 'ghost_report',
+    # metadata forensics
+    'EDITOR_SIGNATURES', 'check_timestamps', 'detect_editing_software',
+    'metadata_report', 'parse_exif_datetime', 'read_exif',
     # nl means
     'nl_means_denoise', 'nl_means_denoise_auto', 'nl_means_denoise_frames',
     'estimate_h',

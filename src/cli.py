@@ -26,6 +26,7 @@ from .filters.compression_analysis import compression_report
 from .filters.curves import curve_from_string
 from .filters.ela import ela_stats
 from .filters.jpeg_ghost import ghost_report
+from .filters.metadata_forensics import metadata_report
 from .filters.perspective_correction import KNOWN_RATIOS
 from .filters.frame_averaging import (
     average_frames,
@@ -307,6 +308,9 @@ def build_parser() -> argparse.ArgumentParser:
                      help='Print JPEG blocking measures and, for a JPEG source, its quality')
     out.add_argument('--ghost-stats', action='store_true',
                      help='Print JPEG ghost detection results without altering the image')
+    out.add_argument('--metadata-stats', action='store_true',
+                     help='Inspect EXIF and JPEG segments of the source file for '
+                          'inconsistencies (editor tags, timestamp disorder, resizing)')
     out.add_argument('--info', action='store_true',
                      help='Print source metadata (dimensions, EXIF, SHA-256)')
     out.add_argument('--report', metavar='PATH',
@@ -870,6 +874,30 @@ def print_ghost_stats(report: Dict[str, Any]) -> None:
     print("  note: only meaningful on a single-JPEG composite; any re-save erases it")
 
 
+def print_metadata_stats(report: Dict[str, Any]) -> None:
+    """Print metadata findings, most serious first."""
+    print(f"Metadata forensics ({report['filename']}):")
+    if report['has_exif']:
+        print(f"  EXIF: {report['exif_tag_count']} tags, "
+              f"camera {report['make'] or '?'} {report['model'] or '?'}")
+        print(f"  software: {report['software'] or 'not recorded'}")
+        print(f"  captured: {report['datetime_original'] or 'not recorded'}, "
+              f"last written: {report['datetime_modified'] or 'not recorded'}")
+    else:
+        print("  EXIF: none")
+    if report['segments']:
+        print(f"  segments: {', '.join(report['segments'])}")
+
+    findings = sorted(report['findings'], key=lambda f: f['severity'] != 'flag')
+    if not findings:
+        print("  nothing inconsistent found")
+    for finding in findings:
+        marker = 'FLAG' if finding['severity'] == 'flag' else 'info'
+        print(f"  [{marker}] {finding['check']}: {finding['detail']}")
+
+    print("  note: metadata is trivially edited or stripped; a clean header proves nothing")
+
+
 def resolve_batch_output(
     output: Optional[str],
     source: Path,
@@ -960,6 +988,11 @@ def run_one(
 
     if args.ghost_stats:
         print_ghost_stats(ghost_report(result))
+
+    # Reads the source file's header, so it describes the input rather than
+    # whatever the chain produced
+    if args.metadata_stats:
+        print_metadata_stats(metadata_report(path))
 
     try:
         if output_path is not None:
@@ -1057,7 +1090,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     analysis_only = (args.info or args.analyze_roi or args.hist_stats or args.histogram
                      or args.noise_stats or args.ela_stats or args.clone_stats
-                     or args.compression_stats or args.ghost_stats)
+                     or args.compression_stats or args.ghost_stats
+                     or args.metadata_stats)
     # Combining frames is a transformation in its own right, so it counts as
     # work even with no filter chain behind it
     if not steps and not preset and not analysis_only and args.frames <= 0:

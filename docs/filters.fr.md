@@ -542,6 +542,40 @@ CLI : `--ghost block=16 min=50 max=100 step=5`, `--ghost-stats`
 `ghost_map` renvoie la carte visuelle ; `ghost_report` ajoute la qualité dominante et la liste
 des blocs atypiques.
 
+## Analyse des métadonnées (pas une étape de chaîne)
+
+Lit le conteneur plutôt que les pixels : les tags EXIF, les segments applicatifs JPEG, et la
+concordance entre ce que les métadonnées annoncent et ce que l'image est réellement.
+`metadata_report(path)` prend un chemin de fichier, pas une image, et constitue donc une
+option de statistiques plutôt qu'un filtre.
+
+| Contrôle | Gravité | Signification |
+|---|---|---|
+| `editing_software` | flag | `Software` nomme un éditeur connu (comparé à `EDITOR_SIGNATURES`, afin que les chaînes de firmware d'appareil photo ne le déclenchent pas) |
+| `modified_after_capture` | flag | `DateTime` est postérieur à `DateTimeOriginal` — le fichier a été réécrit après le déclenchement |
+| `timestamp_disorder` | flag | `DateTimeDigitized` précède `DateTimeOriginal`, ce que l'ordre de capture interdit |
+| `dimension_mismatch` | flag | Les dimensions enregistrées dans l'EXIF diffèrent des dimensions réelles — image redimensionnée ou recadrée depuis la capture |
+| `photoshop_segment` | flag | Un bloc de ressources Photoshop APP13 est intégré |
+| `no_exif` | info | Un format qui porte normalement de l'EXIF n'en a aucun |
+| `no_camera_identification` | info | EXIF présent mais sans `Make` ni `Model` |
+| `xmp_segment` | info | Un paquet XMP est intégré ; il consigne souvent un historique d'édition absent de l'EXIF |
+
+**C'est le contrôle le moins coûteux qui soit, et le plus facile à déjouer.** Les métadonnées
+sont du texte brut dans un en-tête : n'importe qui peut les modifier ou les supprimer, et la
+plupart des messageries et réseaux sociaux les suppriment intégralement au téléversement. Un
+en-tête propre ne prouve donc rien — c'est l'état normal d'un fichier passé par WhatsApp — et
+le nom d'un éditeur ne prouve rien non plus, puisque recadrer, pivoter ou convertir en
+laissent tous un.
+
+Ce sont les contradictions qui méritent l'attention. Un tag qui contredit les pixels, ou un
+autre tag, est plus difficile à produire par accident qu'un nom d'apparence suspecte.
+
+CLI : `--metadata-stats`
+
+`read_exif` renvoie les tags sous forme de dictionnaire ; `detect_editing_software` et
+`check_timestamps` sont les contrôles individuels, utilisables sur un dictionnaire EXIF déjà
+en main.
+
 ## Défloutage de Wiener — `deblur_motion`, `deblur_defocus`
 
 Inverse un flou connu. L'inversion naïve divise par la réponse fréquentielle du flou, qui est

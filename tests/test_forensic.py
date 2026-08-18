@@ -1,10 +1,21 @@
 """Unit tests for the Sprint 3 forensic filters."""
 
+import struct
+import tempfile
 import unittest
+from pathlib import Path
 
 import cv2
 import numpy as np
+from PIL import Image
 
+from src.filters import (
+    check_timestamps,
+    detect_editing_software,
+    metadata_report,
+    parse_exif_datetime,
+    read_exif,
+)
 from src.filters import (
     apply_psf,
     average_frames,
@@ -292,6 +303,171 @@ class TestJpegGhost(unittest.TestCase):
         self.assertGreater(report['outlier_count'], 0)
         self.assertIn('x', report['outliers'][0])
         self.assertIn('y', report['outliers'][0])
+
+
+class TestMetadataForensics(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.array = textured(120, 160)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write_jpeg(self, name, software=None, original=None, digitized=None,
+                   modified=None, make='TestCam', model='Model X',
+                   claimed_size=None, exif=True):
+        """Write a JPEG with the EXIF tags a test needs, omitting the rest."""
+        path = self.dir / name
+        image = Image.fromarray(self.array)
+
+        if not exif:
+            image.save(path, 'JPEG', quality=90)
+            return path
+
+        tags = image.getexif()
+        if make:
+            tags[271] = make
+        if model:
+            tags[272] = model
+        if software:
+            tags[305] = software
+        if modified:
+            tags[306] = modified
+
+        sub = tags.get_ifd(0x8769)
+        if original:
+            sub[36867] = original
+        if digitized:
+            sub[36868] = digitized
+        if claimed_size:
+            sub[40962], sub[40963] = claimed_size
+
+        image.save(path, 'JPEG', exif=tags, quality=90)
+        return path
+
+    def checks(self, report):
+        return {finding['check'] for finding in report['findings']}
+
+    def test_reads_camera_tags(self):
+        path = self.write_jpeg('cam.jpg', original='2024:03:01 10:00:00')
+        report = metadata_report(path)
+        self.assertTrue(report['has_exif'])
+        self.assertEqual(report['make'], 'TestCam')
+        self.assertEqual(report['model'], 'Model X')
+
+    def test_clean_camera_file_raises_no_flags(self):
+        path = self.write_jpeg('clean.jpg', software='Ver.1.00',
+                               original='2024:03:01 10:00:00',
+                               digitized='2024:03:01 10:00:00',
+                               modified='2024:03:01 10:00:00',
+                               claimed_size=(160, 120))
+        self.assertEqual(metadata_report(path)['flag_count'], 0)
+
+    def test_camera_firmware_is_not_an_editor(self):
+        # Cameras populate Software too; only known editors should register
+        self.assertIsNone(detect_editing_software({'Software': 'Ver.1.00'}))
+        self.assertIsNone(detect_editing_software({}))
+
+    def test_detects_editing_software(self):
+        path = self.write_jpeg('edited.jpg', software='Adobe Photoshop 25.0')
+        report = metadata_report(path)
+        self.assertIn('editing_software', self.checks(report))
+        self.assertGreaterEqual(report['flag_count'], 1)
+
+    def test_editor_match_is_case_insensitive(self):
+        self.assertEqual(detect_editing_software({'Software': 'GIMP 2.10'}), 'GIMP 2.10')
+
+    def test_flags_modification_after_capture(self):
+        path = self.write_jpeg('late.jpg', original='2024:03:01 10:00:00',
+                               modified='2024:03:05 18:30:00')
+        self.assertIn('modified_after_capture', self.checks(metadata_report(path)))
+
+    def test_matching_timestamps_are_not_flagged(self):
+        findings = check_timestamps({
+            'DateTimeOriginal': '2024:03:01 10:00:00',
+            'DateTimeDigitized': '2024:03:01 10:00:00',
+            'DateTime': '2024:03:01 10:00:00',
+        })
+        self.assertEqual([f for f in findings if f['severity'] == 'flag'], [])
+
+    def test_flags_digitized_before_captured(self):
+        findings = check_timestamps({
+            'DateTimeOriginal': '2024:03:01 10:00:00',
+            'DateTimeDigitized': '2024:02:01 10:00:00',
+        })
+        self.assertIn('timestamp_disorder', {f['check'] for f in findings})
+
+    def test_flags_dimension_mismatch(self):
+        path = self.write_jpeg('resized.jpg', claimed_size=(4000, 3000))
+        report = metadata_report(path)
+        self.assertIn('dimension_mismatch', self.checks(report))
+
+    def test_matching_dimensions_are_not_flagged(self):
+        path = self.write_jpeg('sized.jpg', claimed_size=(160, 120))
+        self.assertNotIn('dimension_mismatch', self.checks(metadata_report(path)))
+
+    def test_missing_exif_on_jpeg_is_noted(self):
+        path = self.write_jpeg('bare.jpg', exif=False)
+        report = metadata_report(path)
+        self.assertFalse(report['has_exif'])
+        self.assertIn('no_exif', self.checks(report))
+
+    def test_missing_exif_on_png_is_not_noted(self):
+        # PNG does not normally carry EXIF, so its absence means nothing
+        path = self.dir / 'plain.png'
+        Image.fromarray(self.array).save(path)
+        self.assertNotIn('no_exif', self.checks(metadata_report(path)))
+
+    def test_notes_absent_camera_identification(self):
+        path = self.write_jpeg('anon.jpg', make=None, model=None,
+                               original='2024:03:01 10:00:00')
+        self.assertIn('no_camera_identification', self.checks(metadata_report(path)))
+
+    def test_detects_photoshop_segment(self):
+        path = self.write_jpeg('irb.jpg', exif=False)
+        payload = b'Photoshop 3.0\x00' + b'8BIM' + b'\x04\x04' + b'\x00\x00\x00\x00'
+        segment = b'\xff\xed' + struct.pack('>H', len(payload) + 2) + payload
+        raw = path.read_bytes()
+        path.write_bytes(raw[:2] + segment + raw[2:])
+
+        report = metadata_report(path)
+        self.assertIn('photoshop_segment', self.checks(report))
+        self.assertIn('APP13', report['segments'])
+
+    def test_detects_xmp_packet(self):
+        path = self.dir / 'xmp.jpg'
+        xmp = (b'<?xpacket begin=""?><x:xmpmeta xmlns:x="adobe:ns:meta/">'
+               b'</x:xmpmeta><?xpacket end="w"?>')
+        Image.fromarray(self.array).save(path, 'JPEG', xmp=xmp, quality=90)
+        self.assertIn('xmp_segment', self.checks(metadata_report(path)))
+
+    def test_parse_exif_datetime(self):
+        parsed = parse_exif_datetime('2024:03:01 10:30:00')
+        self.assertEqual((parsed.year, parsed.month, parsed.hour), (2024, 3, 10))
+
+    def test_parse_exif_datetime_tolerates_junk(self):
+        for value in (None, '', 'not a date', '2024-03-01', 0):
+            with self.subTest(value=value):
+                self.assertIsNone(parse_exif_datetime(value))
+
+    def test_read_exif_is_empty_for_a_file_without_it(self):
+        self.assertEqual(read_exif(self.write_jpeg('bare2.jpg', exif=False)), {})
+
+    def test_read_exif_is_empty_for_a_missing_file(self):
+        self.assertEqual(read_exif(self.dir / 'nope.jpg'), {})
+
+    def test_missing_file_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            metadata_report(self.dir / 'nope.jpg')
+
+    def test_findings_carry_a_severity_and_detail(self):
+        path = self.write_jpeg('multi.jpg', software='Adobe Photoshop 25.0',
+                               claimed_size=(4000, 3000))
+        for finding in metadata_report(path)['findings']:
+            self.assertIn(finding['severity'], ('info', 'flag'))
+            self.assertTrue(finding['detail'])
 
 
 class TestNoiseAnalysis(unittest.TestCase):

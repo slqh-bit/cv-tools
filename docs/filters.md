@@ -522,6 +522,37 @@ CLI: `--ghost block=16 min=50 max=100 step=5`, `--ghost-stats`
 `ghost_map` returns the visual map; `ghost_report` adds the dominant quality and the list of
 outlier blocks.
 
+## Metadata Forensics (not a chain step)
+
+Reads the container rather than the pixels: EXIF tags, JPEG application segments, and
+whether what the metadata claims matches what the image actually is. `metadata_report(path)`
+takes a file path, not an image, so it is a stats flag rather than a filter.
+
+| Check | Severity | What it means |
+|---|---|---|
+| `editing_software` | flag | `Software` names a known editor (matched against `EDITOR_SIGNATURES`, so camera firmware strings do not trigger it) |
+| `modified_after_capture` | flag | `DateTime` is later than `DateTimeOriginal` — written again after the shutter fired |
+| `timestamp_disorder` | flag | `DateTimeDigitized` precedes `DateTimeOriginal`, which capture order forbids |
+| `dimension_mismatch` | flag | EXIF's recorded dimensions disagree with the actual ones — resized or cropped since capture |
+| `photoshop_segment` | flag | An APP13 Photoshop resource block is embedded |
+| `no_exif` | info | A format that normally carries EXIF has none |
+| `no_camera_identification` | info | EXIF present but no `Make` or `Model` |
+| `xmp_segment` | info | An XMP packet is embedded, which often records an editing history the EXIF does not |
+
+**This is the cheapest check available and the easiest to defeat.** Metadata is plain text in
+a header: anyone can edit or strip it, and most messaging and social platforms strip it
+wholesale on upload. So a clean header proves nothing — it is the normal state of a file
+that has been through WhatsApp — and an editor's name proves nothing either, since cropping,
+rotating and format conversion all leave one.
+
+The contradictions are the part worth attention. A tag that disagrees with the pixels, or
+with another tag, is harder to produce by accident than a suspicious-looking name is.
+
+CLI: `--metadata-stats`
+
+`read_exif` returns the tags as a plain dict; `detect_editing_software` and
+`check_timestamps` are the individual checks, usable on an EXIF dict you already hold.
+
 ## Wiener Deblurring — `deblur_motion`, `deblur_defocus`
 
 Inverts a known blur. Naive inversion divides by the blur's frequency response, which is
