@@ -397,7 +397,7 @@ python -m src.gui samples/cctv_dark.png
 | Panel | What it does |
 |---|---|
 | Left | The filter chain, with reorder, duplicate and remove; below it the filter picker, grouped by family and searchable |
-| Centre | Image viewer — processed, original, **split**, or side-by-side, with fit/100%/200%/400% and Ctrl+wheel zoom |
+| Centre | Image viewer — processed, original, **split**, or side-by-side, with fit/100%/200%/400% and Ctrl+wheel zoom; drag a rectangle to select a region |
 | Right | Parameters for the selected filter — or for the selected chain step, to correct it in place |
 | Bottom | **Statistics**: live histogram, source metadata with SHA-256, per-channel clipping. **Analysis**: the forensic reports |
 
@@ -411,6 +411,14 @@ filter has a working panel and a filter added later needs no GUI work.
 Selecting a step in the chain loads its own parameters into the panel; **Update selected
 step** re-applies it and re-processes everything after it, so an early value can be
 corrected without rebuilding the chain by hand.
+
+Dragging a rectangle on the image fills `x`, `y`, `width` and `height` into the parameter
+panel — the same four names `crop`, `roi_crop`, `roi_draw`, `redact` and
+`white_balance_patch` all take. The region is reported in the status bar either way, so it
+is still there to paste into the CLI when the selected filter takes no region. Dragging in
+split view moves the divider instead, and side-by-side offers no region at all: two frames
+on one canvas make a point past the midpoint mean something different from the same point
+before it.
 
 The window is dark by default — a bright surround biases the eye when judging shadow
 detail, which is most of what a CCTV frame is. *View → Theme* switches to light.
@@ -551,7 +559,7 @@ To append a preset on top of the current chain instead of replacing it, use
 python -m unittest discover -s tests -t .
 ```
 
-716 tests. Run one file or one case:
+729 tests. Run one file or one case:
 
 ```bash
 python -m unittest tests.test_forensic

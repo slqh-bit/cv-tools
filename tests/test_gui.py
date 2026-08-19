@@ -8,6 +8,7 @@ module skips rather than fails, since the GUI is an optional component.
 import json
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 
@@ -71,6 +72,19 @@ class TestParameterPanel(unittest.TestCase):
         params = panel.get_params()
         self.assertAlmostEqual(params['clip_limit'], 2.0, places=3)
         self.assertEqual(params['color_mode'], 'lab')
+        panel.destroy()
+
+    def test_set_values_fills_only_the_names_it_recognises(self):
+        panel = self.ParameterPanel(self.root)
+        panel.build(resolve_filter('redact'))
+
+        filled = panel.set_values({'x': 4, 'y': 5, 'width': 6, 'height': 7,
+                                   'nonesuch': 1})
+        self.assertEqual(filled, ['x', 'y', 'width', 'height'])
+
+        params = panel.get_params()
+        self.assertEqual((params['x'], params['y'], params['width'],
+                          params['height']), (4, 5, 6, 7))
         panel.destroy()
 
     def test_produces_params_the_filter_accepts(self):
@@ -211,6 +225,75 @@ class TestImageCanvas(unittest.TestCase):
         composite = self.canvas._compose()
         self.assertEqual(composite.ndim, 3)
         self.assertEqual(composite.shape[2], 3)
+
+    def test_dragging_reports_a_region_in_image_pixels(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_mode('processed')
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 6), (40, 26))
+        self.assertEqual(seen, [(10, 6, 30, 20)])
+
+    def test_a_backwards_drag_is_the_same_region(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((40, 26), (10, 6))
+        self.assertEqual(seen, [(10, 6, 30, 20)])
+
+    def test_a_drag_past_the_edge_stops_at_it(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 10), (9999, 9999))
+
+        x, y, width, height = seen[0]
+        self.assertEqual((x + width, y + height),
+                         (self.processed.shape[1], self.processed.shape[0]))
+
+    def test_a_click_is_not_a_region(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 10), (12, 11))
+        self.assertEqual(seen, [])
+
+    def test_side_by_side_offers_no_region(self):
+        # Two frames on one canvas: a point past the midpoint means something
+        # different from the same point before it
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_mode('side by side')
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 6), (40, 26))
+        self.assertEqual(seen, [])
+
+    def test_split_still_drags_its_divider(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_mode('split')
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 6), (40, 26))
+
+        self.assertEqual(seen, [])
+        self.assertNotAlmostEqual(self.canvas._split, 0.5, places=3)
+
+    def _collect_regions(self):
+        seen = []
+        self.canvas.on_region = lambda *region: seen.append(region)
+        return seen
+
+    def _drag(self, start, end):
+        """Press, move and release, as Tk would deliver them."""
+        self.canvas._on_press(SimpleNamespace(x=start[0], y=start[1]))
+        self.canvas._on_drag(SimpleNamespace(x=end[0], y=end[1]))
+        self.canvas._on_release(SimpleNamespace(x=end[0], y=end[1]))
 
     def test_zoom_setting(self):
         self.canvas.set_zoom(2.0)
@@ -465,6 +548,23 @@ class TestApp(unittest.TestCase):
 
         self.messagebox.showerror.assert_called_once()
         self.assertIn('failed', self.app.status.cget('text'))
+
+    def test_dragging_a_region_fills_the_matching_parameters(self):
+        self._select('roi_crop')
+        self.app._on_region(12, 8, 30, 20)
+
+        params = self.app.parameters.get_params()
+        self.assertEqual((params['x'], params['y'], params['width'], params['height']),
+                         (12, 8, 30, 20))
+        self.assertEqual(self.app.last_region, (12, 8, 30, 20))
+        self.assertIn('12,8,30,20', self.app.status.cget('text'))
+
+    def test_a_region_on_a_filter_that_takes_none_still_reports_it(self):
+        self._select('clahe')
+        self.app._on_region(5, 5, 20, 20)
+
+        self.assertEqual(self.app.last_region, (5, 5, 20, 20))
+        self.assertIn('takes no region', self.app.status.cget('text'))
 
     def test_theme_switch_recolours_every_kind_of_widget(self):
         from src.gui.theme import LIGHT

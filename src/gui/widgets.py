@@ -2,9 +2,10 @@
 Reusable widgets for the cv-tools GUI.
 
 ``ImageCanvas`` displays a processed image alongside its original, including
-the split view forensic work relies on. ``ParameterPanel`` builds its controls
-by introspecting a filter's signature, so every registered filter gets a usable
-parameter form without one being written by hand.
+the split view forensic work relies on, and reports the region dragged out on
+it. ``ParameterPanel`` builds its controls by introspecting a filter's
+signature, so every registered filter gets a usable parameter form without one
+being written by hand, and fills a dragged region into it.
 """
 
 import inspect
@@ -90,6 +91,11 @@ CHOICES: Dict[str, List[str]] = {
 
 VIEW_MODES = ('processed', 'original', 'split', 'side by side')
 
+# The rubber band drawn while dragging a region out of the image, and the
+# smallest drag that counts as one rather than as a click
+SELECTION_COLOR = '#ffc832'
+MIN_REGION = 4
+
 
 def _dynamic_choices() -> Dict[str, List[str]]:
     """Choice lists that come from the filter modules' own constants."""
@@ -142,6 +148,8 @@ class ImageCanvas(ttk.Frame):
         self._split = 0.5
         self._dragging_split = False
         self._display_size = (1, 1)
+        self._region_start = None
+        self._region_item = None
 
         self.canvas = tk.Canvas(self, bg=self.palette['canvas'], highlightthickness=0,
                                 cursor='crosshair')
@@ -167,6 +175,7 @@ class ImageCanvas(ttk.Frame):
 
         self.on_pixel: Optional[Callable[[int, int], None]] = None
         self.on_zoom: Optional[Callable[[float], None]] = None
+        self.on_region: Optional[Callable[[int, int, int, int], None]] = None
 
     # ---- content ----
 
@@ -286,22 +295,93 @@ class ImageCanvas(ttk.Frame):
             self._dragging_split = True
             self._on_drag(event)
             return
-        if self.on_pixel is not None and self._processed is not None:
-            x, y = self._to_image_coords(event)
+
+        if self._processed is None:
+            return
+
+        x, y = self._to_image_coords(event)
+        if self.on_pixel is not None:
             self.on_pixel(x, y)
+        if self._can_select_region():
+            self._region_start = (x, y)
 
     def _on_drag(self, event) -> None:
-        if not self._dragging_split or self._processed is None:
+        if self._dragging_split:
+            if self._processed is None:
+                return
+            composite = self._compose()
+            if composite is None:
+                return
+            width = composite.shape[1] * self.zoom
+            self._split = float(
+                np.clip(self.canvas.canvasx(event.x) / max(width, 1e-6), 0, 1))
+            self.redraw()
             return
-        composite = self._compose()
-        if composite is None:
-            return
-        width = composite.shape[1] * self.zoom
-        self._split = float(np.clip(self.canvas.canvasx(event.x) / max(width, 1e-6), 0, 1))
-        self.redraw()
 
-    def _on_release(self, _event) -> None:
+        if self._region_start is None:
+            return
+
+        # A rubber band drawn on the canvas rather than into the image: the
+        # pixels under it have to stay exactly as the filter will see them
+        start_x, start_y = self._region_start
+        current_x, current_y = self._to_image_coords(event)
+        box = (start_x * self.zoom, start_y * self.zoom,
+               current_x * self.zoom, current_y * self.zoom)
+
+        if self._region_item is None:
+            self._region_item = self.canvas.create_rectangle(
+                *box, outline=SELECTION_COLOR, width=1, dash=(4, 3))
+        else:
+            self.canvas.coords(self._region_item, *box)
+
+    def _on_release(self, event) -> None:
         self._dragging_split = False
+
+        if self._region_item is not None:
+            self.canvas.delete(self._region_item)
+            self._region_item = None
+
+        start, self._region_start = self._region_start, None
+        if start is None or self._processed is None:
+            return
+
+        region = self._region_between(start, self._to_image_coords(event))
+        if region is not None and self.on_region is not None:
+            self.on_region(*region)
+
+    def _can_select_region(self) -> bool:
+        """
+        Whether a drag maps onto one image.
+
+        Side by side puts two frames on the canvas, so a point past the
+        midpoint means something different from the same point before it;
+        split already spends the drag on its divider.
+        """
+        return self.mode.get() in ('processed', 'original')
+
+    def _region_between(self, start, end) -> Optional[Tuple[int, int, int, int]]:
+        """
+        The dragged rectangle as x, y, width, height in image pixels.
+
+        None for a drag too small to be one: a click that wanders a pixel is a
+        click, and a region that thin is no use to the filters that take one.
+        """
+        image = self._processed
+        if image is None:
+            return None
+
+        height, width = image.shape[:2]
+        x1, x2 = sorted((start[0], end[0]))
+        y1, y2 = sorted((start[1], end[1]))
+
+        # Clamped to the image: the canvas is usually larger than the frame
+        # drawn on it, and a drag that overshoots should stop at the edge
+        x1, x2 = max(0, min(x1, width - 1)), max(0, min(x2, width))
+        y1, y2 = max(0, min(y1, height - 1)), max(0, min(y2, height))
+
+        if x2 - x1 < MIN_REGION or y2 - y1 < MIN_REGION:
+            return None
+        return x1, y1, x2 - x1, y2 - y1
 
     def _on_wheel_zoom(self, event) -> None:
         """Zoom about the pointer, so the pixel under it stays put."""
@@ -438,7 +518,7 @@ class ParameterPanel(ttk.Frame):
             scale.bind('<ButtonRelease-1>', lambda _e: self._changed())
 
             self._entries[name] = {'kind': 'int' if is_integer else 'float',
-                                   'var': variable}
+                                   'var': variable, 'readout': update_readout}
             return
 
         # Anything else - tuples, paths, unranged numbers, optional values
@@ -452,6 +532,44 @@ class ParameterPanel(ttk.Frame):
         entry.bind('<Return>', lambda _e: self._changed())
         entry.bind('<FocusOut>', lambda _e: self._changed())
         self._entries[name] = {'kind': 'text', 'var': variable, 'required': required}
+
+    def set_values(self, values: Dict[str, Any]) -> List[str]:
+        """
+        Fill any controls whose parameter names match, ignoring the rest.
+
+        This is how a region dragged on the image reaches the form: x, y,
+        width and height are the same four names on crop, roi_crop, roi_draw,
+        redact and white_balance_patch, so nothing here has to know which
+        filter is selected.
+
+        Args:
+            values: Parameter name to value
+
+        Returns:
+            The names that were filled, in the order given
+        """
+        filled = []
+        for name, value in values.items():
+            entry = self._entries.get(name)
+            if entry is None:
+                continue
+
+            if entry['kind'] == 'bool':
+                entry['var'].set(bool(value))
+            elif entry['kind'] in ('int', 'float'):
+                entry['var'].set(float(value))
+            else:
+                entry['var'].set(str(value))
+
+            # A slider's number beside it is redrawn by its own command, which
+            # setting the variable from here does not run
+            if 'readout' in entry:
+                entry['readout']()
+            filled.append(name)
+
+        if filled:
+            self._changed()
+        return filled
 
     def _changed(self) -> None:
         if self._on_change is not None:

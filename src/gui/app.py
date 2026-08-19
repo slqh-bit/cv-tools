@@ -21,7 +21,7 @@ import tkinter as tk
 import traceback
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -95,6 +95,8 @@ class CVToolsApp(tk.Tk):
         self.pipeline: Optional[Pipeline] = None
         self.metadata: Dict[str, Any] = {}
         self.source_path: Optional[Path] = None
+        # The last rectangle dragged on the image, as x, y, width, height
+        self.last_region: Optional[Tuple[int, int, int, int]] = None
         self._selected_filter: Optional[str] = None
         # Index of the chain step being edited, when the parameter panel is
         # showing an applied step rather than a filter about to be added
@@ -295,6 +297,7 @@ class CVToolsApp(tk.Tk):
         self.viewer.pack(fill='both', expand=True, pady=(8, 0))
         self.viewer.on_pixel = self._on_pixel
         self.viewer.on_zoom = self._on_zoom
+        self.viewer.on_region = self._on_region
 
         return frame
 
@@ -859,6 +862,26 @@ class CVToolsApp(tk.Tk):
 
     def _on_zoom(self, zoom: float) -> None:
         self.zoom_label.configure(text=f'{zoom * 100:.0f}%')
+
+    def _on_region(self, x: int, y: int, width: int, height: int) -> None:
+        """
+        Fill a region dragged on the image into the parameters, if they take one.
+
+        Crop, roi_crop, roi_draw, redact and white_balance_patch all take the
+        same x, y, width, height, and reading four numbers off a hover readout
+        to type them back in was the slowest thing in the window.
+        """
+        self.last_region = (x, y, width, height)
+        region = f'{x},{y},{width},{height}'
+
+        filled = self.parameters.set_values(
+            {'x': x, 'y': y, 'width': width, 'height': height})
+        if len(filled) == 4:
+            self._set_status(f'Region {region} - filled into {self._selected_filter}')
+        else:
+            # Still worth reporting: it is the number to paste into the CLI,
+            # or into a filter selected next
+            self._set_status(f'Region {region} - selected filter takes no region')
 
     def _on_pixel(self, x: int, y: int) -> None:
         if self.pipeline is None:
