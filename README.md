@@ -433,6 +433,10 @@ it — the same six the CLI prints, from the same registry:
 | `ghost` | pixels | Per-block prior JPEG quality, and the blocks that disagree |
 | `metadata` | file | EXIF tags, JPEG segments, and the contradictions between them |
 
+Reports run on a worker thread — copy-move detection on a full frame is seconds to
+minutes, and a window that freezes for the duration cannot be looked away from. The work
+reads a copy of the image, so the chain can carry on underneath it.
+
 Findings worth investigating are coloured; every report ends with a note saying what it
 cannot tell you. `compression` and `metadata` read the container rather than the pixels, so
 they describe the file that was opened, not the chain's output.

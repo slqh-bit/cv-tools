@@ -423,6 +423,7 @@ class TestApp(unittest.TestCase):
         self.app.analysis_name.set('noise')
         self.app._on_analysis_selected()
         self.app.run_selected_analysis()
+        self.app.wait_for_analysis()
 
         text = self.app.analysis_text.get('1.0', 'end')
         self.assertIn('Noise analysis:', text)
@@ -439,6 +440,31 @@ class TestApp(unittest.TestCase):
 
         self.messagebox.showinfo.assert_called_once()
         self.assertEqual(self.app.analysis_text.get('1.0', 'end').strip(), '')
+
+    def test_a_report_runs_off_the_tk_thread(self):
+        # A long report must not freeze the window, so the work leaves the Tk
+        # thread and the button stays disabled until it comes back
+        self.app.analysis_name.set('noise')
+        self.app._on_analysis_selected()
+        self.app.run_selected_analysis()
+
+        self.assertIsNotNone(self.app._analysis_thread)
+        self.assertEqual(str(self.app.analysis_button.cget('state')), 'disabled')
+
+        self.app.wait_for_analysis()
+        self.assertIsNone(self.app._analysis_thread)
+        self.assertEqual(str(self.app.analysis_button.cget('state')), 'normal')
+
+    def test_a_failing_report_is_reported_not_swallowed(self):
+        self.app.analysis_name.set('ela')
+        self.app._on_analysis_selected()
+        # A quality no JPEG encoder accepts, raised on the worker thread
+        self.app.analysis_params._entries['quality']['var'].set(0)
+        self.app.run_selected_analysis()
+        self.app.wait_for_analysis()
+
+        self.messagebox.showerror.assert_called_once()
+        self.assertIn('failed', self.app.status.cget('text'))
 
     def test_theme_switch_recolours_every_kind_of_widget(self):
         from src.gui.theme import LIGHT

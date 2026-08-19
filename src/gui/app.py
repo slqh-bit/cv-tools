@@ -14,7 +14,9 @@ here without this file being touched.
 """
 
 import ctypes
+import queue
 import sys
+import threading
 import tkinter as tk
 import traceback
 from pathlib import Path
@@ -100,6 +102,11 @@ class CVToolsApp(tk.Tk):
         # Registry name per filter-list row; None marks a family heading
         self._filter_rows: List[Optional[str]] = []
         self._layout_job: Optional[str] = None
+        # A report runs on a worker thread and hands its result back through
+        # this queue; nothing but the Tk thread ever touches a widget
+        self._analysis_queue: 'queue.Queue' = queue.Queue()
+        self._analysis_thread: Optional[threading.Thread] = None
+        self._analysis_job: Optional[str] = None
 
         self._build_menu()
         self._build_layout()
@@ -716,8 +723,16 @@ class CVToolsApp(tk.Tk):
         self.analysis_params.build(spec)
 
     def run_selected_analysis(self) -> None:
-        """Run the selected report and show it, severity by severity."""
-        if not self._require_image():
+        """
+        Run the selected report without freezing the window.
+
+        Copy-move detection on a full frame is seconds to minutes, and a
+        report that locks the interface while it runs cannot be abandoned or
+        even looked away from. The work happens on a thread, which is safe
+        because it reads a copy of the image and never touches a widget: the
+        result comes back through a queue this side drains on a timer.
+        """
+        if not self._require_image() or self._analysis_running:
             return
 
         spec = resolve_analysis(self.analysis_name.get())
@@ -734,20 +749,65 @@ class CVToolsApp(tk.Tk):
                 f"it needs an image opened from disk.")
             return
 
-        self._busy(True)
-        self._set_status(f'Running {spec.name}...')
-        try:
-            report = run_analysis(spec, image=self.pipeline.current,
-                                  path=self.source_path, params=params)
-        except Exception as exc:
-            messagebox.showerror('Analysis failed', str(exc))
-            self._set_status(f'{spec.name} failed')
-            return
-        finally:
-            self._busy(False)
+        image = self.pipeline.current       # a copy, so the chain can move on
+        path = self.source_path
 
-        self._show_analysis(render_report(spec, report))
-        self._set_status(f'Ran {spec.name}')
+        def work() -> None:
+            try:
+                self._analysis_queue.put(
+                    (spec, run_analysis(spec, image=image, path=path, params=params),
+                     None))
+            except Exception as exc:        # reported on the Tk thread
+                self._analysis_queue.put((spec, None, exc))
+
+        self._analysis_thread = threading.Thread(target=work, daemon=True,
+                                                 name=f'analysis-{spec.name}')
+        self._analysis_thread.start()
+
+        self._set_status(f'Running {spec.name}...')
+        self._refresh_buttons()
+        self._analysis_job = self.after(80, self._drain_analysis)
+
+    @property
+    def _analysis_running(self) -> bool:
+        return self._analysis_thread is not None and self._analysis_thread.is_alive()
+
+    def _drain_analysis(self) -> None:
+        """Show a finished report, or keep waiting for one."""
+        # Cancelled rather than just forgotten: wait_for_analysis calls this
+        # directly, and a timer left armed fires into a destroyed window
+        if self._analysis_job is not None:
+            try:
+                self.after_cancel(self._analysis_job)
+            except tk.TclError:
+                pass
+            self._analysis_job = None
+        try:
+            spec, report, error = self._analysis_queue.get_nowait()
+        except queue.Empty:
+            if self._analysis_running:
+                self._analysis_job = self.after(80, self._drain_analysis)
+            return
+
+        self._analysis_thread = None
+        if error is not None:
+            messagebox.showerror('Analysis failed', str(error))
+            self._set_status(f'{spec.name} failed')
+        else:
+            self._show_analysis(render_report(spec, report))
+            self._set_status(f'Ran {spec.name}')
+        self._refresh_buttons()
+
+    def wait_for_analysis(self, timeout: float = 180.0) -> None:
+        """
+        Block until a running report has been rendered.
+
+        For tests and scripts. Interactive use has the timer for that.
+        """
+        thread = self._analysis_thread
+        if thread is not None:
+            thread.join(timeout)
+        self._drain_analysis()
 
     def _show_analysis(self, rows: List[Row]) -> None:
         self.analysis_text.configure(state='normal')
@@ -903,7 +963,8 @@ class CVToolsApp(tk.Tk):
         self.update_button.configure(
             state='normal' if has_image and self._editing_step is not None
             else 'disabled')
-        self.analysis_button.configure(state='normal' if has_image else 'disabled')
+        self.analysis_button.configure(
+            state='normal' if has_image and not self._analysis_running else 'disabled')
 
     # ---- helpers ----
 
@@ -928,12 +989,16 @@ class CVToolsApp(tk.Tk):
 
     def destroy(self) -> None:
         """Cancel any pending callback before the widgets it names disappear."""
-        if self._layout_job is not None:
-            try:
-                self.after_cancel(self._layout_job)
-            except tk.TclError:
-                pass
-            self._layout_job = None
+        for job in ('_layout_job', '_analysis_job'):
+            pending = getattr(self, job, None)
+            if pending is not None:
+                try:
+                    self.after_cancel(pending)
+                except tk.TclError:
+                    pass
+                setattr(self, job, None)
+        # A running report is a daemon thread reading a copy of the image, so
+        # it dies with the process rather than holding the window open
         super().destroy()
 
 
