@@ -1,0 +1,15 @@
+# Dashboard theme. The dark base is not decoration: a bright surround biases
+# the eye when judging shadow detail, which is most of what a CCTV frame is.
+# The amber accent is the same one the desktop GUI uses (src/gui/theme.py), so
+# the two front ends read as one tool.
+
+[theme]
+base = "dark"
+primaryColor = "#f0a500"
+backgroundColor = "#17171a"
+secondaryBackgroundColor = "#1e1e22"
+textColor = "#e6e6ea"
+font = "sans serif"
+
+[server]
+maxUploadSize = 200

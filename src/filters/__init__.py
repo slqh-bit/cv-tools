@@ -199,6 +199,16 @@ from .registry import (
     list_filters,
     apply_preset,
 )
+from .analysis import (
+    ANALYSIS_REGISTRY,
+    AnalysisSpec,
+    Row,
+    list_analyses,
+    render_report,
+    report_lines,
+    resolve_analysis,
+    run_analysis,
+)
 
 __all__ = [
     # clahe
@@ -293,4 +303,7 @@ __all__ = [
     # registry
     'FILTER_REGISTRY', 'FilterSpec', 'CATEGORY_ORDER', 'resolve_filter', 'filter_function',
     'list_filters', 'apply_preset',
+    # analysis registry
+    'ANALYSIS_REGISTRY', 'AnalysisSpec', 'Row', 'list_analyses', 'render_report',
+    'report_lines', 'resolve_analysis', 'run_analysis',
 ]

@@ -1,39 +1,56 @@
 """
-cv-tools web dashboard - a Streamlit front end for the same Pipeline and
-filter registry the CLI and Tkinter GUI use.
+cv-tools web dashboard - a Streamlit front end for the same Pipeline, filter
+registry and analysis registry the CLI and Tkinter GUI use.
 
 Run with:
 
     streamlit run src/dashboard.py --server.address=0.0.0.0
 
-Nothing here reimplements a filter: it drives ``core.pipeline.Pipeline``
-through ``filters.registry`` exactly like the CLI and GUI do, and reuses the
-GUI's parameter metadata (slider ranges, choice lists) so every registered
-filter gets a usable form.
+Nothing here reimplements a filter or a measurement: it drives
+``core.pipeline.Pipeline`` through ``filters.registry`` exactly like the CLI
+and GUI do, reuses the GUI's parameter metadata (slider ranges, choice lists)
+so every registered filter gets a usable form, and renders
+``filters.analysis`` reports so the numbers match what the CLI prints.
+
+Layout:
+
+    Sidebar   source, the chain, the filter picker, presets
+    Viewer    the image, its histogram and its statistics
+    Analysis  the forensic reports, run on demand
+    Export    preset, report and processed image downloads
 """
 
 import hmac
+import html
 import inspect
 import io
+import json
 import os
+import shutil
+import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 import streamlit as st
 from PIL import Image
 
-from src.core import FilterStep, Pipeline, ReportGenerator, save_image
+from src.core import FilterStep, Pipeline, ReportGenerator
 from src.filters import (
+    ANALYSIS_REGISTRY,
     CATEGORY_ORDER,
     FILTER_REGISTRY,
     dynamic_range_used,
     filter_function,
     histogram_stats,
     render_histogram,
+    render_report,
+    resolve_analysis,
     resolve_filter,
+    run_analysis,
 )
+from src.gui.theme import DARK, HISTOGRAM_BACKGROUND
 from src.gui.widgets import CHOICES, SLIDER_RANGES, _dynamic_choices, to_display
 from src.utils.parsing import parse_value
 
@@ -53,7 +70,60 @@ except Exception:                                   # pragma: no cover
 
 SAMPLES_DIR = Path(__file__).resolve().parent.parent / 'samples'
 
-st.set_page_config(page_title='cv-tools', layout='wide')
+IMAGE_TYPES = ['png', 'jpg', 'jpeg', 'jfif', 'bmp', 'tif', 'tiff', 'webp']
+
+st.set_page_config(page_title='cv-tools', page_icon='🔍', layout='wide')
+
+
+# ---- chrome -----------------------------------------------------------
+# The palette comes from the desktop GUI so the two front ends match; only
+# the handful of things Streamlit's own theme cannot reach are set here.
+
+def _inject_css() -> None:
+    st.markdown(
+        f"""
+        <style>
+        .block-container {{ padding-top: 2.2rem; padding-bottom: 3rem; }}
+        section[data-testid="stSidebar"] {{ border-right: 1px solid {DARK['border']}; }}
+        section[data-testid="stSidebar"] .stButton button {{ width: 100%; }}
+
+        /* Chain steps: a numbered row that stays readable at a glance */
+        .cv-step {{
+            background: {DARK['field']};
+            border-left: 3px solid {DARK['accent']};
+            border-radius: 3px;
+            padding: 5px 8px;
+            margin-bottom: 2px;
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }}
+        .cv-step .cv-params {{
+            color: {DARK['muted']};
+            font-family: Consolas, monospace;
+            font-size: 0.74rem;
+            word-break: break-all;
+        }}
+        .cv-empty {{ color: {DARK['muted']}; font-size: 0.85rem; }}
+
+        /* Analysis reports, rendered row by row with their severity */
+        .cv-report {{
+            background: {DARK['panel']};
+            border: 1px solid {DARK['border']};
+            border-radius: 4px;
+            padding: 12px 16px;
+            font-family: Consolas, monospace;
+            font-size: 0.82rem;
+            line-height: 1.6;
+        }}
+        .cv-report .cv-head {{ color: {DARK['accent']}; font-weight: 600; }}
+        .cv-report .cv-label {{ color: {DARK['muted']}; }}
+        .cv-report .cv-flag {{ color: {DARK['flag']}; }}
+        .cv-report .cv-info {{ color: {DARK['muted']}; }}
+        .cv-caption {{ color: {DARK['muted']}; font-size: 0.8rem; }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # ---- access gate ------------------------------------------------------
@@ -92,18 +162,61 @@ def _init_state() -> None:
     st.session_state.setdefault('pipeline', None)
     st.session_state.setdefault('metadata', {})
     st.session_state.setdefault('source_name', None)
+    st.session_state.setdefault('source_bytes', None)
+    st.session_state.setdefault('source_path', None)
+    st.session_state.setdefault('source_dir', None)
     st.session_state.setdefault('selected_filter', _ordered_filter_names()[0])
     st.session_state.setdefault('picks', [])
     st.session_state.setdefault('last_tap', None)
+    st.session_state.setdefault('analysis', None)
 
 
 def _load_image(data: bytes, name: str) -> None:
+    # The previous image's temp copy is no longer referenced by anything
+    previous = st.session_state.get('source_dir')
+    if previous:
+        shutil.rmtree(previous, ignore_errors=True)
+
     image = np.array(Image.open(io.BytesIO(data)).convert('RGB'))
     image = image[:, :, ::-1].copy()  # RGB -> BGR, filters are OpenCV-shaped
     st.session_state.pipeline = Pipeline(image)
     st.session_state.metadata = {'filename': name, 'width': image.shape[1],
                                   'height': image.shape[0]}
     st.session_state.source_name = name
+    st.session_state.source_bytes = data
+    st.session_state.source_path = None
+    st.session_state.source_dir = None
+    st.session_state.analysis = None
+    st.session_state.picks = []
+
+
+def _source_file() -> Optional[Path]:
+    """
+    The uploaded bytes as a file on disk, written once per image.
+
+    Metadata and quantisation tables live in the container rather than the
+    pixels, so those checks need the original file - which a browser upload
+    only ever gives us in memory.
+
+    The copy keeps the uploaded name inside a temporary directory of its own,
+    because the metadata report quotes the filename back, and a report headed
+    ``tmp8f3a1.jpg`` is no use as a record of what was examined.
+    """
+    if st.session_state.source_bytes is None:
+        return None
+
+    existing = st.session_state.source_path
+    if existing and Path(existing).exists():
+        return Path(existing)
+
+    directory = Path(tempfile.mkdtemp(prefix='cvtools_'))
+    # Path().name only, so an uploaded name can never point outside it
+    target = directory / Path(st.session_state.source_name or 'image.png').name
+    target.write_bytes(st.session_state.source_bytes)
+
+    st.session_state.source_dir = str(directory)
+    st.session_state.source_path = str(target)
+    return target
 
 
 # ---- parameter form, mirrors gui.widgets.ParameterPanel ----------------
@@ -136,16 +249,34 @@ def _choices_for(spec) -> Dict[str, Any]:
     return merged
 
 
-def _param_form(spec) -> Dict[str, Any]:
-    """Build Streamlit controls from a filter's signature and collect values."""
+def _param_form(spec, container=None, key_prefix: str = 'param') -> Dict[str, Any]:
+    """
+    Build Streamlit controls from a filter's signature and collect values.
+
+    Args:
+        spec: A ``FilterSpec`` or ``AnalysisSpec``
+        container: Where to draw, defaulting to the sidebar
+        key_prefix: Namespace for the widget keys, so a filter and an analysis
+            sharing a parameter name do not share a widget
+
+    Returns:
+        The collected parameters, or None when a required one is still blank
+    """
+    target = container if container is not None else st.sidebar
     signature = inspect.signature(spec.fn)
     parameters = list(signature.parameters.values())[1:]  # skip `image`
+
+    # An analysis can name parameters the form should not offer, such as the
+    # source path, which comes from the loaded file
+    skip = set(getattr(spec, 'skip_params', ()))
+    parameters = [p for p in parameters if p.name not in skip]
+
     choices = _choices_for(spec)
     params: Dict[str, Any] = {}
     missing_required = []
 
     if not parameters:
-        st.caption('No parameters.')
+        target.caption('No parameters.')
         return params
 
     for parameter in parameters:
@@ -153,10 +284,10 @@ def _param_form(spec) -> Dict[str, Any]:
         required = parameter.default is inspect.Parameter.empty
         default = parameter.default if not required else None
         label = name + (' *' if required else '')
-        key = f'param_{spec.name}_{name}'
+        key = f'{key_prefix}_{spec.name}_{name}'
 
         if isinstance(default, bool):
-            params[name] = st.checkbox(label, value=default, key=key)
+            params[name] = target.checkbox(label, value=default, key=key)
             continue
 
         if name in choices:
@@ -165,8 +296,8 @@ def _param_form(spec) -> Dict[str, Any]:
             # accept_new_options keeps the editable-combobox behaviour the
             # Tkinter panel had, so a value the list does not anticipate can
             # still be typed rather than being unreachable
-            value = st.selectbox(label, options, index=index, key=key,
-                                 accept_new_options=True)
+            value = target.selectbox(label, options, index=index, key=key,
+                                     accept_new_options=True)
             if value is None or value == '':
                 if required:
                     missing_required.append(name)
@@ -178,16 +309,18 @@ def _param_form(spec) -> Dict[str, Any]:
             low, high = SLIDER_RANGES[name]
             is_integer = isinstance(default, int)
             if is_integer:
-                params[name] = st.slider(label, int(low), int(high), int(default), key=key)
+                params[name] = target.slider(label, int(low), int(high), int(default),
+                                             key=key)
             else:
-                params[name] = st.slider(label, float(low), float(high), float(default), key=key)
+                params[name] = target.slider(label, float(low), float(high),
+                                             float(default), key=key)
             continue
 
         text_default = '' if default is None else (
             ','.join(str(v) for v in default) if isinstance(default, (tuple, list))
             else str(default)
         )
-        text = st.text_input(label, value=text_default, key=key)
+        text = target.text_input(label, value=text_default, key=key)
         text = text.strip()
         if not text:
             if required:
@@ -196,7 +329,7 @@ def _param_form(spec) -> Dict[str, Any]:
         params[name] = _parse_text(text)
 
     if missing_required:
-        st.warning(f"Required: {', '.join(missing_required)}")
+        target.warning(f"Required: {', '.join(missing_required)}")
         return None
     return params
 
@@ -214,51 +347,97 @@ def _parse_text(text: str) -> Any:
 # ---- sidebar: source + chain -------------------------------------------
 
 def _sidebar() -> None:
-    st.sidebar.header('Source')
+    st.sidebar.markdown('### cv-tools')
+    st.sidebar.caption('Forensic image enhancement, one ordered chain')
 
-    upload = st.sidebar.file_uploader('Upload image', type=[
-        'png', 'jpg', 'jpeg', 'jfif', 'bmp', 'tif', 'tiff', 'webp'])
-    if upload is not None and upload.name != st.session_state.source_name:
-        _load_image(upload.getvalue(), upload.name)
+    with st.sidebar.expander('Source', expanded=st.session_state.pipeline is None):
+        upload = st.file_uploader('Upload image', type=IMAGE_TYPES)
+        if upload is not None and upload.name != st.session_state.source_name:
+            _load_image(upload.getvalue(), upload.name)
+            st.rerun()
 
-    samples = sorted(p.name for p in SAMPLES_DIR.glob('*') if p.suffix.lower()
-                      in ('.png', '.jpg', '.jpeg', '.jfif'))
-    if samples:
-        chosen = st.sidebar.selectbox('...or a sample image', ['(none)'] + samples)
-        if chosen != '(none)' and st.sidebar.button('Load sample'):
-            _load_image((SAMPLES_DIR / chosen).read_bytes(), chosen)
+        samples = sorted(p.name for p in SAMPLES_DIR.glob('*') if p.suffix.lower()
+                          in ('.png', '.jpg', '.jpeg', '.jfif'))
+        if samples:
+            chosen = st.selectbox('...or a sample image', ['(none)'] + samples)
+            if chosen != '(none)' and st.button('Load sample'):
+                _load_image((SAMPLES_DIR / chosen).read_bytes(), chosen)
+                st.rerun()
 
     pipeline: Pipeline = st.session_state.pipeline
     if pipeline is None:
         return
 
-    st.sidebar.divider()
-    st.sidebar.header('Filter chain')
+    _chain_panel(pipeline)
+    _add_filter_panel(pipeline)
+    _preset_panel(pipeline)
 
-    for index, step in enumerate(pipeline.chain, start=1):
-        summary = ', '.join(f'{k}={v}' for k, v in step.params.items())
-        cols = st.sidebar.columns([5, 1])
-        cols[0].write(f'{index}. **{step.name}**  \n`{summary[:60]}`' if summary
-                       else f'{index}. **{step.name}**')
-        if cols[1].button('x', key=f'remove_{index}'):
+
+def _chain_panel(pipeline: Pipeline) -> None:
+    st.sidebar.divider()
+    st.sidebar.markdown(f'**Filter chain** &nbsp; `{len(pipeline)}`',
+                        unsafe_allow_html=True)
+
+    if not pipeline.chain:
+        st.sidebar.markdown('<div class="cv-empty">No filters applied yet.</div>',
+                            unsafe_allow_html=True)
+
+    for index, step in enumerate(pipeline.chain):
+        summary = html.escape(', '.join(f'{k}={v}' for k, v in step.params.items()))
+        cols = st.sidebar.columns([6, 1, 1, 1], vertical_alignment='center')
+        cols[0].markdown(
+            f'<div class="cv-step">{index + 1}. <b>{html.escape(step.name)}</b>'
+            + (f'<br><span class="cv-params">{summary[:70]}</span>' if summary else '')
+            + '</div>',
+            unsafe_allow_html=True)
+
+        # Reordering matters as much as the filters themselves: sharpening
+        # before or after denoising is a different result, and this is the
+        # only way to try both without rebuilding the chain
+        if cols[1].button('↑', key=f'up_{index}', disabled=index == 0,
+                          help='Move earlier'):
+            _reorder(pipeline, index, index - 1)
+        if cols[2].button('↓', key=f'down_{index}',
+                          disabled=index == len(pipeline.chain) - 1,
+                          help='Move later'):
+            _reorder(pipeline, index, index + 1)
+        if cols[3].button('✕', key=f'remove_{index}', help='Remove'):
             chain = pipeline.chain
-            del chain[index - 1]
-            pipeline.replace_chain(chain, filter_function)
-            st.rerun()
+            del chain[index]
+            _replace(pipeline, chain)
 
     action_cols = st.sidebar.columns(3)
-    if action_cols[0].button('Undo', disabled=len(pipeline) == 0):
+    if action_cols[0].button('Undo', disabled=not pipeline.can_undo):
         pipeline.undo()
         st.rerun()
-    if action_cols[1].button('Redo'):
+    if action_cols[1].button('Redo', disabled=not pipeline.can_redo):
         pipeline.redo()
         st.rerun()
-    if action_cols[2].button('Reset'):
+    if action_cols[2].button('Reset', disabled=len(pipeline) == 0):
         pipeline.reset()
         st.rerun()
 
+
+def _reorder(pipeline: Pipeline, index: int, target: int) -> None:
+    chain = pipeline.chain
+    chain[index], chain[target] = chain[target], chain[index]
+    _replace(pipeline, chain)
+
+
+def _replace(pipeline: Pipeline, chain: List[FilterStep]) -> None:
+    """Re-process from the original with a modified chain."""
+    try:
+        pipeline.replace_chain(chain, filter_function)
+    except Exception as exc:
+        # replace_chain restores the previous state on failure, so the
+        # pipeline is still the one that worked
+        st.sidebar.error(str(exc))
+    st.rerun()
+
+
+def _add_filter_panel(pipeline: Pipeline) -> None:
     st.sidebar.divider()
-    st.sidebar.header('Add filter')
+    st.sidebar.markdown('**Add filter**')
 
     query = st.sidebar.text_input('Search filters')
     names = _ordered_filter_names()
@@ -299,20 +478,16 @@ def _sidebar() -> None:
             st.sidebar.error(str(exc))
         st.rerun()
 
-    st.sidebar.divider()
-    st.sidebar.header('Presets')
 
-    preset_file = st.sidebar.file_uploader('Load preset', type=['json'], key='preset_upload')
-    if preset_file is not None and st.sidebar.button('Apply preset'):
-        import json
-        preset = json.loads(preset_file.getvalue())
-        steps = [FilterStep.from_dict(step) for step in preset.get('filters', [])]
-        try:
-            pipeline.replace_chain(steps, filter_function)
-            st.sidebar.success('Preset applied')
-        except Exception as exc:
-            st.sidebar.error(str(exc))
-        st.rerun()
+def _preset_panel(pipeline: Pipeline) -> None:
+    st.sidebar.divider()
+    with st.sidebar.expander('Presets'):
+        preset_file = st.file_uploader('Load preset', type=['json'],
+                                       key='preset_upload')
+        if preset_file is not None and st.button('Apply preset'):
+            preset = json.loads(preset_file.getvalue())
+            steps = [FilterStep.from_dict(step) for step in preset.get('filters', [])]
+            _replace(pipeline, steps)
 
 
 # ---- coordinate grid ---------------------------------------------------
@@ -455,29 +630,22 @@ def _render_picks() -> None:
         st.rerun()
 
 
-# ---- main: viewer + histogram + info -----------------------------------
+# ---- viewer ------------------------------------------------------------
 
-def _main() -> None:
-    st.title('cv-tools dashboard')
-
-    pipeline: Pipeline = st.session_state.pipeline
-    if pipeline is None:
-        st.info('Upload an image or pick a sample from the sidebar to get started.')
-        return
-
+def _viewer_tab(pipeline: Pipeline) -> None:
     original, current = pipeline.compare()
-    view = st.radio('View', ['Processed', 'Original', 'Side by side'],
-                     horizontal=True, label_visibility='collapsed')
 
-    grid_cols = st.columns([2, 1])
-    show_grid = grid_cols[0].checkbox(
+    controls = st.columns([3, 2, 2, 3], vertical_alignment='center')
+    view = controls[0].radio('View', ['Processed', 'Original', 'Side by side'],
+                             horizontal=True, label_visibility='collapsed')
+    show_grid = controls[1].checkbox(
         'Coordinate grid', value=False,
         help='Read x,y off the image for crop, roi_crop, redact, perspective '
              'and measure_3d. Overlay only - the download stays clean.')
-    spacing = grid_cols[1].selectbox('Spacing', [20, 25, 50, 100], index=2,
-                                      disabled=not show_grid)
-
-    tap = st.checkbox(
+    spacing = controls[2].selectbox('Spacing', [20, 25, 50, 100], index=2,
+                                    disabled=not show_grid,
+                                    label_visibility='collapsed')
+    tap = controls[3].checkbox(
         'Tap to pick coordinates', value=False, disabled=not TAP_TO_PICK,
         help='Tap the image to read off x,y for crop, roi_crop, redact, '
              'perspective and measure_3d.' if TAP_TO_PICK else
@@ -504,60 +672,185 @@ def _main() -> None:
     else:
         st.image(shown(current), width='stretch')
 
-    buffer = io.BytesIO()
-    Image.fromarray(to_display(current)[:, :, ::-1]).save(buffer, format='PNG')
-    st.download_button('Download processed PNG', buffer.getvalue(),
-                        file_name='processed.png', mime='image/png')
+    _statistics(pipeline, current)
 
-    col_hist, col_info = st.columns(2)
+
+def _statistics(pipeline: Pipeline, current: np.ndarray) -> None:
+    """Tonal statistics: the tiles first, then the histogram they summarise."""
+    meta = st.session_state.metadata
+    try:
+        stats = histogram_stats(current)
+    except ValueError:
+        stats = None
+
+    tiles = st.columns(4)
+    tiles[0].metric('Size', f"{current.shape[1]} x {current.shape[0]}")
+    tiles[1].metric('Filters applied', len(pipeline))
+    if stats is not None:
+        tiles[2].metric('Dynamic range used', f'{dynamic_range_used(current) * 100:.1f}%')
+        clipped = sum(v['clipped_shadows_pct'] + v['clipped_highlights_pct']
+                      for v in stats['channels'].values()) / len(stats['channels'])
+        # Clipped pixels have lost their values for good, so this is the one
+        # number that says whether enhancement still has anything to work with
+        tiles[3].metric('Clipped', f'{clipped:.2f}%',
+                        help='Mean across channels. Pixels stuck at 0 or 255 have '
+                             'lost their original values, and no enhancement '
+                             'recovers them.')
+
+    col_hist, col_info = st.columns([3, 2])
 
     with col_hist:
-        st.subheader('Histogram')
         try:
-            chart = render_histogram(current, width=480, height=200)
+            chart = render_histogram(current, width=640, height=220,
+                                     background=HISTOGRAM_BACKGROUND)
             st.image(chart, width='stretch')
         except ValueError:
             st.caption('No histogram available.')
 
     with col_info:
-        st.subheader('Source and statistics')
-        meta = st.session_state.metadata
         lines = [f'**{k}**: {v}' for k, v in meta.items()]
-        lines.append(f'**shape**: {current.shape}')
-        lines.append(f'**filters applied**: {len(pipeline)}')
-        try:
-            stats = histogram_stats(current)
-            lines.append(f'**dynamic range used**: {dynamic_range_used(current) * 100:.1f}%')
+        if stats is not None:
             for name, values in stats['channels'].items():
-                clipped = values['clipped_shadows_pct'] + values['clipped_highlights_pct']
                 lines.append(f'**{name}**: mean {values["mean"]:.1f}, '
-                              f'std {values["std"]:.1f}, clipped {clipped:.2f}%')
-        except ValueError:
-            pass
+                              f'std {values["std"]:.1f}, clipped '
+                              f'{values["clipped_shadows_pct"] + values["clipped_highlights_pct"]:.2f}%')
         st.markdown('  \n'.join(lines))
 
-    st.divider()
-    exp_cols = st.columns(3)
 
-    if exp_cols[0].button('Export preset (JSON)'):
-        import json
-        preset = {
-            'name': f'preset_{st.session_state.source_name or "image"}',
-            'filters': [step.to_dict() for step in pipeline.chain],
-        }
-        st.download_button('Download preset.json', json.dumps(preset, indent=2),
-                            file_name='preset.json', mime='application/json',
-                            key='preset_dl')
+# ---- analysis ----------------------------------------------------------
 
-    if exp_cols[1].button('Export report (Markdown)'):
-        report = ReportGenerator(pipeline.generate_report(), st.session_state.metadata)
-        md_path = Path('_dashboard_report.md')
-        report.save(str(md_path), format='markdown')
-        st.download_button('Download report.md', md_path.read_text(encoding='utf-8'),
-                            file_name='report.md', mime='text/markdown', key='report_dl')
-        md_path.unlink(missing_ok=True)
+def _analysis_tab(pipeline: Pipeline) -> None:
+    """
+    The measurements that describe an image without changing it.
+
+    Driven by ``ANALYSIS_REGISTRY``, so this shows the same reports the CLI
+    prints - and a report added to the registry appears here with no work in
+    this file.
+    """
+    st.caption('Measurements, not conclusions. Each report ends with what it '
+               'cannot tell you.')
+
+    left, right = st.columns([1, 2])
+
+    with left:
+        name = st.selectbox('Report', list(ANALYSIS_REGISTRY),
+                            format_func=lambda n: ANALYSIS_REGISTRY[n].title,
+                            key='analysis_name')
+        spec = resolve_analysis(name)
+        st.caption(spec.description)
+
+        params = _param_form(spec, container=st, key_prefix='analysis')
+        source = _source_file()
+
+        blocked = spec.needs_path and source is None
+        if blocked:
+            st.info(f"'{spec.name}' reads the file itself rather than the pixels, "
+                    f"so it needs an uploaded or sample image.")
+
+        if st.button('Run report', type='primary',
+                     disabled=params is None or blocked):
+            with st.spinner(f'Running {spec.name}...'):
+                try:
+                    report = run_analysis(spec, image=pipeline.current,
+                                          path=source, params=params)
+                    st.session_state.analysis = (spec.name,
+                                                 render_report(spec, report))
+                except Exception as exc:
+                    st.session_state.analysis = None
+                    st.error(str(exc))
+
+    with right:
+        result = st.session_state.analysis
+        if result is None:
+            st.markdown('<div class="cv-empty">Run a report to see it here.</div>',
+                        unsafe_allow_html=True)
+            return
+        st.markdown(_report_html(result[1]), unsafe_allow_html=True)
 
 
+def _report_html(rows) -> str:
+    """
+    Render report rows, colouring each by its severity.
+
+    Report values quote the file's own strings - a Software tag, an XMP
+    fragment - so every one of them is escaped before it reaches the page.
+    """
+    parts = ['<div class="cv-report">']
+    for row in rows:
+        if row.indent < 0:                      # the report's header line
+            parts.append(f'<div class="cv-head">{html.escape(row.value)}</div>')
+            continue
+
+        pad = '&nbsp;' * (4 * (row.indent + 1))
+        severity = f' class="cv-{row.severity}"' if row.severity else ''
+        label = (f'<span class="cv-label">{html.escape(row.label)}:</span> '
+                 if row.label else '')
+        parts.append(f'<div>{pad}{label}'
+                     f'<span{severity}>{html.escape(row.value)}</span></div>')
+    parts.append('</div>')
+    return ''.join(parts)
+
+
+# ---- export ------------------------------------------------------------
+
+def _export_tab(pipeline: Pipeline) -> None:
+    name = Path(st.session_state.source_name or 'image').stem
+
+    buffer = io.BytesIO()
+    Image.fromarray(to_display(pipeline.current)[:, :, ::-1]).save(buffer, format='PNG')
+
+    preset = {
+        'name': f'preset_{st.session_state.source_name or "image"}',
+        'filters': [step.to_dict() for step in pipeline.chain],
+    }
+    report = ReportGenerator(pipeline.generate_report(), st.session_state.metadata)
+
+    cols = st.columns(4)
+    cols[0].download_button('Processed PNG', buffer.getvalue(),
+                            file_name=f'{name}_processed.png', mime='image/png',
+                            width='stretch')
+    cols[1].download_button('Preset (JSON)', json.dumps(preset, indent=2),
+                            file_name=f'{name}_preset.json',
+                            mime='application/json', width='stretch')
+    cols[2].download_button('Report (Markdown)', report.to_markdown(),
+                            file_name=f'{name}_report.md', mime='text/markdown',
+                            width='stretch')
+    cols[3].download_button('Report (JSON)', json.dumps(report.to_dict(), indent=2),
+                            file_name=f'{name}_report.json',
+                            mime='application/json', width='stretch')
+
+    st.caption('A preset saved here replays in the CLI and the desktop GUI: '
+               'the chain, not the pixels, is the record of what was done.')
+    st.markdown('#### Processing report')
+    st.markdown(report.to_markdown())
+
+
+# ---- main --------------------------------------------------------------
+
+def _main() -> None:
+    pipeline: Pipeline = st.session_state.pipeline
+    if pipeline is None:
+        st.title('cv-tools dashboard')
+        st.info('Upload an image or pick a sample from the sidebar to get started.')
+        return
+
+    header = st.columns([4, 1], vertical_alignment='center')
+    header[0].markdown(f"#### {st.session_state.source_name or 'Untitled'}")
+    header[1].markdown(
+        f'<div class="cv-caption" style="text-align:right">'
+        f'{len(pipeline)} filter{"" if len(pipeline) == 1 else "s"} applied</div>',
+        unsafe_allow_html=True)
+
+    viewer, analysis, export = st.tabs(['Viewer', 'Analysis', 'Export'])
+    with viewer:
+        _viewer_tab(pipeline)
+    with analysis:
+        _analysis_tab(pipeline)
+    with export:
+        _export_tab(pipeline)
+
+
+_inject_css()
 _require_auth()
 _init_state()
 _sidebar()

@@ -17,6 +17,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from ..utils.parsing import parse_value
+from .theme import DARK, FONT_BOLD
 
 # Sliders need a range, and a signature does not carry one. These cover the
 # numeric parameters that recur across the filter set; anything unlisted falls
@@ -127,9 +128,10 @@ class ImageCanvas(ttk.Frame):
     compares far better across an edge than across a gap.
     """
 
-    def __init__(self, master, **kwargs):
+    def __init__(self, master, palette: Optional[Dict[str, str]] = None, **kwargs):
         super().__init__(master, **kwargs)
 
+        self.palette = palette or DARK
         self._original: Optional[np.ndarray] = None
         self._processed: Optional[np.ndarray] = None
         self._photo: Optional[ImageTk.PhotoImage] = None
@@ -139,8 +141,9 @@ class ImageCanvas(ttk.Frame):
         self.fit_to_window = True
         self._split = 0.5
         self._dragging_split = False
+        self._display_size = (1, 1)
 
-        self.canvas = tk.Canvas(self, bg='#1e1e20', highlightthickness=0,
+        self.canvas = tk.Canvas(self, bg=self.palette['canvas'], highlightthickness=0,
                                 cursor='crosshair')
         x_scroll = ttk.Scrollbar(self, orient='horizontal', command=self.canvas.xview)
         y_scroll = ttk.Scrollbar(self, orient='vertical', command=self.canvas.yview)
@@ -156,8 +159,14 @@ class ImageCanvas(ttk.Frame):
         self.canvas.bind('<Button-1>', self._on_press)
         self.canvas.bind('<B1-Motion>', self._on_drag)
         self.canvas.bind('<ButtonRelease-1>', self._on_release)
+        # Ctrl+wheel zooms, plain wheel scrolls - the convention every image
+        # viewer uses, and the only way to zoom without leaving the image
+        self.canvas.bind('<Control-MouseWheel>', self._on_wheel_zoom)
+        self.canvas.bind('<MouseWheel>', self._on_wheel_scroll)
+        self.canvas.bind('<Shift-MouseWheel>', self._on_wheel_pan)
 
         self.on_pixel: Optional[Callable[[int, int], None]] = None
+        self.on_zoom: Optional[Callable[[float], None]] = None
 
     # ---- content ----
 
@@ -230,7 +239,7 @@ class ImageCanvas(ttk.Frame):
                 self.canvas.winfo_width() // 2 or 200,
                 self.canvas.winfo_height() // 2 or 150,
                 text='Open an image to begin  (Ctrl+O)',
-                fill='#8a8a90', font=('Segoe UI', 11),
+                fill=self.palette['muted'], font=('Segoe UI', 11),
             )
             return
 
@@ -252,11 +261,18 @@ class ImageCanvas(ttk.Frame):
         self._photo = ImageTk.PhotoImage(Image.fromarray(scaled))
         self.canvas.create_image(0, 0, anchor='nw', image=self._photo)
         self.canvas.configure(scrollregion=(0, 0, display_w, display_h))
+        self._display_size = (display_w, display_h)
+
+        if self.on_zoom is not None:
+            self.on_zoom(self.zoom)
 
         if self.mode.get() in ('split', 'side by side'):
             for text, x in (('ORIGINAL', 8), ('PROCESSED', display_w // 2 + 8)):
+                # Drawn on the image, so these stay white in either theme
+                self.canvas.create_text(x + 1, 9, text=text, anchor='nw',
+                                        fill='#000000', font=FONT_BOLD)
                 self.canvas.create_text(x, 8, text=text, anchor='nw',
-                                        fill='#ffffff', font=('Segoe UI', 9, 'bold'))
+                                        fill='#ffffff', font=FONT_BOLD)
 
     # ---- interaction ----
 
@@ -286,6 +302,29 @@ class ImageCanvas(ttk.Frame):
 
     def _on_release(self, _event) -> None:
         self._dragging_split = False
+
+    def _on_wheel_zoom(self, event) -> None:
+        """Zoom about the pointer, so the pixel under it stays put."""
+        if self._processed is None:
+            return
+        before_x = self.canvas.canvasx(event.x) / max(self.zoom, 1e-6)
+        before_y = self.canvas.canvasy(event.y) / max(self.zoom, 1e-6)
+
+        step = 1.25 if event.delta > 0 else 1 / 1.25
+        self.set_zoom(self.zoom * step)
+
+        display_w, display_h = self._display_size
+        self.canvas.xview_moveto(
+            max(0.0, before_x * self.zoom - event.x) / max(display_w, 1))
+        self.canvas.yview_moveto(
+            max(0.0, before_y * self.zoom - event.y) / max(display_h, 1))
+
+    def _on_wheel_scroll(self, event) -> None:
+        self.canvas.yview_scroll(-1 if event.delta > 0 else 1, 'units')
+
+    def _on_wheel_pan(self, event) -> None:
+        self.canvas.xview_scroll(-1 if event.delta > 0 else 1, 'units')
+
 
 
 class ParameterPanel(ttk.Frame):
@@ -328,11 +367,16 @@ class ParameterPanel(ttk.Frame):
         self._body.columnconfigure(1, weight=1)
 
         ttk.Label(self._body, text=spec.description, wraplength=250,
-                  foreground='#4a4a52').grid(row=0, column=0, columnspan=2,
+                  style='Muted.TLabel').grid(row=0, column=0, columnspan=2,
                                              sticky='w', pady=(0, 8))
 
         signature = inspect.signature(spec.fn)
         parameters = list(signature.parameters.values())[1:]   # skip `image`
+
+        # An analysis spec can name parameters the form should not offer, such
+        # as the source path, which comes from the loaded file
+        skip = set(getattr(spec, 'skip_params', ()))
+        parameters = [p for p in parameters if p.name not in skip]
 
         if not parameters:
             ttk.Label(self._body, text='No parameters.').grid(

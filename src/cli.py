@@ -21,12 +21,8 @@ from .core.loader import ImageLoader, save_image
 from .core.pipeline import Pipeline
 from .core.report import ReportGenerator
 from .filters.aspect_ratio import PIXEL_ASPECT_RATIOS
-from .filters.clone_detection import detect_copy_move
-from .filters.compression_analysis import compression_report
+from .filters.analysis import report_lines, resolve_analysis, run_analysis
 from .filters.curves import curve_from_string
-from .filters.ela import ela_stats
-from .filters.jpeg_ghost import ghost_report
-from .filters.metadata_forensics import metadata_report
 from .filters.perspective_correction import KNOWN_RATIOS
 from .filters.frame_averaging import (
     average_frames,
@@ -35,7 +31,6 @@ from .filters.frame_averaging import (
     sharpest_frames,
 )
 from .filters.histogram import dynamic_range_used, histogram_stats, render_histogram
-from .filters.noise_analysis import noise_report
 from .filters.registry import resolve_filter, list_filters
 from .filters.roi import ROI, analyze_roi
 from .utils.compare import side_by_side
@@ -796,108 +791,28 @@ def combine_frames(frames: List[np.ndarray], method: str) -> np.ndarray:
     raise ValueError(f"Unknown frame method: {method}")
 
 
-def print_noise_stats(report: Dict[str, Any]) -> None:
-    """Print the noise report, flagging non-uniform noise across the frame."""
-    print("Noise analysis:")
-    print(f"  global sigma: {report['noise_sigma']:.2f}")
-    snr = report['snr_db']
-    print(f"  SNR: {'infinite' if snr == float('inf') else f'{snr:.1f} dB'}")
-    blocks = report['blocks']
-    print(f"  blocks: {blocks['rows']}x{blocks['cols']} of {report['block_size']}px, "
-          f"mean={report['block_mean']:.2f} std={report['block_std']:.2f}")
-    print(f"  uniformity: {report['uniformity']:.2f} "
-          f"({'uneven - inspect' if report['uniformity'] > 0.6 else 'fairly even'})")
-    noisiest = report['noisiest_block']
-    quietest = report['quietest_block']
-    print(f"  noisiest block at ({noisiest['x']}, {noisiest['y']}): "
-          f"sigma={noisiest['sigma']:.2f}")
-    print(f"  quietest block at ({quietest['x']}, {quietest['y']}): "
-          f"sigma={quietest['sigma']:.2f}")
+def print_analysis(
+    name: str,
+    image: Optional[np.ndarray] = None,
+    path: Optional[Path] = None,
+    params: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Run one registered analysis and print its report.
 
+    The header, the rows and the caveat all come from ``filters.analysis``, so
+    this prints exactly what the GUI and the dashboard show.
 
-def print_ela_stats(stats: Dict[str, Any]) -> None:
-    """Print ELA block statistics with the usual interpretation caveat."""
-    print(f"Error Level Analysis (JPEG quality {stats['quality']}, "
-          f"{stats['block_size']}px blocks):")
-    print(f"  mean error: {stats['mean_error']:.2f}, max: {stats['max_error']:.2f}")
-    print(f"  block mean: {stats['block_mean']:.2f}, std: {stats['block_std']:.2f}")
-    hottest = stats['hottest_block']
-    print(f"  hottest block at ({hottest['x']}, {hottest['y']}): "
-          f"mean={hottest['mean_error']:.2f}, z-score={hottest['z_score']:.2f}")
-    print("  note: only meaningful on JPEG originals; texture raises error levels too")
-
-
-def print_clone_stats(result: Dict[str, Any]) -> None:
-    """Print copy-move detection results."""
-    print("Copy-move detection:")
-    print(f"  blocks analyzed: {result['blocks_analyzed']} "
-          f"({result['blocks_skipped']} skipped as featureless)")
-    if not result['detected']:
-        print("  no duplicated regions found")
-        return
-    print(f"  duplicated regions found: {result['match_count']} matching block pairs")
-    for shift in result['shifts'][:5]:
-        print(f"    shift dx={shift['dx']:+d} dy={shift['dy']:+d}: "
-              f"{shift['matches']} pairs")
-    print("  note: genuine repetition (tiles, windows, text) also matches")
-
-
-def print_compression_stats(report: Dict[str, Any]) -> None:
-    """Print blocking measures and any JPEG quality read from the file."""
-    print("Compression analysis:")
-    print(f"  blockiness: {report['blockiness']:.1f}/100 "
-          f"(boundary step {report['boundary_step']:.2f} vs "
-          f"interior {report['interior_step']:.2f})")
-    print(f"  likely JPEG-compressed: {'yes' if report['likely_jpeg'] else 'no'}")
-    print(f"  region uniformity: {report['region_uniformity']:.2f}")
-
-    quality = report.get('jpeg_quality')
-    if quality:
-        print(f"  quantisation tables: {quality['tables']}, "
-              f"estimated quality {quality['quality']}")
-    elif 'jpeg_quality' in report:
-        print("  no quantisation tables (not a JPEG, or already re-saved)")
-
-    print("  note: blocking indicates compression strength, not manipulation")
-
-
-def print_ghost_stats(report: Dict[str, Any]) -> None:
-    """Print JPEG ghost detection results."""
-    print(f"JPEG ghost detection (qualities {report['qualities'][0]}-{report['qualities'][-1]}, "
-          f"{report['block_size']}px blocks):")
-    print(f"  dominant quality: {report['dominant_quality']}")
-    print(f"  outlier blocks: {report['outlier_count']} "
-          f"({report['outlier_fraction'] * 100:.1f}% of blocks)")
-    for outlier in report['outliers'][:5]:
-        print(f"    block at ({outlier['x']}, {outlier['y']}): "
-              f"best match quality {outlier['quality']}")
-    print("  note: only meaningful on a single-JPEG composite; any re-save erases it")
-
-
-def print_metadata_stats(report: Dict[str, Any]) -> None:
-    """Print metadata findings, most serious first."""
-    print(f"Metadata forensics ({report['filename']}):")
-    if report['has_exif']:
-        print(f"  EXIF: {report['exif_tag_count']} tags, "
-              f"camera {report['make'] or '?'} {report['model'] or '?'}")
-        print(f"  software: {report['software'] or 'not recorded'}")
-        print(f"  captured: {report['datetime_original'] or 'not recorded'}, "
-              f"last written: {report['datetime_modified'] or 'not recorded'}")
-    else:
-        print("  EXIF: none")
-    if report['has_thumbnail']:
-        print("  embedded thumbnail: present")
-    if report['segments']:
-        print(f"  segments: {', '.join(report['segments'])}")
-
-    findings = sorted(report['findings'], key=lambda f: f['severity'] != 'flag')
-    if not findings:
-        print("  nothing inconsistent found")
-    for finding in findings:
-        marker = 'FLAG' if finding['severity'] == 'flag' else 'info'
-        print(f"  [{marker}] {finding['check']}: {finding['detail']}")
-
-    print("  note: metadata is trivially edited or stripped; a clean header proves nothing")
+    Args:
+        name: Registry name of the analysis
+        image: Image to measure, for analyses that read pixels
+        path: Source file, for analyses that read the container
+        params: Extra keyword arguments for the analysis function
+    """
+    spec = resolve_analysis(name)
+    report = run_analysis(spec, image=image, path=path, params=params)
+    for line in report_lines(spec, report):
+        print(line)
 
 
 def resolve_batch_output(
@@ -977,24 +892,24 @@ def run_one(
         print_histogram_stats(histogram_stats(result), dynamic_range_used(result))
 
     if args.noise_stats:
-        print_noise_stats(noise_report(result))
+        print_analysis('noise', result)
 
     if args.ela_stats:
-        print_ela_stats(ela_stats(result, quality=args.ela_stats))
+        print_analysis('ela', result, params={'quality': args.ela_stats})
 
     if args.clone_stats:
-        print_clone_stats(detect_copy_move(result))
+        print_analysis('clone', result)
 
     if args.compression_stats:
-        print_compression_stats(compression_report(result, path=path))
+        print_analysis('compression', result, path=path)
 
     if args.ghost_stats:
-        print_ghost_stats(ghost_report(result))
+        print_analysis('ghost', result)
 
     # Reads the source file's header, so it describes the input rather than
     # whatever the chain produced
     if args.metadata_stats:
-        print_metadata_stats(metadata_report(path))
+        print_analysis('metadata', path=path)
 
     try:
         if output_path is not None:

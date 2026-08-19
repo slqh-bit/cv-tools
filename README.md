@@ -391,10 +391,10 @@ python -m src.gui samples/cctv_dark.png
 
 | Panel | What it does |
 |---|---|
-| Left | The filter chain, with reorder and remove; below it a searchable list of all 66 filters |
-| Centre | Image viewer — processed, original, **split**, or side-by-side, with fit/100%/200%/400% zoom |
-| Right | Parameters for the selected filter, generated from its signature |
-| Bottom | Live histogram, source metadata with SHA-256, and per-channel clipping |
+| Left | The filter chain, with reorder, duplicate and remove; below it the filter picker, grouped by family and searchable |
+| Centre | Image viewer — processed, original, **split**, or side-by-side, with fit/100%/200%/400% and Ctrl+wheel zoom |
+| Right | Parameters for the selected filter — or for the selected chain step, to correct it in place |
+| Bottom | **Statistics**: live histogram, source metadata with SHA-256, per-channel clipping. **Analysis**: the forensic reports |
 
 The split view puts the original left of a draggable divider and the processed image right
 of it — the eye compares far better across an edge than across a gap. Magnified views use
@@ -403,9 +403,66 @@ nearest-neighbour so you see the actual pixels rather than a smoothed guess.
 The parameter forms are built by introspecting each filter's signature, so every registered
 filter has a working panel and a filter added later needs no GUI work.
 
+Selecting a step in the chain loads its own parameters into the panel; **Update selected
+step** re-applies it and re-processes everything after it, so an early value can be
+corrected without rebuilding the chain by hand.
+
+The window is dark by default — a bright surround biases the eye when judging shadow
+detail, which is most of what a CCTV frame is. *View → Theme* switches to light.
+
 Everything runs through the same `Pipeline` and registry the CLI uses, so undo/redo,
 reordering, presets and reports behave identically — **a preset saved in the GUI replays in
 the CLI and vice versa**.
+
+### Analysis reports
+
+The bottom **Analysis** tab runs the measurements that describe an image without changing
+it — the same six the CLI prints, from the same registry:
+
+| Report | Reads | What it measures |
+|---|---|---|
+| `noise` | pixels | Noise sigma, SNR, and how evenly noise is spread across the frame |
+| `ela` | pixels | Block-level recompression error and its outliers |
+| `clone` | pixels | Duplicated regions and the shifts relating them |
+| `compression` | pixels + file | Blocking measures, plus the quality read from the JPEG's own tables |
+| `ghost` | pixels | Per-block prior JPEG quality, and the blocks that disagree |
+| `metadata` | file | EXIF tags, JPEG segments, and the contradictions between them |
+
+Findings worth investigating are coloured; every report ends with a note saying what it
+cannot tell you. `compression` and `metadata` read the container rather than the pixels, so
+they describe the file that was opened, not the chain's output.
+
+Adding an entry to `filters.analysis.ANALYSIS_REGISTRY` makes it appear in the CLI, the GUI
+and the dashboard at once — none of the three front ends names the reports individually.
+
+## Dashboard
+
+The same tool in a browser, for a phone or a machine without a display:
+
+```bash
+pip install -r requirements.txt -r requirements-dashboard.txt
+streamlit run src/dashboard.py
+```
+
+| Tab | What it does |
+|---|---|
+| Viewer | Processed / original / side-by-side, coordinate grid or tap-to-pick, histogram and stat tiles |
+| Analysis | The reports above, run on demand |
+| Export | Processed PNG, preset JSON, and the processing report as Markdown or JSON |
+
+The sidebar holds the source, the chain (reorder, remove, undo/redo) and the filter picker,
+grouped by family exactly as the desktop GUI groups it.
+
+A browser hands over bytes rather than a file, so the dashboard writes the upload to a
+temporary copy under its own name — `metadata` and `compression` need the container, and a
+report headed `tmp8f3a1.jpg` is no use as a record of what was examined.
+
+Since a browser cannot report the pixel under the cursor the way the desktop viewer does,
+the coordinate grid draws the numbers into the displayed image, and tap-to-pick reads them
+off a tap. Both are display-only; the download stays clean.
+
+Set `CVTOOLS_PASSWORD` to put a password gate in front of the app before publishing it over
+a tunnel.
 
 ## Library Usage
 
@@ -485,14 +542,15 @@ To append a preset on top of the current chain instead of replacing it, use
 python -m unittest discover -s tests -t .
 ```
 
-623 tests. Run one file or one case:
+716 tests. Run one file or one case:
 
 ```bash
 python -m unittest tests.test_forensic
 python -m unittest tests.test_filters.TestClahe.test_increases_contrast -v
 ```
 
-The GUI tests skip automatically where Tkinter has no display.
+The GUI tests skip automatically where Tkinter has no display, and the dashboard tests
+where Streamlit is not installed.
 
 ## Trying every filter
 
@@ -518,10 +576,12 @@ history, and comes out uniformly white on a never-compressed PNG.
 cv-tools/
 ├── src/
 │   ├── core/         # Pipeline engine, loader, report
-│   ├── filters/      # Image processing filters + name registry
+│   ├── filters/      # Image processing filters + filter and analysis registries
 │   ├── gui/          # Optional Tkinter interface
 │   ├── utils/        # Argument parsing, comparison rendering
-│   └── cli.py        # Command-line interface
+│   ├── cli.py        # Command-line interface
+│   └── dashboard.py  # Optional Streamlit web interface
+├── .streamlit/       # Dashboard theme
 ├── tests/            # Unit tests
 ├── samples/          # Sample image and video generator
 └── docs/             # Filter parameter reference
@@ -540,7 +600,7 @@ cv-tools/
   aspect ratio, calibration-based undistort; compression analysis; colour deconvolution,
   component separation, redaction, annotation and measurement
 
-- **GUI (done)** — the Phase 5 Tkinter interface
+- **GUI (done)** — the Phase 5 Tkinter interface, and the Streamlit dashboard beside it
 
 **The plan is complete**: all 40 catalogue filters across 66 registered chain filters, the
 core engine, CLI, preset and report systems, batch and multi-frame processing, and the

@@ -24,7 +24,13 @@ except Exception as exc:            # pragma: no cover - environment dependent
     TK_ERROR = str(exc)
 
 from src.core import FilterStep, Pipeline
-from src.filters import FILTER_REGISTRY, apply_clahe, resolve_filter
+from src.filters import (
+    ANALYSIS_REGISTRY,
+    CATEGORY_ORDER,
+    FILTER_REGISTRY,
+    apply_clahe,
+    resolve_filter,
+)
 
 
 def sample_image(height: int = 48, width: int = 64) -> np.ndarray:
@@ -245,25 +251,56 @@ class TestApp(unittest.TestCase):
         self.app.destroy()
 
     def _select(self, name: str) -> None:
-        names = sorted(FILTER_REGISTRY)
+        # The list is grouped by family, so a row's index is not the filter's
+        # position in a sorted registry; _filter_rows maps rows to names
         self.app.filter_list.selection_clear(0, 'end')
-        self.app.filter_list.selection_set(names.index(name))
+        self.app.filter_list.selection_set(self.app._filter_rows.index(name))
         self.app._on_filter_selected()
 
+    def _listed(self) -> list:
+        return [name for name in self.app._filter_rows if name is not None]
+
     def test_filter_list_holds_every_registered_filter(self):
-        listed = set(self.app.filter_list.get(0, 'end'))
-        self.assertEqual(listed, set(FILTER_REGISTRY))
+        self.assertEqual(set(self._listed()), set(FILTER_REGISTRY))
+
+    def test_filter_list_is_grouped_by_family(self):
+        rows = list(self.app.filter_list.get(0, 'end'))
+        headings = [row.strip() for row, name in zip(rows, self.app._filter_rows)
+                    if name is None]
+        self.assertEqual(headings, [c.upper() for c in CATEGORY_ORDER])
+
+        # Every filter sits under the heading for its own family
+        current = None
+        for row, name in zip(rows, self.app._filter_rows):
+            if name is None:
+                current = row.strip().title()
+            else:
+                self.assertEqual(FILTER_REGISTRY[name].category, current)
+
+    def test_category_narrows_the_list(self):
+        self.app.category.set('Forensic')
+        self.app._refresh_filter_list()
+        categories = {FILTER_REGISTRY[name].category for name in self._listed()}
+        self.assertEqual(categories, {'Forensic'})
+
+    def test_headings_cannot_be_selected_as_filters(self):
+        self.app._selected_filter = None
+        heading = self.app._filter_rows.index(None)
+        self.app.filter_list.selection_set(heading)
+        self.app._on_filter_selected()
+
+        self.assertIsNone(self.app._selected_filter)
+        self.assertEqual(self.app.filter_list.curselection(), ())
 
     def test_search_filters_the_list(self):
         self.app.search.set('clahe')
         self.app.update_idletasks()
-        self.assertEqual(list(self.app.filter_list.get(0, 'end')), ['clahe'])
+        self.assertEqual(self._listed(), ['clahe'])
 
     def test_search_matches_descriptions_too(self):
         self.app.search.set('wiener')
         self.app.update_idletasks()
-        listed = list(self.app.filter_list.get(0, 'end'))
-        self.assertIn('deblur_motion', listed)
+        self.assertIn('deblur_motion', self._listed())
 
     def test_apply_adds_to_the_chain(self):
         self._select('clahe')
@@ -323,6 +360,101 @@ class TestApp(unittest.TestCase):
         self.app.chain_list.selection_set(0)
         self.app.move_up()
         self.assertEqual(len(self.app.pipeline), 1)
+
+    def test_duplicate_step_repeats_it_in_place(self):
+        self._select('clahe')
+        self.app.apply_filter()
+        self.app.chain_list.selection_set(0)
+        self.app.duplicate_step()
+
+        self.assertEqual([s.name for s in self.app.pipeline.chain],
+                         ['clahe', 'clahe'])
+        self.assertEqual(self.app.pipeline.chain[0].params,
+                         self.app.pipeline.chain[1].params)
+
+    def test_selecting_a_step_loads_its_own_parameters(self):
+        self._select('contrast_brightness')
+        self.app.parameters._entries['brightness']['var'].set(40.0)
+        self.app.apply_filter()
+
+        self.app.chain_list.selection_set(0)
+        self.app._on_step_selected()
+
+        self.assertEqual(self.app._editing_step, 0)
+        self.assertAlmostEqual(
+            self.app.parameters._entries['brightness']['var'].get(), 40.0, places=3)
+        self.assertIn('Step 1', self.app.parameter_title.cget('text'))
+
+    def test_updating_a_step_reprocesses_rather_than_appending(self):
+        self._select('contrast_brightness')
+        self.app.parameters._entries['brightness']['var'].set(20.0)
+        self.app.apply_filter()
+        before = self.app.pipeline.current.copy()
+
+        self.app.chain_list.selection_set(0)
+        self.app._on_step_selected()
+        self.app.parameters._entries['brightness']['var'].set(90.0)
+        self.app.update_step()
+
+        self.assertEqual(len(self.app.pipeline), 1)
+        self.assertEqual(self.app.pipeline.chain[0].params['brightness'], 90.0)
+        self.assertFalse(np.array_equal(self.app.pipeline.current, before))
+
+    def test_a_step_edit_does_not_survive_selecting_a_filter(self):
+        self._select('clahe')
+        self.app.apply_filter()
+        self.app.chain_list.selection_set(0)
+        self.app._on_step_selected()
+
+        self._select('invert')
+        self.assertIsNone(self.app._editing_step)
+
+    def test_analysis_tab_offers_every_registered_report(self):
+        box_values = self.app.analysis_name.get()
+        self.assertIn(box_values, ANALYSIS_REGISTRY)
+
+        for name in ANALYSIS_REGISTRY:
+            with self.subTest(analysis=name):
+                self.app.analysis_name.set(name)
+                self.app._on_analysis_selected()
+                self.assertIsNotNone(self.app.analysis_params._body)
+
+    def test_running_a_report_shows_it_with_its_caveat(self):
+        self.app.analysis_name.set('noise')
+        self.app._on_analysis_selected()
+        self.app.run_selected_analysis()
+
+        text = self.app.analysis_text.get('1.0', 'end')
+        self.assertIn('Noise analysis:', text)
+        self.assertIn('global sigma', text)
+        self.assertIn('note:', text)
+
+    def test_a_report_needing_the_file_says_so_when_there_is_none(self):
+        # The image was set directly in setUp, as an upload would be, so there
+        # is no file for the metadata check to read
+        self.app.source_path = None
+        self.app.analysis_name.set('metadata')
+        self.app._on_analysis_selected()
+        self.app.run_selected_analysis()
+
+        self.messagebox.showinfo.assert_called_once()
+        self.assertEqual(self.app.analysis_text.get('1.0', 'end').strip(), '')
+
+    def test_theme_switch_recolours_every_kind_of_widget(self):
+        from src.gui.theme import LIGHT
+
+        self.app.set_theme('light')
+        self.assertEqual(self.app.palette, LIGHT)
+        self.assertEqual(self.app.filter_list.cget('background'), LIGHT['field'])
+        self.assertEqual(self.app.info_text.cget('background'), LIGHT['field'])
+        self.assertEqual(self.app.viewer.canvas.cget('background'), LIGHT['canvas'])
+        # The info panel is read-only, and has to stay that way afterwards
+        self.assertEqual(str(self.app.info_text.cget('state')), 'disabled')
+
+    def test_zoom_readout_follows_the_viewer(self):
+        self.app._refresh()
+        self.app._set_zoom(2.0)
+        self.assertEqual(self.app.zoom_label.cget('text'), '200%')
 
     def test_preset_roundtrip_matches_the_cli_format(self):
         self._select('clahe')

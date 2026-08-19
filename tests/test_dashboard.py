@@ -1,0 +1,127 @@
+"""
+Unit tests for the web dashboard.
+
+Streamlit is an optional dependency (requirements-dashboard.txt), so the whole
+module skips where it is absent rather than failing. ``AppTest`` runs the
+script the way the server would and surfaces anything it raised, which is what
+these tests assert on: the dashboard drives the shared Pipeline and registries,
+so what is checked here is the wiring, not the filters.
+"""
+
+import unittest
+from pathlib import Path
+
+try:
+    from streamlit.testing.v1 import AppTest
+    STREAMLIT_AVAILABLE = True
+    STREAMLIT_ERROR = ''
+except Exception as exc:            # pragma: no cover - environment dependent
+    STREAMLIT_AVAILABLE = False
+    STREAMLIT_ERROR = str(exc)
+
+DASHBOARD = Path(__file__).resolve().parent.parent / 'src' / 'dashboard.py'
+SAMPLE = 'cctv_dark.png'
+
+
+def button(app, label: str):
+    """The button carrying a label; they have no keys of their own."""
+    return next(b for b in app.button if b.label == label)
+
+
+@unittest.skipUnless(STREAMLIT_AVAILABLE, f'Streamlit unavailable: {STREAMLIT_ERROR}')
+class TestDashboard(unittest.TestCase):
+
+    def _app(self, with_image: bool = True):
+        app = AppTest.from_file(str(DASHBOARD), default_timeout=180)
+        app.run()
+        if with_image:
+            app.selectbox[0].select(SAMPLE).run()
+            button(app, 'Load sample').click().run()
+            self.assertEqual(app.exception, [])
+        return app
+
+    def test_starts_without_an_image(self):
+        app = self._app(with_image=False)
+        self.assertEqual(app.exception, [])
+        self.assertTrue(any('Upload an image' in info.value for info in app.info))
+
+    def test_loading_a_sample_builds_a_pipeline(self):
+        app = self._app()
+        self.assertIsNotNone(app.session_state.pipeline)
+        self.assertEqual(app.session_state.source_name, SAMPLE)
+        self.assertEqual(len(app.tabs), 3)
+
+    def test_statistics_tiles_describe_the_current_image(self):
+        app = self._app()
+        tiles = {metric.label: metric.value for metric in app.metric}
+        self.assertEqual(tiles['Size'], '640 x 480')
+        self.assertEqual(tiles['Filters applied'], '0')
+        self.assertIn('Dynamic range used', tiles)
+
+    def test_applying_a_filter_adds_it_to_the_chain(self):
+        app = self._app()
+        app.selectbox(key='selected_filter').select('clahe').run()
+        button(app, 'Apply filter').click().run()
+
+        self.assertEqual(app.exception, [])
+        self.assertEqual([s.name for s in app.session_state.pipeline.chain], ['clahe'])
+
+    def test_undo_is_offered_only_once_there_is_something_to_undo(self):
+        app = self._app()
+        self.assertTrue(button(app, 'Undo').disabled)
+        self.assertTrue(button(app, 'Redo').disabled)
+
+        app.selectbox(key='selected_filter').select('invert').run()
+        button(app, 'Apply filter').click().run()
+        self.assertFalse(button(app, 'Undo').disabled)
+
+        button(app, 'Undo').click().run()
+        self.assertEqual(len(app.session_state.pipeline), 0)
+        self.assertFalse(button(app, 'Redo').disabled)
+
+    def test_reordering_reprocesses_from_the_original(self):
+        app = self._app()
+        for name in ('clahe', 'invert'):
+            app.selectbox(key='selected_filter').select(name).run()
+            button(app, 'Apply filter').click().run()
+
+        app.button(key='down_0').click().run()
+
+        self.assertEqual(app.exception, [])
+        self.assertEqual([s.name for s in app.session_state.pipeline.chain],
+                         ['invert', 'clahe'])
+
+    def test_removing_a_step_rebuilds_the_chain(self):
+        app = self._app()
+        for name in ('clahe', 'invert'):
+            app.selectbox(key='selected_filter').select(name).run()
+            button(app, 'Apply filter').click().run()
+
+        app.button(key='remove_0').click().run()
+        self.assertEqual([s.name for s in app.session_state.pipeline.chain], ['invert'])
+
+    def test_running_an_image_report(self):
+        app = self._app()
+        app.selectbox(key='analysis_name').select('noise').run()
+        button(app, 'Run report').click().run()
+
+        self.assertEqual(app.exception, [])
+        name, rows = app.session_state.analysis
+        self.assertEqual(name, 'noise')
+        self.assertTrue(rows[0].value.startswith('Noise analysis'))
+        self.assertEqual(rows[-1].label, 'note')
+
+    def test_a_report_that_reads_the_file_gets_the_uploaded_name(self):
+        # The browser only ever hands over bytes, so the dashboard writes them
+        # back to a file - keeping the name, which the report quotes
+        app = self._app()
+        app.selectbox(key='analysis_name').select('metadata').run()
+        button(app, 'Run report').click().run()
+
+        self.assertEqual(app.exception, [])
+        _name, rows = app.session_state.analysis
+        self.assertIn(SAMPLE, rows[0].value)
+
+
+if __name__ == '__main__':
+    unittest.main()
