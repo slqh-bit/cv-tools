@@ -12,6 +12,7 @@ import numpy as np
 
 from src.cli import main, translate_step
 from src.core import ImageLoader
+from src.filters import ANALYSIS_REGISTRY
 from src.filters import estimate_noise
 from src.utils.parsing import (
     parse_float_list,
@@ -322,6 +323,21 @@ class TestCLIRun(CLITestCase):
         self.assertEqual(code, 0)
         self.assertIn('clahe', output)
         self.assertIn('roi_crop', output)
+
+    def test_list_analyses(self):
+        code, output = self.run_cli(['--list-analyses'])
+        self.assertEqual(code, 0)
+        for spec in ANALYSIS_REGISTRY.values():
+            self.assertIn(spec.cli_flag, output)
+
+    def test_every_registered_analysis_has_a_flag_that_runs_it(self):
+        # The flags are generated from the registry, so a report added there
+        # is reachable from the command line without the CLI being edited
+        for name, spec in ANALYSIS_REGISTRY.items():
+            with self.subTest(analysis=name):
+                code, output = self.run_cli([str(self.input), spec.cli_flag])
+                self.assertEqual(code, 0)
+                self.assertIn(spec.caveat[:30], output)
 
     def test_pdf_report_by_extension(self):
         report = self.dir / 'report.pdf'

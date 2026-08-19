@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -21,7 +22,13 @@ from .core.loader import ImageLoader, save_image
 from .core.pipeline import Pipeline
 from .core.report import ReportGenerator
 from .filters.aspect_ratio import PIXEL_ASPECT_RATIOS
-from .filters.analysis import report_lines, resolve_analysis, run_analysis
+from .filters.analysis import (
+    ANALYSIS_REGISTRY,
+    list_analyses,
+    report_lines,
+    resolve_analysis,
+    run_analysis,
+)
 from .filters.curves import curve_from_string
 from .filters.perspective_correction import KNOWN_RATIOS
 from .filters.frame_averaging import (
@@ -293,19 +300,21 @@ def build_parser() -> argparse.ArgumentParser:
                      help='Plot --histogram on a log scale')
     out.add_argument('--hist-stats', action='store_true',
                      help='Print tonal statistics and clipping percentages')
-    out.add_argument('--noise-stats', action='store_true',
-                     help='Print noise sigma, SNR, and per-block uniformity')
-    out.add_argument('--ela-stats', nargs='?', type=int, const=90, metavar='QUALITY',
-                     help='Print Error Level Analysis block statistics (default quality 90)')
-    out.add_argument('--clone-stats', action='store_true',
-                     help='Print copy-move detection results without altering the image')
-    out.add_argument('--compression-stats', action='store_true',
-                     help='Print JPEG blocking measures and, for a JPEG source, its quality')
-    out.add_argument('--ghost-stats', action='store_true',
-                     help='Print JPEG ghost detection results without altering the image')
-    out.add_argument('--metadata-stats', action='store_true',
-                     help='Inspect EXIF and JPEG segments of the source file for '
-                          'inconsistencies (editor tags, timestamp disorder, resizing)')
+    # One flag per registered analysis, so a report added to the registry is
+    # reachable from the command line without this file being edited - the
+    # same property the GUI's Analysis tab and the dashboard already have
+    for spec in ANALYSIS_REGISTRY.values():
+        if spec.cli_value is None:
+            out.add_argument(spec.cli_flag, action='store_true', help=spec.cli_help())
+            continue
+
+        # A bare value is shorthand for one parameter, and the parameter's own
+        # default is what the flag means when given without one
+        default = inspect.signature(spec.fn).parameters[spec.cli_value].default
+        out.add_argument(spec.cli_flag, nargs='?', type=type(default), const=default,
+                         metavar=spec.cli_value.upper(),
+                         help=f'{spec.cli_help()} '
+                              f'(default {spec.cli_value} {default})')
     out.add_argument('--info', action='store_true',
                      help='Print source metadata (dimensions, EXIF, SHA-256)')
     out.add_argument('--report', metavar='PATH',
@@ -335,6 +344,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help='JPEG quality 1-100 (default: 95)')
     out.add_argument('--list-filters', action='store_true',
                      help='List registered filters and exit')
+    out.add_argument('--list-analyses', action='store_true',
+                     help='List the analysis reports and exit')
     out.add_argument('-v', '--verbose', action='store_true',
                      help='Print each step as it is applied')
 
@@ -891,25 +902,17 @@ def run_one(
     if args.hist_stats:
         print_histogram_stats(histogram_stats(result), dynamic_range_used(result))
 
-    if args.noise_stats:
-        print_analysis('noise', result)
-
-    if args.ela_stats:
-        print_analysis('ela', result, params={'quality': args.ela_stats})
-
-    if args.clone_stats:
-        print_analysis('clone', result)
-
-    if args.compression_stats:
-        print_analysis('compression', result, path=path)
-
-    if args.ghost_stats:
-        print_analysis('ghost', result)
-
-    # Reads the source file's header, so it describes the input rather than
-    # whatever the chain produced
-    if args.metadata_stats:
-        print_analysis('metadata', path=path)
+    # Reports that read the container - metadata, and the quantisation tables
+    # behind --compression-stats - are handed the source path, so they
+    # describe the input rather than whatever the chain produced
+    for name, spec in ANALYSIS_REGISTRY.items():
+        value = getattr(args, spec.cli_dest)
+        if not value:
+            continue
+        params = ({spec.cli_value: value}
+                  if spec.cli_value is not None and value is not True else {})
+        print_analysis(name, result if spec.needs_image else None,
+                       path=path, params=params)
 
     try:
         if output_path is not None:
@@ -950,6 +953,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("Registered filters:")
         for name, description in sorted(list_filters()):
             print(f"  {name:22s} {description}")
+        return 0
+
+    if args.list_analyses:
+        print("Analysis reports:")
+        for name, description in list_analyses():
+            print(f"  {ANALYSIS_REGISTRY[name].cli_flag:22s} {description}")
         return 0
 
     if not args.input:
@@ -1006,9 +1015,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1 if failures else 0
 
     analysis_only = (args.info or args.analyze_roi or args.hist_stats or args.histogram
-                     or args.noise_stats or args.ela_stats or args.clone_stats
-                     or args.compression_stats or args.ghost_stats
-                     or args.metadata_stats)
+                     or any(getattr(args, spec.cli_dest)
+                            for spec in ANALYSIS_REGISTRY.values()))
     # Combining frames is a transformation in its own right, so it counts as
     # work even with no filter chain behind it
     if not steps and not preset and not analysis_only and args.frames <= 0:

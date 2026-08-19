@@ -797,8 +797,9 @@ evidence rather than change it, and running one leaves the pipeline untouched.
 
 Each entry carries the presentation of its own report — a header line, its rows, and the
 caveat that closes it — so the CLI prints exactly what the GUI's **Analysis** tab and the
-dashboard's **Analysis** tab display. A report added to the registry appears in all three
-without any front end being edited.
+dashboard's **Analysis** tab display. The flags in that last column are generated from the
+same entries, which is why a report added to the registry appears in all three front ends
+without any of them being edited. `--list-analyses` prints the registered set.
 
 | Report | Parameters |
 |---|---|

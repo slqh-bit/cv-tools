@@ -55,6 +55,34 @@ class AnalysisSpec:
     # Parameters a generated form should not offer: ``path`` is supplied from
     # the loaded file, not typed by hand
     skip_params: Tuple[str, ...] = field(default_factory=tuple)
+    # The parameter a bare CLI value sets, as in ``--ela-stats 80``. Its type
+    # and default come from the function's own signature.
+    cli_value: Optional[str] = None
+
+    @property
+    def cli_flag(self) -> str:
+        """The command-line flag that runs this report."""
+        return f'--{self.name}-stats'
+
+    @property
+    def cli_dest(self) -> str:
+        """The argparse destination that flag lands in."""
+        return f'{self.name}_stats'
+
+    def cli_help(self) -> str:
+        """Help text for the generated flag, from the spec's own description."""
+        text = self.description
+        # Lower-cased to follow 'Print', unless the description opens on an
+        # acronym - 'Print eXIF tags' would be the alternative
+        if not text[1:2].isupper():
+            text = text[0].lower() + text[1:]
+        text = f'Print {text}'
+
+        if self.needs_path and not self.needs_image:
+            text += ' (reads the source file, not the chain output)'
+        elif self.needs_path:
+            text += ' (also reads the source file)'
+        return text
 
 
 # ---- per-report formatting ------------------------------------------------
@@ -213,6 +241,7 @@ ANALYSIS_REGISTRY: Dict[str, AnalysisSpec] = {
             'Error Level Analysis', 'Block-level recompression error and its outliers',
             _ela_header, _ela_rows,
             caveat='only meaningful on JPEG originals; texture raises error levels too',
+            cli_value='quality',
         ),
         AnalysisSpec(
             'clone', detect_copy_move, 'src.filters.clone_detection',

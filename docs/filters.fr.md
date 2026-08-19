@@ -842,9 +842,10 @@ le pipeline intact.
 
 Chaque entrée porte la présentation de son propre rapport — une ligne d'en-tête, ses lignes
 de contenu et la mise en garde qui le referme — si bien que la CLI affiche exactement ce que
-montrent l'onglet **Analysis** de l'interface graphique et celui du tableau de bord web. Un
-rapport ajouté au registre apparaît dans les trois interfaces sans qu'aucune ne soit
-modifiée.
+montrent l'onglet **Analysis** de l'interface graphique et celui du tableau de bord web. Les
+options de la dernière colonne sont engendrées à partir des mêmes entrées : c'est pourquoi
+un rapport ajouté au registre apparaît dans les trois interfaces sans qu'aucune ne soit
+modifiée. `--list-analyses` affiche l'ensemble enregistré.
 
 | Rapport | Paramètres |
 |---|---|

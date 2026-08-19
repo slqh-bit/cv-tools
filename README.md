@@ -363,9 +363,14 @@ python -m src.cli frames/ --load-preset plate.json --batch -o enhanced/
 # Include subdirectories; the output mirrors the input tree
 python -m src.cli frames/ --load-preset plate.json --batch --recursive -o enhanced/
 
-# List every registered filter
+# List every registered filter, or every analysis report
 python -m src.cli --list-filters
+python -m src.cli --list-analyses
 ```
+
+The `--*-stats` flags are generated from the analysis registry, so a report added there is
+reachable from the command line, the GUI and the dashboard without any of the three being
+edited.
 
 Video input is supported for still extraction — use `--frame N` to pick the frame.
 
