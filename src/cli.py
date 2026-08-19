@@ -885,6 +885,8 @@ def print_metadata_stats(report: Dict[str, Any]) -> None:
               f"last written: {report['datetime_modified'] or 'not recorded'}")
     else:
         print("  EXIF: none")
+    if report['has_thumbnail']:
+        print("  embedded thumbnail: present")
     if report['segments']:
         print(f"  segments: {', '.join(report['segments'])}")
 

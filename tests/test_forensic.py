@@ -1,5 +1,6 @@
 """Unit tests for the Sprint 3 forensic filters."""
 
+import io
 import struct
 import tempfile
 import unittest
@@ -10,8 +11,10 @@ import numpy as np
 from PIL import Image
 
 from src.filters import (
+    check_thumbnail_mismatch,
     check_timestamps,
     detect_editing_software,
+    extract_thumbnail,
     metadata_report,
     parse_exif_datetime,
     read_exif,
@@ -305,6 +308,36 @@ class TestJpegGhost(unittest.TestCase):
         self.assertIn('y', report['outliers'][0])
 
 
+def build_thumbnail_exif(thumbnail_jpeg: bytes) -> bytes:
+    """
+    Hand-roll a minimal little-endian TIFF/EXIF blob with an IFD1 thumbnail
+    pointer, appended after the IFDs (empty IFD0, three-tag IFD1).
+
+    Pillow's own ``Exif.tobytes()`` cannot serialize a populated IFD1 (see
+    ``metadata_forensics.extract_thumbnail``'s docstring), so there is no
+    library path to attach a real thumbnail to a fixture. Writing the TIFF
+    structure by hand avoids adding a dependency for one test fixture.
+    """
+    ifd0_offset = 8
+    ifd1_offset = ifd0_offset + 2 + 0 * 12 + 4  # count + 0 entries + next-IFD ptr
+    thumb_offset = ifd1_offset + 2 + 3 * 12 + 4  # count + 3 entries + next-IFD ptr
+
+    tiff_header = b'II' + struct.pack('<HL', 42, ifd0_offset)
+    ifd0 = struct.pack('<H', 0) + struct.pack('<L', ifd1_offset)
+
+    entries = [
+        (0x0103, 3, 1, 6),                     # Compression: SHORT, JPEG
+        (0x0201, 4, 1, thumb_offset),           # JPEGInterchangeFormat: LONG, offset
+        (0x0202, 4, 1, len(thumbnail_jpeg)),    # JPEGInterchangeFormatLength: LONG
+    ]
+    ifd1 = struct.pack('<H', len(entries))
+    for tag, kind, count, value in entries:
+        ifd1 += struct.pack('<HHL', tag, kind, count) + struct.pack('<L', value)
+    ifd1 += struct.pack('<L', 0)  # no further IFDs
+
+    return b'Exif\x00\x00' + tiff_header + ifd0 + ifd1 + thumbnail_jpeg
+
+
 class TestMetadataForensics(unittest.TestCase):
 
     def setUp(self):
@@ -345,6 +378,15 @@ class TestMetadataForensics(unittest.TestCase):
             sub[40962], sub[40963] = claimed_size
 
         image.save(path, 'JPEG', exif=tags, quality=90)
+        return path
+
+    def write_jpeg_with_thumbnail(self, name, main_array, thumb_array):
+        """Write a JPEG whose embedded IFD1 thumbnail is ``thumb_array``."""
+        path = self.dir / name
+        thumb_buf = io.BytesIO()
+        Image.fromarray(thumb_array).save(thumb_buf, 'JPEG', quality=80)
+        exif_blob = build_thumbnail_exif(thumb_buf.getvalue())
+        Image.fromarray(main_array).save(path, 'JPEG', exif=exif_blob, quality=90)
         return path
 
     def checks(self, report):
@@ -468,6 +510,43 @@ class TestMetadataForensics(unittest.TestCase):
         for finding in metadata_report(path)['findings']:
             self.assertIn(finding['severity'], ('info', 'flag'))
             self.assertTrue(finding['detail'])
+
+    def test_extracts_a_real_thumbnail(self):
+        thumb_array = cv2.resize(self.array, (40, 30))
+        path = self.write_jpeg_with_thumbnail('thumb.jpg', self.array, thumb_array)
+        thumbnail = extract_thumbnail(path)
+        self.assertIsNotNone(thumbnail)
+        self.assertEqual(thumbnail[:2], b'\xff\xd8')
+
+    def test_no_thumbnail_extracts_nothing(self):
+        path = self.write_jpeg('bare3.jpg', exif=False)
+        self.assertIsNone(extract_thumbnail(path))
+
+    def test_thumbnail_matching_the_image_is_not_flagged(self):
+        # The way a camera actually builds one: a downscaled, recompressed
+        # copy of the same pixels.
+        thumb_array = cv2.resize(self.array, (40, 30))
+        path = self.write_jpeg_with_thumbnail('match.jpg', self.array, thumb_array)
+        self.assertEqual(check_thumbnail_mismatch(path), [])
+
+    def test_thumbnail_disagreeing_with_the_image_is_flagged(self):
+        unrelated = textured(30, 40, seed=99)
+        path = self.write_jpeg_with_thumbnail('mismatch.jpg', self.array, unrelated)
+        findings = check_thumbnail_mismatch(path)
+        self.assertEqual({f['check'] for f in findings}, {'thumbnail_mismatch'})
+        self.assertEqual(findings[0]['severity'], 'flag')
+
+    def test_report_reflects_thumbnail_presence(self):
+        thumb_array = cv2.resize(self.array, (40, 30))
+        with_thumb = self.write_jpeg_with_thumbnail('present.jpg', self.array, thumb_array)
+        without_thumb = self.write_jpeg('absent.jpg')
+        self.assertTrue(metadata_report(with_thumb)['has_thumbnail'])
+        self.assertFalse(metadata_report(without_thumb)['has_thumbnail'])
+
+    def test_report_includes_thumbnail_mismatch_finding(self):
+        unrelated = textured(30, 40, seed=99)
+        path = self.write_jpeg_with_thumbnail('report_mismatch.jpg', self.array, unrelated)
+        self.assertIn('thumbnail_mismatch', self.checks(metadata_report(path)))
 
 
 class TestNoiseAnalysis(unittest.TestCase):

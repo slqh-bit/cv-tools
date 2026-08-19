@@ -81,8 +81,11 @@ from .invert import invert, invert_channel, invert_luminance, solarize
 from .jpeg_ghost import DEFAULT_QUALITIES as GHOST_QUALITIES, ghost_map, ghost_report
 from .metadata_forensics import (
     EDITOR_SIGNATURES,
+    THUMBNAIL_HASH_THRESHOLD,
     check_timestamps,
+    check_thumbnail_mismatch,
     detect_editing_software,
+    extract_thumbnail,
     metadata_report,
     parse_exif_datetime,
     read_exif,
@@ -247,7 +250,8 @@ __all__ = [
     # jpeg ghost
     'GHOST_QUALITIES', 'ghost_map', 'ghost_report',
     # metadata forensics
-    'EDITOR_SIGNATURES', 'check_timestamps', 'detect_editing_software',
+    'EDITOR_SIGNATURES', 'THUMBNAIL_HASH_THRESHOLD', 'check_timestamps',
+    'check_thumbnail_mismatch', 'detect_editing_software', 'extract_thumbnail',
     'metadata_report', 'parse_exif_datetime', 'read_exif',
     # nl means
     'nl_means_denoise', 'nl_means_denoise_auto', 'nl_means_denoise_frames',

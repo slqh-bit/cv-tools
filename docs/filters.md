@@ -535,6 +535,7 @@ takes a file path, not an image, so it is a stats flag rather than a filter.
 | `timestamp_disorder` | flag | `DateTimeDigitized` precedes `DateTimeOriginal`, which capture order forbids |
 | `dimension_mismatch` | flag | EXIF's recorded dimensions disagree with the actual ones — resized or cropped since capture |
 | `photoshop_segment` | flag | An APP13 Photoshop resource block is embedded |
+| `thumbnail_mismatch` | flag | The embedded EXIF thumbnail's content disagrees with the main image |
 | `no_exif` | info | A format that normally carries EXIF has none |
 | `no_camera_identification` | info | EXIF present but no `Make` or `Model` |
 | `xmp_segment` | info | An XMP packet is embedded, which often records an editing history the EXIF does not |
@@ -548,10 +549,20 @@ rotating and format conversion all leave one.
 The contradictions are the part worth attention. A tag that disagrees with the pixels, or
 with another tag, is harder to produce by accident than a suspicious-looking name is.
 
+**The embedded thumbnail is one contradiction editors routinely leave behind.** JPEGs carry
+a second, small copy of the image in EXIF's IFD1 for previews, and an editor that replaces
+the pixels has no reason to regenerate it — cropping, splicing, or swapping the subject can
+leave the thumbnail still showing the original scene. `check_thumbnail_mismatch` extracts it
+and compares its content against the main image with a cheap perceptual hash (an 8x8
+average-hash), tolerant of the thumbnail's own recompression but not of a genuinely different
+picture. Absence of a thumbnail is not itself a finding — plenty of ordinary files never had
+one.
+
 CLI: `--metadata-stats`
 
 `read_exif` returns the tags as a plain dict; `detect_editing_software` and
 `check_timestamps` are the individual checks, usable on an EXIF dict you already hold.
+`extract_thumbnail` returns the embedded thumbnail's raw JPEG bytes, or `None`.
 
 ## Wiener Deblurring — `deblur_motion`, `deblur_defocus`
 

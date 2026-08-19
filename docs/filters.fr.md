@@ -556,6 +556,7 @@ option de statistiques plutôt qu'un filtre.
 | `timestamp_disorder` | flag | `DateTimeDigitized` précède `DateTimeOriginal`, ce que l'ordre de capture interdit |
 | `dimension_mismatch` | flag | Les dimensions enregistrées dans l'EXIF diffèrent des dimensions réelles — image redimensionnée ou recadrée depuis la capture |
 | `photoshop_segment` | flag | Un bloc de ressources Photoshop APP13 est intégré |
+| `thumbnail_mismatch` | flag | Le contenu de la miniature EXIF intégrée diverge de l'image principale |
 | `no_exif` | info | Un format qui porte normalement de l'EXIF n'en a aucun |
 | `no_camera_identification` | info | EXIF présent mais sans `Make` ni `Model` |
 | `xmp_segment` | info | Un paquet XMP est intégré ; il consigne souvent un historique d'édition absent de l'EXIF |
@@ -570,11 +571,22 @@ laissent tous un.
 Ce sont les contradictions qui méritent l'attention. Un tag qui contredit les pixels, ou un
 autre tag, est plus difficile à produire par accident qu'un nom d'apparence suspecte.
 
+**La miniature intégrée est une contradiction que les éditeurs laissent souvent derrière
+eux.** Les JPEG transportent une seconde copie réduite de l'image dans l'IFD1 de l'EXIF,
+destinée aux aperçus, et un éditeur qui remplace les pixels n'a aucune raison de la
+régénérer — un recadrage, un montage ou un remplacement du sujet peut laisser la miniature
+afficher encore la scène d'origine. `check_thumbnail_mismatch` l'extrait et compare son
+contenu à l'image principale au moyen d'un hachage perceptuel simple (un average-hash 8x8),
+tolérant à la recompression propre de la miniature mais pas à une image réellement
+différente. L'absence de miniature n'est pas en soi un signalement — c'est l'état normal de
+nombreux fichiers ordinaires.
+
 CLI : `--metadata-stats`
 
 `read_exif` renvoie les tags sous forme de dictionnaire ; `detect_editing_software` et
 `check_timestamps` sont les contrôles individuels, utilisables sur un dictionnaire EXIF déjà
-en main.
+en main. `extract_thumbnail` renvoie les octets JPEG bruts de la miniature intégrée, ou
+`None`.
 
 ## Défloutage de Wiener — `deblur_motion`, `deblur_defocus`
 
