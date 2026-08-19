@@ -4,6 +4,10 @@ Chaque filtre est une simple fonction qui prend une image en premier argument et
 nouvelle image. Les noms de registre (colonne `name`) sont ceux qui apparaissent dans les
 préréglages JSON et les rapports.
 
+Les mesures qui renvoient des chiffres plutôt qu'une image — bruit, ELA, copier-déplacer,
+compression, fantôme JPEG et métadonnées — ne sont pas des étapes de chaîne et sont
+regroupées à part, sous [Rapports d'analyse](#rapports-danalyse-pas-des-étapes-de-chaîne).
+
 | Nom dans le registre | Fonction | Module | Sprint |
 |---|---|---|---|
 | `clahe` | `apply_clahe` | `src.filters.clahe` | 1 |
@@ -817,6 +821,68 @@ L'estimation ne vaut que ce que valent ses hypothèses, et chacune échoue silen
   synthétique à 2,5 m de hauteur avec une référence de 1,8 m, cette hypothèse a surestimé
   d'environ 16 mm pour 5° d'inclinaison et de 33 mm pour 18°. La plupart des caméras de
   vidéosurveillance sont inclinées, donc fournir le point de fuite vertical.
+
+---
+
+# Rapports d'analyse (pas des étapes de chaîne)
+
+Les mesures ci-dessus qui renvoient des chiffres plutôt qu'une image sont enregistrées
+ensemble dans `ANALYSIS_REGISTRY`, à côté du registre des filtres. Elles n'entrent jamais
+dans une chaîne : elles décrivent l'indice au lieu de le modifier, et en exécuter une laisse
+le pipeline intact.
+
+| Nom dans le registre | Fonction | Module | Lit | CLI |
+|---|---|---|---|---|
+| `noise` | `noise_report` | `src.filters.noise_analysis` | les pixels | `--noise-stats` |
+| `ela` | `ela_stats` | `src.filters.ela` | les pixels | `--ela-stats [QUALITÉ]` |
+| `clone` | `detect_copy_move` | `src.filters.clone_detection` | les pixels | `--clone-stats` |
+| `compression` | `compression_report` | `src.filters.compression_analysis` | pixels + fichier | `--compression-stats` |
+| `ghost` | `ghost_report` | `src.filters.jpeg_ghost` | les pixels | `--ghost-stats` |
+| `metadata` | `metadata_report` | `src.filters.metadata_forensics` | le fichier | `--metadata-stats` |
+
+Chaque entrée porte la présentation de son propre rapport — une ligne d'en-tête, ses lignes
+de contenu et la mise en garde qui le referme — si bien que la CLI affiche exactement ce que
+montrent l'onglet **Analysis** de l'interface graphique et celui du tableau de bord web. Un
+rapport ajouté au registre apparaît dans les trois interfaces sans qu'aucune ne soit
+modifiée.
+
+| Rapport | Paramètres |
+|---|---|
+| `noise` | `block_size=32` |
+| `ela` | `quality=90`, `block_size=16` |
+| `clone` | `block_size=16`, `step=1`, `coefficients=4`, `quantization=4.0`, `min_distance=0.0`, `min_matches=8`, `min_variance=12.0`, `search_window=3`, `max_blocks=300000` |
+| `compression` | `block_size=32` (plus le chemin du fichier source) |
+| `ghost` | `qualities=(50…100 par pas de 5)`, `block_size=16` |
+| `metadata` | aucun |
+
+**`compression` et `metadata` lisent le conteneur, pas le résultat de la chaîne.** Les tables
+de quantification et l'EXIF résident dans le fichier sur le disque : ces deux rapports
+décrivent donc l'image telle qu'elle a été ouverte, quel que soit le nombre de filtres
+appliqués depuis — et ils n'ont rien à lire du tout si l'image ne provient pas d'un fichier.
+L'interface graphique le signale au lieu d'échouer ; le tableau de bord écrit le fichier
+téléversé par le navigateur dans une copie temporaire portant son propre nom, pour que le
+rapport cite toujours le nom de fichier que vous reconnaissez.
+
+Chaque ligne porte une gravité : `flag` pour un constat qui mérite examen, `info` pour un
+constat qui mérite d'être connu, et rien pour une simple mesure. **Aucune des trois n'est une
+conclusion.** Chaque rapport se termine par une note indiquant ce que la mesure ne peut pas
+dire, et ces notes sont la forme courte des mises en garde détaillées sous chaque filtre
+ci-dessus.
+
+```python
+from src.filters import report_lines, resolve_analysis, run_analysis
+
+spec = resolve_analysis('ghost')
+report = run_analysis(spec, image=pipeline.current, params={'block_size': 8})
+print('\n'.join(report_lines(spec, report)))     # ce qu'affiche la CLI
+
+report['outlier_count']                          # ou lire le dict directement
+```
+
+`run_analysis` fournit l'image et/ou le chemin selon ce que le rapport demande, et lève
+`ValueError` au lieu de deviner lorsqu'il en manque un. `render_report` renvoie les mêmes
+lignes sous forme d'objets `Row(label, value, severity, indent)`, pour une interface qui les
+colore.
 
 ---
 

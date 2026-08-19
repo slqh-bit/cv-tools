@@ -3,6 +3,10 @@
 Every filter is a plain function taking an image as its first argument and returning a new
 image. Registry names (the `name` column) are what appear in JSON presets and reports.
 
+The measurements that return numbers rather than an image — noise, ELA, copy-move,
+compression, JPEG ghost and metadata — are not chain steps and are listed separately under
+[Analysis reports](#analysis-reports-not-chain-steps).
+
 | Registry name | Function | Module | Sprint |
 |---|---|---|---|
 | `clahe` | `apply_clahe` | `src.filters.clahe` | 1 |
@@ -773,6 +777,63 @@ The estimate is only as good as its assumptions, and each one fails quietly:
 - **Omitting `vertical_point` assumes the camera has no tilt.** Against a synthetic camera
   2.5 m up with a 1.8 m reference, that assumption over-read by about 16 mm at 5° of pitch
   and 33 mm at 18°. Most CCTV is tilted, so supply the vertical vanishing point.
+
+---
+
+# Analysis reports (not chain steps)
+
+The measurements above that return numbers rather than an image are registered together in
+`ANALYSIS_REGISTRY`, beside the filter registry. They never enter a chain: they describe the
+evidence rather than change it, and running one leaves the pipeline untouched.
+
+| Registry name | Function | Module | Reads | CLI |
+|---|---|---|---|---|
+| `noise` | `noise_report` | `src.filters.noise_analysis` | pixels | `--noise-stats` |
+| `ela` | `ela_stats` | `src.filters.ela` | pixels | `--ela-stats [QUALITY]` |
+| `clone` | `detect_copy_move` | `src.filters.clone_detection` | pixels | `--clone-stats` |
+| `compression` | `compression_report` | `src.filters.compression_analysis` | pixels + file | `--compression-stats` |
+| `ghost` | `ghost_report` | `src.filters.jpeg_ghost` | pixels | `--ghost-stats` |
+| `metadata` | `metadata_report` | `src.filters.metadata_forensics` | file | `--metadata-stats` |
+
+Each entry carries the presentation of its own report — a header line, its rows, and the
+caveat that closes it — so the CLI prints exactly what the GUI's **Analysis** tab and the
+dashboard's **Analysis** tab display. A report added to the registry appears in all three
+without any front end being edited.
+
+| Report | Parameters |
+|---|---|
+| `noise` | `block_size=32` |
+| `ela` | `quality=90`, `block_size=16` |
+| `clone` | `block_size=16`, `step=1`, `coefficients=4`, `quantization=4.0`, `min_distance=0.0`, `min_matches=8`, `min_variance=12.0`, `search_window=3`, `max_blocks=300000` |
+| `compression` | `block_size=32` (plus the source path) |
+| `ghost` | `qualities=(50…100 by 5)`, `block_size=16` |
+| `metadata` | none |
+
+**`compression` and `metadata` read the container, not the chain's output.** Quantisation
+tables and EXIF live in the file on disk, so those two describe the image that was opened
+however many filters have since been applied — and they have nothing to read at all if the
+image never came from a file. The GUI says so rather than failing; the dashboard writes the
+browser's upload to a temporary copy under its own name, so the report still quotes the
+filename you recognise.
+
+Rows carry a severity: `flag` for a finding worth investigating, `info` for one worth
+knowing, and nothing for a plain measurement. **None of the three is a conclusion.** Every
+report ends with a note saying what the measure cannot tell you, and those notes are the
+short form of the caveats written out under each filter above.
+
+```python
+from src.filters import report_lines, resolve_analysis, run_analysis
+
+spec = resolve_analysis('ghost')
+report = run_analysis(spec, image=pipeline.current, params={'block_size': 8})
+print('\n'.join(report_lines(spec, report)))     # what the CLI prints
+
+report['outlier_count']                          # or read the dict directly
+```
+
+`run_analysis` supplies whichever of the image and the path a report asks for, and raises
+`ValueError` rather than guessing when one is missing. `render_report` returns the same rows
+as `Row(label, value, severity, indent)` objects, for a front end that colours them.
 
 ---
 
