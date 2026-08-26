@@ -328,7 +328,10 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument('--frame', type=int, default=0, metavar='N',
                      help='Frame index for video input (default: 0)')
     out.add_argument('--frames', type=int, default=0, metavar='N',
-                     help='Combine N video frames into the source image, starting at --frame')
+                     help='Combine N frames into the source image: from a video '
+                          'starting at --frame, or from a directory of stills. '
+                          'Averaging only reduces noise where the scene holds '
+                          'still - use median where it does not')
     out.add_argument('--frame-step', type=int, default=1, metavar='N',
                      help='Stride between the frames gathered by --frames (default: 1)')
     out.add_argument('--frame-method', default='mean',
@@ -855,6 +858,49 @@ def resolve_batch_output(
     return target
 
 
+def _combine_stills(directory: Path,
+                    args: argparse.Namespace) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """
+    Combine a directory of stills into one source image.
+
+    The video path takes frames from a container; this takes them from a
+    folder, which is how a camera's exported snapshots and most disclosed
+    evidence actually arrive. Frames must share a shape - a folder holding two
+    cameras' output is a mistake worth reporting rather than resizing away.
+
+    Raises:
+        ValueError: If too few images are found, or they disagree on size
+    """
+    paths = ImageLoader.find_images(directory, recursive=args.recursive)
+    selected = paths[args.frame::max(1, args.frame_step)][:args.frames]
+    if len(selected) < 2:
+        raise ValueError(
+            f"--frames needs at least 2 images, found {len(selected)} in "
+            f"{directory}")
+
+    frames, metadata = [], {}
+    for index, source in enumerate(selected):
+        with ImageLoader(source) as loader:
+            frame = loader.load()
+            if index == 0:
+                metadata = dict(loader.metadata)
+        if frames and frame.shape != frames[0].shape:
+            raise ValueError(
+                f"{source.name} is {frame.shape[1]}x{frame.shape[0]} but "
+                f"{selected[0].name} is {frames[0].shape[1]}x{frames[0].shape[0]}; "
+                f"frames must share a size to be combined")
+        frames.append(frame)
+
+    image = combine_frames(frames, args.frame_method)
+    metadata['filename'] = f'{len(frames)} frames from {directory.name}'
+    metadata['combined_from'] = [source.name for source in selected]
+    metadata['frame_method'] = args.frame_method
+    if args.verbose:
+        print(f"Combined {len(frames)} stills with '{args.frame_method}'",
+              file=sys.stderr)
+    return image, metadata
+
+
 def run_one(
     path: Path,
     output_path: Optional[Path],
@@ -864,19 +910,14 @@ def run_one(
 ) -> int:
     """Process a single input file. Returns a process exit code."""
     try:
-        with ImageLoader(path) as loader:
-            if args.frames > 0:
-                if not loader.is_video:
-                    raise ValueError(f"--frames requires a video file, got: {path.name}")
-                frames = loader.load_frames(args.frames, start=args.frame,
-                                            step=args.frame_step)
-                image = combine_frames(frames, args.frame_method)
-                if args.verbose:
-                    print(f"Combined {len(frames)} frames with '{args.frame_method}'",
-                          file=sys.stderr)
-            else:
-                image = loader.load(args.frame if loader.is_video else None)
-            metadata = loader.metadata
+        if args.frames > 0 and path.is_dir():
+            # A folder of exported stills is how CCTV evidence usually
+            # arrives, and it is the case frame integration exists for. Until
+            # this branch, --frames took video only, so the one format most
+            # likely to be handed over could not be integrated at all.
+            image, metadata = _combine_stills(path, args)
+        else:
+            image, metadata = _load_one(path, args)
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -887,6 +928,39 @@ def run_one(
     if args.verbose:
         print(f"Processing {path.name} ({image.shape[1]}x{image.shape[0]})", file=sys.stderr)
 
+    return _process_source(image, metadata, path, output_path, steps, args, preset)
+
+
+def _load_one(path: Path,
+              args: argparse.Namespace) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """One still, one video frame, or several video frames combined."""
+    with ImageLoader(path) as loader:
+        if args.frames > 0:
+            if not loader.is_video:
+                raise ValueError(
+                    f"--frames needs a video or a directory of stills, "
+                    f"got: {path.name}")
+            frames = loader.load_frames(args.frames, start=args.frame,
+                                        step=args.frame_step)
+            image = combine_frames(frames, args.frame_method)
+            if args.verbose:
+                print(f"Combined {len(frames)} frames with '{args.frame_method}'",
+                      file=sys.stderr)
+        else:
+            image = loader.load(args.frame if loader.is_video else None)
+        return image, loader.metadata
+
+
+def _process_source(
+    image: np.ndarray,
+    metadata: Dict[str, Any],
+    path: Path,
+    output_path: Optional[Path],
+    steps: List[Tuple[str, Dict[str, Any]]],
+    args: argparse.Namespace,
+    preset: Optional[Dict[str, Any]],
+) -> int:
+    """Run the chain, the analyses and the outputs over one loaded image."""
     try:
         pipeline = process_image(image, steps, preset=preset, verbose=args.verbose)
     except (RuntimeError, KeyError, ValueError) as exc:

@@ -9,6 +9,13 @@ import numpy as np
 import cv2
 
 
+# The colour strategies this filter implements. Named here rather than only
+# in the if-chain below so a front end can offer exactly these: histogram
+# equalization implements a different set, and a shared list offers both
+# filters options that one of them rejects.
+COLOR_MODES = ('lab', 'hsv', 'yuv', 'channelwise', 'luminance')
+
+
 def apply_clahe(
     image: np.ndarray,
     clip_limit: float = 2.0,
@@ -97,7 +104,9 @@ def apply_clahe(
         result = cv2.cvtColor(yuv, cv2.COLOR_YUV2RGB)
 
     else:
-        raise ValueError(f"Unknown color_mode: {color_mode}")
+        raise ValueError(
+            f"Unknown color_mode: {color_mode}. "
+            f"Expected one of: {', '.join(COLOR_MODES)}")
 
     if has_alpha and alpha is not None:
         result = np.concatenate([result, alpha], axis=2)

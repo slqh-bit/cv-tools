@@ -3,6 +3,11 @@
 Every filter is a plain function taking an image as its first argument and returning a new
 image. Registry names (the `name` column) are what appear in JSON presets and reports.
 
+**Images are RGB.** `ImageLoader` converts on load and `save_image` converts back, so every
+filter here receives channel 0 as red — not the BGR `cv2.imread` returns. It matters for the
+`channel` parameter and for anything colour-aware; a luminance operation like CLAHE cannot
+tell the difference, which is exactly what makes the mistake easy to miss.
+
 The measurements that return numbers rather than an image — noise, ELA, copy-move,
 compression, JPEG ghost and metadata — are not chain steps and are listed separately under
 [Analysis reports](#analysis-reports-not-chain-steps).
@@ -500,31 +505,60 @@ CLI: `--clone-detect block=16 step=1 matches=8 variance=12`, `--clone-stats`
 
 Recompresses the image across a range of JPEG qualities and diffs each pass against the
 source, the same trick ELA uses once. Re-quantising an already-JPEG'd region at its own
-prior quality is nearly lossless, so each block's error-versus-quality curve dips sharply
-right at that quality — the "ghost". A block's minimum locates its likely prior compression
-quality from pixel evidence alone, even once the file's own quantisation tables are gone.
+prior quality is nearly lossless, so a region's error dips at the quality it was last saved
+at — the "ghost".
+
+**You have to say which region.** This does not search for one, and the reason is measured
+rather than assumed. Across 18 untouched CCTV frames, the most separated region an automatic
+search can find scores −0.53 on average, while the same frames carrying a genuine Q55 paste
+score −0.44 — untouched frames separate *more strongly* than forged ones, because a flat
+wall forms a large coherent low-difference region at some quality in every frame. A search
+returns texture, not history. Given the region, the same measurement is decisive: −0.34 at
+the true quality against −0.02 for an untouched control.
+
+Mark the region — the desktop viewer fills `x, y, width, height` from a drag — and this
+reports what it was compressed at.
 
 | Param | Type | Default | Notes |
 |---|---|---|---|
 | `qualities` | list[int] | `50,55,...,100` | Ascending quality steps to sweep |
 | `block_size` | int | `16` | Side length of the analysis blocks |
-| `upscale` | bool | `True` | Resize the block grid back to the input's dimensions |
+| `region` | (x,y,w,h) | `None` | The region to interrogate. Without it nothing is claimed |
+| `upscale` | bool | `True` | `ghost_map` only: resize the block grid back to the input's dimensions |
 
-The output map encodes, per block, the *index* into `qualities` of the best match — darker
-means an earlier (lower-quality) step. A region whose shade differs sharply from its
-surroundings had a different JPEG history.
+**Measured accuracy.** On 12 real CCTV frames carrying a known Q55 paste: found in 10, and
+2 untouched frames called positive. Read a hit as a pointer to inspect, never as a finding.
+The recovered quality lands within one sweep step of the truth, so treat it as a
+neighbourhood rather than a number.
 
 **Limits.** A uniform JPEG resave of the whole composite is a blind spot: every block then
 shares one true last quality, and its trivially-near-zero dip there swamps any subtler trace
 of what a region was compressed at before a splice. The technique reads a composite that was
 never unified by a later full-frame JPEG save — a PNG built from JPEG sources is the common
 case it catches. Flat, low-texture regions dip only shallowly at every quality and read as
-ambiguous by design.
+ambiguous by design. The 0.10 threshold was calibrated on one camera; re-derive it before
+leaning on it elsewhere.
 
 CLI: `--ghost block=16 min=50 max=100 step=5`, `--ghost-stats`
 
-`ghost_map` returns the visual map; `ghost_report` adds the dominant quality and the list of
-outlier blocks.
+`ghost_sweep` returns the normalised difference at every quality — the raw material, and the
+form worth looking at. `ghost_map` returns the single sweep frame carrying the most
+structure, dark where the pixels match that quality. `ghost_report` names the region's
+quality, the separation that decided it, and every quality's score so the verdict can be
+checked rather than taken.
+
+> A previous version of this filter took each block's *global* minimum across the sweep.
+> That cannot work: the difference curve falls monotonically towards quality 100 for almost
+> every block, so the minimum lands at the top of the sweep whatever the block's history,
+> and a clean frame reported 42% of its blocks as outliers. Presets and reports written
+> before that fix record `dominant_quality` and `outlier_count`, which no longer exist.
+
+> **On filters that find nothing.** `clone_detect` and `auto_perspective` return the image
+> unchanged when they detect no duplicated region and no quadrilateral. That is the right
+> contract for a chain step — an image goes in, an image comes out, and a preset replays
+> identically — but it means "found nothing" and "did nothing" look the same in the viewer.
+> Use the matching report to tell them apart: `--clone-stats` says *no duplicated regions
+> found* explicitly, and the GUI's Analysis tab shows the same line.
 
 ## Metadata Forensics (not a chain step)
 
@@ -601,6 +635,43 @@ angles)` renders a labelled grid across the parameter space to judge by eye, and
 ---
 
 # Sprint 3 — Multi-frame (not chain steps)
+
+Frames come from a video (`--frames N` on a video file, starting at `--frame`) **or from a
+directory of stills** (`--frames N` on a folder), which is how exported CCTV evidence
+usually arrives.
+
+**Super-resolution is worth about half a decibel, and only from frames that are already
+almost aligned.** Measured against a known original, reconstructing 2x from frames carrying
+ideal sub-pixel offsets:
+
+| frames | gain over a bicubic upscale |
+|---|---|
+| 2 | +0.23 dB |
+| 4 | **+0.64 dB** |
+| 8 | +0.56 dB |
+| 16 | +0.55 dB |
+
+The gain reaches its useful level at about four frames and holds there — more frames do not
+add much, but they no longer take anything away. They used to: before the registration was
+refined on an upsampled correlation surface, sixteen frames scored **−0.10 dB**, worse than
+not reconstructing at all, because each frame's registration error was smeared into the
+result. Real CCTV snapshots seconds apart shift by tens or
+hundreds of pixels and `super_resolve` refuses them outright — it is a tool for a burst, not
+for a sequence of events.
+
+**Averaging only reduces noise where the scene holds still.** The improvement is `sqrt(N)`
+for noise that is independent between frames, and measurably less for anything else:
+
+| source | 16 frames | ratio |
+|---|---|---|
+| synthetic independent noise | 7.93 → 2.03 | **3.90×** (√16 = 4.00) |
+| a static scene on video | 10.94 → 3.39 | 3.22× |
+| motion-event snapshots seconds apart | 1.73 → 1.59 | 1.08× |
+
+The first is the law working exactly. The second falls short because scene texture and the
+codec's own quantisation are correlated between frames and do not average away. The third
+barely moves because the scene itself changed — that is not a case for `mean` at all, and
+`median` is the method for it, which removes what moved rather than smearing it.
 
 `frame_averaging.py` consumes a *sequence* of frames and produces one image, so it runs
 before the filter chain rather than inside it. On the CLI this is `--frames N`, with
@@ -724,6 +795,17 @@ frequency split (base versus detail), and bit planes. Structure in the low bit p
 notable: natural sensor noise has none, so a pattern there suggests hidden data or a pasted
 region.
 
+**`nl_means` strength.** `nl_means_auto` sets `h` to 0.6 of the measured noise sigma, which
+was chosen by measurement: denoising five images at two noise levels each and scoring against
+the clean original gave a mean gain of +2.23 dB at 0.6, against **−3.93 dB at 3.0** — the
+value the filter used to use. At three times sigma it removed more picture than noise and
+scored below the untouched input on eight of ten cases.
+
+How much it helps depends on the scene. A smooth wall gains 6 dB; a densely textured
+subject — fur, foliage, gravel — loses at every strength, because its detail sits at the same
+scale as the noise. On a static sequence, averaging frames beats denoising one of them by a
+wide margin (36.9 dB against 25.0 dB on a seven-frame test).
+
 **`redaction`** — the one operation that must not be undoable, and the obvious methods fail.
 **Blurring is reversible** — it is a known convolution, and this toolkit's own Wiener
 deconvolution will undo it. **Pixelation is reversible for short known-alphabet text** —
@@ -731,6 +813,12 @@ rendering every candidate plate and matching block means is a documented, cheap 
 Only `fill` and `noise` discard the original pixels; `fill` is the default and the only
 method for a document intended for release. `verify_redaction` correlates each region
 against the original and reports whether the content actually went.
+
+`noise` draws fresh noise on every run unless `seed` is given, so the same preset produces a
+different image each time. The redaction is equally effective either way, but a result that
+cannot be reproduced is not evidence — set `seed` when the chain has to replay exactly.
+Seeding weakens nothing: the original pixels are discarded regardless, so knowing the noise
+recovers none of them.
 
 **`annotate`** — arrows, shapes, text, and calibrated measurement. `Scale` converts pixels
 to units; `measure_distance` (1D), `measure_area` (2D, shoelace formula), `draw_measurement`

@@ -29,13 +29,14 @@ from .annotate import (
     scale_from_reference,
 )
 from .aspect_ratio import (
+    INTERPOLATIONS as ASPECT_INTERPOLATIONS,
     PIXEL_ASPECT_RATIOS,
     correct_pixel_aspect,
     correct_pixel_aspect_named,
     fit_to_aspect,
     describe_aspect,
 )
-from .clahe import apply_clahe, apply_clahe_grid
+from .clahe import COLOR_MODES as CLAHE_COLOR_MODES, apply_clahe, apply_clahe_grid
 from .clone_detection import detect_copy_move, draw_clone_regions, highlight_clones
 from .color_balance import adjust_color_balance, adjust_cmyk, channel_mixer
 from .color_deconvolution import (
@@ -72,13 +73,20 @@ from .detail_enhancement import (
 )
 from .ela import error_level_analysis, ela_stats, recompress
 from .fisheye_correction import (
+    BORDER_MODES as FISHEYE_BORDER_MODES,
     correct_barrel_distortion,
     correct_fisheye,
     apply_barrel_distortion,
     estimate_straightness,
 )
 from .invert import invert, invert_channel, invert_luminance, solarize
-from .jpeg_ghost import DEFAULT_QUALITIES as GHOST_QUALITIES, ghost_map, ghost_report
+from .jpeg_ghost import (
+    DEFAULT_QUALITIES as GHOST_QUALITIES,
+    REGION_SEPARATION as GHOST_REGION_SEPARATION,
+    ghost_map,
+    ghost_report,
+    ghost_sweep,
+)
 from .metadata_forensics import (
     EDITOR_SIGNATURES,
     THUMBNAIL_HASH_THRESHOLD,
@@ -113,14 +121,23 @@ from .perspective_correction import (
     find_document_corners,
     auto_correct_perspective,
 )
-from .redaction import redact, redact_region, verify_redaction, is_reversible
+from .redaction import (
+    IRREVERSIBLE_METHODS,
+    REVERSIBLE_METHODS,
+    redact,
+    redact_region,
+    verify_redaction,
+    is_reversible,
+)
 from .saturation import (
+    DESATURATE_METHODS,
     adjust_saturation,
     adjust_vibrance,
     desaturate,
     selective_saturation,
 )
 from .super_resolution import (
+    METHODS as UPSCALE_METHODS,
     upscale,
     estimate_shifts,
     super_resolve,
@@ -135,6 +152,7 @@ from .undistort import (
     load_calibration,
 )
 from .white_balance import (
+    METHODS as WHITE_BALANCE_METHODS,
     auto_white_balance,
     white_balance_from_patch,
     adjust_temperature,
@@ -177,7 +195,11 @@ from .motion_deblur import (
     focus_score,
 )
 from .noise_analysis import estimate_noise, estimate_snr, noise_map, noise_report
-from .histogram_equalization import histogram_equalization, adaptive_histogram_equalization
+from .histogram_equalization import (
+    COLOR_MODES as HISTEQ_COLOR_MODES,
+    histogram_equalization,
+    adaptive_histogram_equalization,
+)
 from .levels import adjust_levels, auto_levels
 from .roi import (
     ROI,
@@ -192,6 +214,7 @@ from .sharpen import unsharp_mask, laplacian_sharpen, sharpen_grid
 from .smoothing import gaussian_blur, median_filter, bilateral_filter
 from .registry import (
     FILTER_REGISTRY,
+    POINT_PARAMETERS,
     FilterSpec,
     CATEGORY_ORDER,
     resolve_filter,
@@ -212,13 +235,13 @@ from .analysis import (
 
 __all__ = [
     # clahe
-    'apply_clahe', 'apply_clahe_grid',
+    'CLAHE_COLOR_MODES', 'apply_clahe', 'apply_clahe_grid',
     # contrast / brightness
     'adjust_contrast_brightness', 'auto_contrast',
     # crop / resize
     'crop', 'resize', 'resize_one_to_one', 'rotate', 'flip',
     # histogram
-    'histogram_equalization', 'adaptive_histogram_equalization',
+    'HISTEQ_COLOR_MODES', 'histogram_equalization', 'adaptive_histogram_equalization',
     # levels
     'adjust_levels', 'auto_levels',
     # roi
@@ -258,7 +281,8 @@ __all__ = [
     # invert
     'invert', 'invert_channel', 'invert_luminance', 'solarize',
     # jpeg ghost
-    'GHOST_QUALITIES', 'ghost_map', 'ghost_report',
+    'GHOST_QUALITIES', 'GHOST_REGION_SEPARATION', 'ghost_map', 'ghost_report',
+    'ghost_sweep',
     # metadata forensics
     'EDITOR_SIGNATURES', 'THUMBNAIL_HASH_THRESHOLD', 'check_timestamps',
     'check_thumbnail_mismatch', 'detect_editing_software', 'extract_thumbnail',
@@ -277,6 +301,7 @@ __all__ = [
     'correct_barrel_distortion', 'correct_fisheye', 'apply_barrel_distortion',
     'estimate_straightness',
     # aspect ratio
+    'ASPECT_INTERPOLATIONS',
     'PIXEL_ASPECT_RATIOS', 'correct_pixel_aspect', 'correct_pixel_aspect_named',
     'fit_to_aspect', 'describe_aspect',
     # undistort
@@ -293,6 +318,10 @@ __all__ = [
     'separate_bit_planes', 'extract_bit_plane', 'channel_grid',
     # redaction
     'redact', 'redact_region', 'verify_redaction', 'is_reversible',
+    'IRREVERSIBLE_METHODS', 'REVERSIBLE_METHODS',
+    # per-filter vocabularies, so a front end offers only what each accepts
+    'DESATURATE_METHODS', 'FISHEYE_BORDER_MODES', 'UPSCALE_METHODS',
+    'WHITE_BALANCE_METHODS',
     # annotate
     'Scale', 'draw_arrow', 'draw_text', 'draw_shape', 'draw_measurement',
     'draw_scale_bar', 'measure_distance', 'measure_area', 'scale_from_reference',
@@ -301,7 +330,7 @@ __all__ = [
     'horizon_from_vanishing_points', 'line_through', 'measure_height',
     'resolve_horizon', 'vanishing_point',
     # registry
-    'FILTER_REGISTRY', 'FilterSpec', 'CATEGORY_ORDER', 'resolve_filter', 'filter_function',
+    'FILTER_REGISTRY', 'POINT_PARAMETERS', 'FilterSpec', 'CATEGORY_ORDER', 'resolve_filter', 'filter_function',
     'list_filters', 'apply_preset',
     # analysis registry
     'ANALYSIS_REGISTRY', 'AnalysisSpec', 'Row', 'list_analyses', 'render_report',

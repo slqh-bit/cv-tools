@@ -174,20 +174,47 @@ def _compression_rows(report: Dict[str, Any]) -> List[Row]:
 
 
 def _ghost_header(report: Dict[str, Any]) -> str:
-    return (f"JPEG ghost detection (qualities {report['qualities'][0]}-"
+    return (f"JPEG ghost (qualities {report['qualities'][0]}-"
             f"{report['qualities'][-1]}, {report['block_size']}px blocks)")
 
 
 def _ghost_rows(report: Dict[str, Any]) -> List[Row]:
+    region = report.get('region')
+    if region is None:
+        return [
+            Row('region', 'none given', 'info'),
+            Row(value='This measures the JPEG quality of a region you name; it '
+                      'does not search for one. Mark a region and run it again '
+                      '- the desktop viewer fills the box from a drag.'),
+        ]
+
     rows = [
-        Row('dominant quality', str(report['dominant_quality'])),
-        Row('outlier blocks', f"{report['outlier_count']} "
-                              f"({report['outlier_fraction'] * 100:.1f}% of blocks)",
-            'flag' if report['outlier_count'] else ''),
+        Row('region', f"x={region['x']} y={region['y']} "
+                      f"{region['width']}x{region['height']} "
+                      f"({report['region_blocks']} blocks)"),
     ]
-    for outlier in report['outliers'][:5]:
-        rows.append(Row(value=f"block at ({outlier['x']}, {outlier['y']}): "
-                              f"best match quality {outlier['quality']}", indent=1))
+
+    if report['detected']:
+        rows.append(Row('last saved at', f"quality {report['ghost_quality']}",
+                        'flag'))
+    else:
+        rows.append(Row('last saved at',
+                        'no quality stands out from the rest of the image'))
+
+    rows.append(Row('dip below its own average',
+                    f"{report.get('dip', 0.0):+.3f} "
+                    f"(flagged below -{report['threshold']:.2f})"))
+    if not report.get('calibrated_sweep', True):
+        rows.append(Row('sweep', 'not the calibrated range - the threshold was '
+                                 'measured against the default qualities and does '
+                                 'not carry over', 'flag'))
+    rows.append(Row('raw separation from the rest of the frame',
+                    f"{report['separation']:+.3f}", 'info'))
+
+    # The whole sweep, so the verdict can be checked rather than taken
+    ranked = sorted(report['separations'].items(), key=lambda item: item[1])[:4]
+    for quality, value in ranked:
+        rows.append(Row(value=f'quality {quality}: {value:+.3f}', indent=1))
     return rows
 
 
@@ -260,7 +287,11 @@ ANALYSIS_REGISTRY: Dict[str, AnalysisSpec] = {
             'ghost', ghost_report, 'src.filters.jpeg_ghost',
             'JPEG ghost', 'Per-block prior JPEG quality, and blocks that disagree',
             _ghost_header, _ghost_rows,
-            caveat='only meaningful on a single-JPEG composite; any re-save erases it',
+            caveat='only meaningful on a single-JPEG composite; any re-save erases '
+                   'it, and a paste that does not land on the JPEG 8x8 grid leaves '
+                   'nothing to find. Measured on 32 frames from two cameras with '
+                   'grid-aligned pastes: 59% found, 3% of untouched regions called '
+                   'positive. A pointer to inspect, never a finding',
         ),
         AnalysisSpec(
             'metadata', metadata_report, 'src.filters.metadata_forensics',

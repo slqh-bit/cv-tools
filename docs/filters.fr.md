@@ -4,6 +4,12 @@ Chaque filtre est une simple fonction qui prend une image en premier argument et
 nouvelle image. Les noms de registre (colonne `name`) sont ceux qui apparaissent dans les
 préréglages JSON et les rapports.
 
+**Les images sont en RVB.** `ImageLoader` convertit au chargement et `save_image` reconvertit
+à l'enregistrement : chaque filtre reçoit donc le canal 0 comme rouge — et non le BGR que
+renvoie `cv2.imread`. Cela compte pour le paramètre `channel` et pour tout traitement
+sensible à la couleur ; une opération de luminance comme CLAHE ne voit aucune différence, ce
+qui rend précisément l'erreur facile à manquer.
+
 Les mesures qui renvoient des chiffres plutôt qu'une image — bruit, ELA, copier-déplacer,
 compression, fantôme JPEG et métadonnées — ne sont pas des étapes de chaîne et sont
 regroupées à part, sous [Rapports d'analyse](#rapports-danalyse-pas-des-étapes-de-chaîne).
@@ -518,20 +524,32 @@ comptes de blocs) ; `draw_clone_regions` le superpose en teinte sur l'image.
 
 Recompresse l'image sur une plage de qualités JPEG et calcule la différence de chaque passage
 par rapport à la source, la même astuce que l'ELA utilise une seule fois. Requantifier une
-région déjà en JPEG à sa qualité antérieure est quasi sans perte, donc la courbe
-erreur-en-fonction-de-la-qualité de chaque bloc chute nettement à cette qualité précise — le
-« fantôme ». Le minimum d'un bloc localise sa qualité de compression antérieure probable à
-partir des seuls pixels, même une fois les tables de quantification du fichier disparues.
+région déjà en JPEG à sa qualité antérieure est quasi sans perte, donc l'erreur d'une région
+chute à la qualité à laquelle elle a été enregistrée pour la dernière fois — le « fantôme ».
+
+**Il faut indiquer la région.** Cet outil ne la cherche pas, et la raison est mesurée plutôt
+que supposée. Sur 18 images de vidéosurveillance intactes, la région la plus contrastée
+qu'une recherche automatique puisse trouver obtient −0,53 en moyenne, tandis que les mêmes
+images portant un collage Q55 réel obtiennent −0,44 : les images intactes se séparent *plus
+nettement* que les images truquées, parce qu'un mur plat forme, dans chaque image, une vaste
+région cohérente à faible différence à l'une ou l'autre qualité. Une recherche renvoie de la
+texture, pas une histoire. Une fois la région donnée, la même mesure est décisive : −0,34 à
+la qualité réelle contre −0,02 pour un témoin intact.
+
+Marquez la région — la visionneuse de bureau remplit `x, y, width, height` à partir d'un
+glissé — et l'outil indique à quelle qualité elle a été compressée.
 
 | Paramètre | Type | Défaut | Remarques |
 |---|---|---|---|
 | `qualities` | list[int] | `50,55,...,100` | Paliers de qualité croissants à balayer |
 | `block_size` | int | `16` | Côté des blocs d'analyse |
-| `upscale` | bool | `True` | Redimensionne la grille de blocs à la taille de l'image d'entrée |
+| `region` | (x,y,w,h) | `None` | La région à interroger. Sans elle, rien n'est affirmé |
+| `upscale` | bool | `True` | `ghost_map` seulement : redimensionne la grille de blocs à la taille de l'image |
 
-La carte produite encode, par bloc, l'*indice* dans `qualities` de la meilleure correspondance
-— plus sombre signifie un palier plus ancien (qualité plus basse). Une région dont la teinte
-diffère nettement de son voisinage a une histoire JPEG différente.
+**Précision mesurée.** Sur 12 images réelles portant un collage Q55 connu : détecté dans 10,
+et 2 images intactes déclarées positives. Une détection est une piste à examiner, jamais une
+conclusion. La qualité retrouvée tombe à un palier près de la vérité : lisez-la comme un
+voisinage, pas comme un nombre.
 
 **Limites.** Un nouvel enregistrement JPEG uniforme de tout le montage est un angle mort :
 chaque bloc partage alors une même qualité finale réelle, et son creux quasi nul à cette
@@ -539,12 +557,31 @@ qualité noie toute trace plus subtile de la compression antérieure d'une régi
 collage. La technique lit un montage qui n'a jamais été unifié par un enregistrement JPEG
 ultérieur sur l'image entière — un PNG construit à partir de sources JPEG est le cas courant
 qu'elle détecte. Les régions plates et peu texturées ne creusent que faiblement à chaque
-qualité et se lisent comme ambiguës par construction.
+qualité et se lisent comme ambiguës par construction. Le seuil de 0,10 a été calibré sur une
+seule caméra ; recalibrez-le avant de vous y fier ailleurs.
 
 CLI : `--ghost block=16 min=50 max=100 step=5`, `--ghost-stats`
 
-`ghost_map` renvoie la carte visuelle ; `ghost_report` ajoute la qualité dominante et la liste
-des blocs atypiques.
+`ghost_sweep` renvoie la différence normalisée à chaque qualité — la matière première, et la
+forme qu'il vaut la peine de regarder. `ghost_map` renvoie l'unique image du balayage qui
+porte le plus de structure, sombre là où les pixels correspondent à cette qualité.
+`ghost_report` nomme la qualité de la région, l'écart qui a tranché, et le score de chaque
+qualité pour que le verdict puisse être vérifié plutôt que cru.
+
+> Une version antérieure de ce filtre prenait le minimum *global* de chaque bloc sur le
+> balayage. Cela ne peut pas fonctionner : la courbe de différence décroît de façon monotone
+> vers la qualité 100 pour presque tous les blocs, si bien que le minimum tombe en haut du
+> balayage quelle que soit l'histoire du bloc, et une image intacte déclarait 42 % de ses
+> blocs atypiques. Les préréglages et rapports écrits avant ce correctif mentionnent
+> `dominant_quality` et `outlier_count`, qui n'existent plus.
+
+> **Sur les filtres qui ne trouvent rien.** `clone_detect` et `auto_perspective` renvoient
+> l'image inchangée lorsqu'ils ne détectent aucune région dupliquée ni aucun quadrilatère.
+> C'est le bon contrat pour une étape de chaîne — une image entre, une image sort, et un
+> préréglage se rejoue à l'identique — mais « rien trouvé » et « rien fait » se ressemblent
+> dans la visionneuse. Utilisez le rapport correspondant pour les distinguer :
+> `--clone-stats` indique explicitement *no duplicated regions found*, et l'onglet Analysis
+> de l'interface graphique affiche la même ligne.
 
 ## Analyse des métadonnées (pas une étape de chaîne)
 
@@ -771,7 +808,15 @@ déconvolution de Wiener de cette même boîte à outils peut l'annuler. **La pi
 réversible pour un texte court à alphabet connu** — rendre chaque plaque candidate et faire
 correspondre les moyennes de blocs est une attaque documentée et peu coûteuse. Seuls `fill` et
 `noise` écartent réellement les pixels d'origine ; `fill` est la méthode par défaut et la
-seule à utiliser pour un document destiné à être publié. `verify_redaction` corrèle chaque
+seule à utiliser pour un document destiné à être publié.
+
+`noise` tire un bruit neuf à chaque exécution sauf si `seed` est fourni : le même préréglage
+produit alors une image différente à chaque fois. L'occultation est aussi efficace dans les
+deux cas, mais un résultat qui ne peut pas être reproduit n'est pas une preuve — fixez
+`seed` lorsque la chaîne doit se rejouer à l'identique. Cela n'affaiblit rien : les pixels
+d'origine sont détruits quoi qu'il arrive, donc connaître le bruit n'en récupère aucun.
+
+`verify_redaction` corrèle chaque
 région avec l'original et indique si le contenu a réellement disparu.
 
 **`annotate`** — flèches, formes, texte, et mesure calibrée. `Scale` convertit des pixels en

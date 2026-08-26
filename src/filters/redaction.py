@@ -149,6 +149,7 @@ def redact_region(
     method: str = 'fill',
     pixel_size: int = 12,
     blur_radius: float = 15.0,
+    seed: Optional[int] = None,
 ) -> np.ndarray:
     """
     Obscure a single region, for use in a filter chain.
@@ -159,13 +160,20 @@ def redact_region(
         method: 'fill', 'noise', 'blur', or 'pixelate'
         pixel_size: Block size used by 'pixelate'
         blur_radius: Gaussian sigma used by 'blur'
+        seed: Seed for 'noise'. Without one the noise differs on every run,
+            so a preset replaying this chain produces a different image each
+            time - the redaction is equally effective, but the result is no
+            longer reproducible, and a report that cannot be reproduced is
+            not evidence. Set a seed when the chain has to replay exactly.
+            Seeding does not weaken the redaction: the original pixels are
+            discarded either way, so knowing the noise recovers nothing.
 
     Returns:
         Image with the region obscured
     """
     return redact(
         image, [(x, y, width, height)], method=method,
-        pixel_size=pixel_size, blur_radius=blur_radius,
+        pixel_size=pixel_size, blur_radius=blur_radius, seed=seed,
     )
 
 

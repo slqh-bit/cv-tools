@@ -37,6 +37,11 @@ _INTERPOLATIONS = {
 }
 
 
+# The kernels this module offers. Again no 'auto': these rescale one axis by
+# a known factor, so there is nothing to infer.
+INTERPOLATIONS = tuple(_INTERPOLATIONS)
+
+
 def correct_pixel_aspect(
     image: np.ndarray,
     pixel_aspect: float = 1.0,

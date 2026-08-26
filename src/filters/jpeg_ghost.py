@@ -28,12 +28,69 @@ quality and read as ambiguous by design. Treat a best-quality mismatch as a
 pointer to inspect, never as a finding.
 """
 
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
 
 from .ela import recompress
+
+# How far a region's best quality has to sit below its *own average across
+# the sweep* before it counts as a compression history.
+#
+# Measuring the region against the rest of the frame alone does not work: a
+# region that merely differs in texture - a flat wall against a busy desk -
+# sits below the rest at every quality equally, and across 32 frames from two
+# cameras the worst such untouched region scored -0.364, stronger than the
+# mean genuine paste at -0.284. No threshold separated them; false positives
+# plateaued at 25%.
+#
+# A texture difference is a constant offset across the sweep and cancels when
+# the region's own mean is subtracted. A compression history is a dip at one
+# quality and survives. On the same 32 frames that change moves the achievable
+# operating points from 28% detection at zero false positives to:
+#
+#     threshold   detects   false positives
+#       0.20       84.4%        9.4%
+#       0.25       59.4%        3.1%     <- in force
+#       0.27       46.9%        0.0%
+#
+# 0.25 is chosen because a false "this region has a different history" invites
+# a wrong conclusion, while a miss only leaves the question open. Every one of
+# the 19 frames that fired at 0.25 named a quality within one sweep step of
+# the truth. Raising sensitivity is a one-line change to this constant.
+#
+# The number belongs to DEFAULT_QUALITIES and to a wide quality gap. Both
+# limits are measured. Against a Q95 frame, over 26 frames:
+#
+#     inner quality   50-100 sweep   30-100 sweep
+#         35              4/26          16/26
+#         40              3/26          11/26
+#         55             14/26           0/26
+#         70              1/26           3/26
+#
+# Two things follow. A region saved below the bottom of the sweep cannot be
+# found there, and the filter names a wrong quality rather than none - which
+# is why the sweep reaches down to 50 rather than 70. And widening the sweep
+# does not simply add reach: every curve is normalised across whatever range
+# it is given, so the low end rescales the dips at the top and Q55 stops being
+# detectable at all. A changed sweep needs its own threshold.
+#
+# It applies only when the region is supplied. Searching for the region
+# instead does not work: across 18 real CCTV frames the most separated
+# cluster of an *untouched* frame scores -0.53 on average, against -0.44 for
+# the same frames carrying a genuine Q55 paste. Flat walls and ceilings form
+# large coherent clusters at some quality in every frame, and that swamps the
+# compression signal. See validation/reports/hour-02.md for the measurements.
+#
+# The threshold travels between cameras - 12 of 12 on three cameras it was
+# never calibrated on, at a different resolution - but only for a paste that
+# landed on the JPEG 8x8 grid. Moved four pixels off it, the same paste in the
+# same frames is found once in 12, separating no more than an untouched frame
+# does. That is a property of JPEG rather than of this code: a region quantised
+# on a grid offset from the one it now sits on carries no recoverable
+# signature. See validation/reports/hour-04.md.
+REGION_SEPARATION = 0.25
 
 # Sane sweep for typical camera/editor JPEG saves; 5-point steps keep the
 # per-block minimum easy to localise without an excessive number of passes.
@@ -83,6 +140,60 @@ def _block_diffs(image: np.ndarray, qualities: Sequence[int], block_size: int) -
     return stack
 
 
+def ghost_sweep(
+    image: np.ndarray,
+    qualities: Sequence[int] = DEFAULT_QUALITIES,
+    block_size: int = 16,
+) -> np.ndarray:
+    """
+    The normalised difference at every quality - the ghost method's raw material.
+
+    Each block's difference curve is scaled to 0-1 across the sweep before
+    anything is decided, so blocks of wildly different texture become
+    comparable: a flat wall and a detailed doorway both run from 0 at their
+    best-matching quality to 1 at their worst.
+
+    This is the form the technique was described in, and the form worth
+    looking at. Collapsing the sweep to one number per block - the quality
+    where its curve is lowest - throws the evidence away, because the curve
+    falls monotonically towards 100 for almost every block and the ghost is a
+    *local* dip on that slope, not the global minimum.
+
+    Args:
+        image: Input image, meaningful only for a JPEG original
+        qualities: Ascending quality steps to sweep
+        block_size: Side length of the analysis blocks
+
+    Returns:
+        Float array shaped ``(len(qualities), rows, cols)``, each frame
+        normalised to 0-1. A region that was previously saved at quality q is
+        darker than its surroundings in the frame for q.
+
+    Example:
+        >>> sweep = ghost_sweep(photo)
+        >>> sweep.shape[0] == len(DEFAULT_QUALITIES)
+        True
+    """
+    stack = _block_diffs(image, qualities, block_size)
+    low = stack.min(axis=0)
+    span = stack.max(axis=0) - low
+    return (stack - low) / np.maximum(span, 1e-6)
+
+
+def _region_mask(shape: Tuple[int, int], region: Sequence[int],
+                 block_size: int) -> np.ndarray:
+    """Block-grid mask for a pixel-space region, clipped to the grid."""
+    rows, cols = shape
+    x, y, width, height = (int(v) for v in region)
+    c0, r0 = max(0, x // block_size), max(0, y // block_size)
+    c1 = min(cols, -(-(x + width) // block_size))
+    r1 = min(rows, -(-(y + height) // block_size))
+    mask = np.zeros(shape, bool)
+    if r1 > r0 and c1 > c0:
+        mask[r0:r1, c0:c1] = True
+    return mask
+
+
 def ghost_map(
     image: np.ndarray,
     qualities: Sequence[int] = DEFAULT_QUALITIES,
@@ -90,8 +201,17 @@ def ghost_map(
     upscale: bool = True,
 ) -> np.ndarray:
     """
-    Map each block to the quality step where it best matches its own
-    recompression - its likely prior JPEG quality.
+    The sweep frame in which a region stands out most - the ghost, if there is one.
+
+    Where a previous version of this returned each block's best-matching
+    quality, this returns the single normalised difference frame that carries
+    the evidence: dark where the pixels match that quality's recompression,
+    bright where they do not. A pasted region appears as a dark patch against
+    a bright field, at the quality it was originally saved at.
+
+    With no ghost present the frame chosen is simply the most separated one,
+    and it looks like noise - which is the correct appearance for an image
+    with one compression history.
 
     Args:
         image: Input image, meaningful only for a JPEG original
@@ -100,19 +220,21 @@ def ghost_map(
         upscale: Resize the block grid back to the input's dimensions
 
     Returns:
-        Single-channel uint8 map, where intensity encodes the index into
-        ``qualities`` of each block's best match - darker means an earlier
-        (lower-quality) step. A region whose shade differs sharply from its
-        surroundings had a different JPEG history.
+        Single-channel uint8 map. Read it with ``ghost_report``, which names
+        the quality the frame belongs to.
 
     Example:
         >>> ghost_map(photo, block_size=16).shape[:2] == photo.shape[:2]
         True
     """
-    stack = _block_diffs(image, qualities, block_size)
-    best_index = np.argmin(stack, axis=0).astype(np.float32)
+    sweep = ghost_sweep(image, qualities, block_size)
 
-    result = (best_index * (255.0 / (len(qualities) - 1))).astype(np.uint8)
+    # The frame with the widest spread between its darkest and lightest
+    # blocks: whatever structure the sweep holds is most visible there
+    spreads = [float(frame.max() - frame.min()) for frame in sweep]
+    frame = sweep[int(np.argmax(spreads))]
+
+    result = np.clip(frame * 255.0, 0, 255).astype(np.uint8)
 
     if upscale:
         rows, cols = result.shape
@@ -125,45 +247,87 @@ def ghost_report(
     image: np.ndarray,
     qualities: Sequence[int] = DEFAULT_QUALITIES,
     block_size: int = 16,
+    region: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
     """
-    Summarize each block's best-match quality and flag outliers.
+    Recover the JPEG quality a named region was last saved at.
+
+    **A region has to be named.** This does not search for one, and the
+    reason is measured rather than assumed: across 18 untouched CCTV frames,
+    the most separated cluster an automatic search can find scores -0.53 on
+    average, while the same frames carrying a genuine Q55 paste score -0.44.
+    Flat walls form large coherent clusters at some quality in every frame,
+    so a search returns texture, not history. Given the region, the same
+    measurement is decisive: -0.34 at the true quality against -0.02 for the
+    untouched control.
+
+    Mark the region on the image - the desktop viewer fills x, y, width and
+    height from a drag - and this reports what it was compressed at.
 
     Args:
         image: Input image
         qualities: Ascending quality steps to sweep
         block_size: Side length of the analysis blocks
+        region: ``(x, y, width, height)`` to interrogate. Without it the
+            sweep is returned for inspection and nothing is claimed
 
     Returns:
-        Dict with the per-block best-quality grid, the image's dominant
-        quality (its mode), and the outlier blocks whose best match departs
-        from it
+        Dict reporting whether a ghost was found, at which quality, where,
+        and how far that region separated from the rest of its frame. The
+        full ``sweep`` and the per-quality ``separations`` are included so
+        the verdict can be checked rather than taken.
     """
-    stack = _block_diffs(image, qualities, block_size)
-    best_index = np.argmin(stack, axis=0)
-    rows, cols = best_index.shape
+    sweep = ghost_sweep(image, qualities, block_size)
+    rows, cols = sweep.shape[1:]
 
-    counts = np.bincount(best_index.ravel(), minlength=len(qualities))
-    dominant_index = int(np.argmax(counts))
-
-    outliers: List[Dict[str, int]] = []
-    for row in range(rows):
-        for col in range(cols):
-            idx = int(best_index[row, col])
-            if idx != dominant_index:
-                outliers.append({
-                    'row': row, 'col': col,
-                    'x': col * block_size, 'y': row * block_size,
-                    'quality': int(qualities[idx]),
-                })
-
-    total_blocks = rows * cols
-    return {
+    report: Dict[str, Any] = {
         'qualities': list(qualities),
         'block_size': block_size,
-        'block_grid': best_index,
-        'dominant_quality': int(qualities[dominant_index]),
-        'outlier_count': len(outliers),
-        'outlier_fraction': len(outliers) / total_blocks if total_blocks else 0.0,
-        'outliers': outliers[:50],
+        'blocks': {'rows': rows, 'cols': cols},
+        'sweep': sweep,
+        'region': None,
+        'ghost_quality': None,
+        'separation': 0.0,
+        'detected': False,
+        'threshold': REGION_SEPARATION,
+        'separations': {},
+        # The threshold is calibrated for DEFAULT_QUALITIES. Each block's
+        # curve is normalised across whatever sweep it is given, so changing
+        # the range rescales every dip and the number stops meaning what it
+        # was measured to mean.
+        'calibrated_sweep': tuple(qualities) == DEFAULT_QUALITIES,
     }
+
+    if region is None:
+        return report
+
+    mask = _region_mask((rows, cols), region, block_size)
+    rest = ~mask
+    if not mask.any() or not rest.any():
+        raise ValueError(f"region {tuple(region)} does not fall inside the "
+                         f"{cols * block_size}x{rows * block_size} image")
+
+    # How far the named region sits below the rest of the image, at each
+    # quality. It dips at the quality it was last saved at.
+    separations = {int(q): round(float(frame[mask].mean() - frame[rest].mean()), 4)
+                   for q, frame in zip(qualities, sweep)}
+    best_quality = min(separations, key=separations.get)
+    best = separations[best_quality]
+
+    # The dip below the region's own average, which is what distinguishes a
+    # compression history from a region that is simply flatter than the frame
+    values = np.array(list(separations.values()), dtype=float)
+    dip = float(values.min() - values.mean())
+    detected = dip <= -REGION_SEPARATION
+
+    report.update({
+        'region': {'x': int(region[0]), 'y': int(region[1]),
+                   'width': int(region[2]), 'height': int(region[3])},
+        'region_blocks': int(mask.sum()),
+        'separations': separations,
+        'separation': best,
+        'dip': round(dip, 4),
+        'ghost_quality': best_quality if detected else None,
+        'detected': bool(detected),
+    })
+    return report

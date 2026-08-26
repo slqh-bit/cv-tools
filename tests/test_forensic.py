@@ -37,8 +37,10 @@ from src.filters import (
     fft_magnitude_spectrum,
     focus_score,
     frame_difference,
+    GHOST_REGION_SEPARATION,
     ghost_map,
     ghost_report,
+    ghost_sweep,
     highlight_clones,
     integrate_frames,
     median_frames,
@@ -274,38 +276,79 @@ class TestJpegGhost(unittest.TestCase):
         with self.assertRaises(ValueError):
             ghost_map(textured(64, 64), block_size=128)
 
-    def test_report_finds_the_prior_compression_quality(self):
-        # Requantising an already-JPEG'd image at its own quality is nearly
-        # lossless, so that quality should stand out as the block minimum.
-        image = recompress(textured(256, 256), quality=70)
-        report = ghost_report(image, qualities=(50, 60, 70, 80, 90, 100), block_size=16)
-        self.assertEqual(report['dominant_quality'], 70)
+    def test_sweep_is_normalised_per_block(self):
+        # Every block's curve is scaled to 0-1 across the sweep, so a flat
+        # wall and a detailed doorway become comparable
+        sweep = ghost_sweep(textured(128, 128), qualities=(50, 70, 90), block_size=16)
+        self.assertEqual(sweep.shape, (3, 8, 8))
+        self.assertGreaterEqual(float(sweep.min()), 0.0)
+        self.assertLessEqual(float(sweep.max()), 1.0)
+        # Each block hits both ends of its own range
+        np.testing.assert_allclose(sweep.min(axis=0), 0.0, atol=1e-6)
+        np.testing.assert_allclose(sweep.max(axis=0), 1.0, atol=1e-6)
 
-    def test_report_flags_a_spliced_region(self):
-        # A patch pasted straight in from a differently-compressed source,
-        # with no unifying resave afterwards - each region keeps its own
-        # single-generation quantisation history intact.
-        background = recompress(textured(128, 128, seed=2), quality=60)
-        patch_source = recompress(textured(128, 128, seed=11), quality=95)
+    def test_report_recovers_a_named_regions_prior_quality(self):
+        # A patch pasted in from a differently-compressed source, with no
+        # unifying resave: the region keeps its own quantisation history
+        background = recompress(textured(160, 160, seed=2), quality=90)
+        patch_source = recompress(textured(160, 160, seed=2), quality=50)
         composite = background.copy()
-        composite[48:96, 48:96] = patch_source[48:96, 48:96]
+        composite[48:112, 48:112] = patch_source[48:112, 48:112]
 
-        report = ghost_report(composite, qualities=(40, 50, 60, 70, 80, 90, 100), block_size=16)
-        dominant_index = report['qualities'].index(report['dominant_quality'])
-        patch_index = report['block_grid'][48 // 16, 48 // 16]
-        self.assertEqual(report['dominant_quality'], 60)
-        self.assertNotEqual(int(patch_index), dominant_index)
+        report = ghost_report(composite, qualities=(50, 60, 70, 80, 90, 100),
+                              block_size=16, region=(48, 48, 64, 64))
+        self.assertTrue(report['detected'])
+        self.assertEqual(report['ghost_quality'], 50)
+        self.assertLess(report['separation'], -GHOST_REGION_SEPARATION)
 
-    def test_outlier_blocks_include_coordinates(self):
-        background = recompress(textured(128, 128, seed=2), quality=60)
-        patch_source = recompress(textured(128, 128, seed=11), quality=95)
+    def test_report_claims_nothing_without_a_region(self):
+        # Searching for the region rather than being given one does not work
+        # on real frames, so it is not offered: an untouched frame's most
+        # separated cluster scores stronger than a genuine paste's
+        report = ghost_report(textured(128, 128), block_size=16)
+        self.assertFalse(report['detected'])
+        self.assertIsNone(report['ghost_quality'])
+        self.assertIsNone(report['region'])
+        self.assertIn('sweep', report)
+
+    def test_an_untouched_region_does_not_separate(self):
+        image = recompress(textured(160, 160), quality=90)
+        report = ghost_report(image, qualities=(50, 60, 70, 80, 90, 100),
+                              block_size=16, region=(48, 48, 64, 64))
+        self.assertFalse(report['detected'])
+
+    def test_report_says_when_the_sweep_is_not_the_calibrated_one(self):
+        # The threshold was measured against DEFAULT_QUALITIES. Each block's
+        # curve is normalised across whatever sweep it is given, so a changed
+        # range rescales every dip and the number stops meaning what it was
+        # measured to mean - the report has to say so rather than imply the
+        # calibration still holds.
+        image = textured(160, 160)
+        default = ghost_report(image, block_size=16, region=(48, 48, 64, 64))
+        self.assertTrue(default['calibrated_sweep'])
+
+        narrowed = ghost_report(image, block_size=16, region=(48, 48, 64, 64),
+                                qualities=(60, 70, 80, 90))
+        self.assertFalse(narrowed['calibrated_sweep'])
+
+    def test_report_rejects_a_region_outside_the_image(self):
+        with self.assertRaises(ValueError):
+            ghost_report(textured(128, 128), block_size=16,
+                         region=(5000, 5000, 64, 64))
+
+    def test_every_quality_is_scored_so_the_verdict_can_be_checked(self):
+        background = recompress(textured(160, 160, seed=2), quality=90)
+        patch = recompress(textured(160, 160, seed=2), quality=50)
         composite = background.copy()
-        composite[48:96, 48:96] = patch_source[48:96, 48:96]
+        composite[48:112, 48:112] = patch[48:112, 48:112]
 
-        report = ghost_report(composite, qualities=(40, 50, 60, 70, 80, 90, 100), block_size=16)
-        self.assertGreater(report['outlier_count'], 0)
-        self.assertIn('x', report['outliers'][0])
-        self.assertIn('y', report['outliers'][0])
+        qualities = (50, 60, 70, 80, 90, 100)
+        report = ghost_report(composite, qualities=qualities, block_size=16,
+                              region=(48, 48, 64, 64))
+        self.assertEqual(set(report['separations']), set(qualities))
+        # The reported quality is the most separated of them
+        best = min(report['separations'], key=report['separations'].get)
+        self.assertEqual(best, report['ghost_quality'])
 
 
 def build_thumbnail_exif(thumbnail_jpeg: bytes) -> bytes:

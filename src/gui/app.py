@@ -28,6 +28,7 @@ import numpy as np
 from ..core import FilterStep, ImageLoader, Pipeline, ReportGenerator, save_image
 from ..filters import (
     ANALYSIS_REGISTRY,
+    POINT_PARAMETERS as POINT_PICKS,
     CATEGORY_ORDER,
     Row,
     FILTER_REGISTRY,
@@ -51,7 +52,6 @@ from .theme import (
 from .widgets import VIEW_MODES, ImageCanvas, ParameterPanel
 
 REPORT_FORMATS = {'.json': 'json', '.pdf': 'pdf', '.md': 'markdown'}
-
 
 def enable_dpi_awareness() -> None:
     """
@@ -98,6 +98,8 @@ class CVToolsApp(tk.Tk):
         # The last rectangle dragged on the image, as x, y, width, height
         self.last_region: Optional[Tuple[int, int, int, int]] = None
         self._selected_filter: Optional[str] = None
+        # The (parameter, count, prompt) plan a pick in progress is filling
+        self._pick_plan: tuple = ()
         # Index of the chain step being edited, when the parameter panel is
         # showing an applied step rather than a filter about to be added
         self._editing_step: Optional[int] = None
@@ -298,6 +300,8 @@ class CVToolsApp(tk.Tk):
         self.viewer.on_pixel = self._on_pixel
         self.viewer.on_zoom = self._on_zoom
         self.viewer.on_region = self._on_region
+        self.viewer.on_pick_progress = self._on_pick_progress
+        self.viewer.on_picks_complete = self._on_picks_complete
 
         return frame
 
@@ -308,19 +312,27 @@ class CVToolsApp(tk.Tk):
                                          style='Heading.TLabel')
         self.parameter_title.pack(anchor='w')
 
-        self.parameters = ParameterPanel(frame)
-        self.parameters.pack(fill='both', expand=True, pady=(8, 8))
+        # Packed bottom-up and *before* the form, so the buttons keep their
+        # space however long the parameter list is. Packed after it, a
+        # fourteen-parameter filter like measure_3d pushed all three out of
+        # the window - including the one that fills its parameters in.
+        self.update_button = ttk.Button(frame, text='Update selected step',
+                                        command=self.update_step)
+        self.update_button.pack(side='bottom', fill='x', pady=(4, 0))
+
+        # Filters whose parameters are coordinates get them from the image
+        # rather than from typing; the button names the first thing to click
+        self.pick_button = ttk.Button(frame, text='Pick points on the image',
+                                      command=self.start_point_picking)
+        self.pick_button.pack(side='bottom', fill='x', pady=(4, 0))
 
         self.apply_button = ttk.Button(frame, text='Apply filter',
                                        style='Accent.TButton',
                                        command=self.apply_filter)
-        self.apply_button.pack(fill='x')
+        self.apply_button.pack(side='bottom', fill='x', pady=(8, 0))
 
-        # Selecting an applied step loads its parameters here, so a value can
-        # be corrected in place instead of the step being removed and re-added
-        self.update_button = ttk.Button(frame, text='Update selected step',
-                                        command=self.update_step)
-        self.update_button.pack(fill='x', pady=(4, 0))
+        self.parameters = ParameterPanel(frame, palette=self.palette)
+        self.parameters.pack(fill='both', expand=True, pady=(8, 0))
 
         return frame
 
@@ -427,6 +439,7 @@ class CVToolsApp(tk.Tk):
         self.bind('<Control-S>', lambda _e: self.save_preset())
         self.bind('<Control-z>', lambda _e: self.undo())
         self.bind('<Control-y>', lambda _e: self.redo())
+        self.bind('<Escape>', lambda _e: self.cancel_point_picking())
 
     # ---- filter list ----
 
@@ -845,6 +858,8 @@ class CVToolsApp(tk.Tk):
             text.configure(state=state)
 
         self._configure_analysis_tags()
+        for panel in (self.parameters, self.analysis_params):
+            panel.set_palette(self.palette)
         self.viewer.palette = self.palette
         self.viewer.canvas.configure(bg=self.palette['canvas'])
         self.histogram_canvas.configure(bg=self._histogram_hex())
@@ -862,6 +877,52 @@ class CVToolsApp(tk.Tk):
 
     def _on_zoom(self, zoom: float) -> None:
         self.zoom_label.configure(text=f'{zoom * 100:.0f}%')
+
+    # ---- picking points ----
+
+    def start_point_picking(self) -> None:
+        """Collect this filter's coordinate parameters from clicks."""
+        if not self._require_image():
+            return
+
+        picks = POINT_PICKS.get(self._selected_filter or '')
+        if not picks:
+            return
+
+        self._pick_plan = picks
+        # One label per click, so the viewer can prompt for each in turn
+        labels = []
+        for parameter, count, prompt in picks:
+            for index in range(count):
+                labels.append(prompt if count == 1 else f'{prompt} ({index + 1}/{count})')
+
+        self.viewer.start_picking(labels)
+        self._refresh_buttons()
+
+    def _on_pick_progress(self, label: str, remaining: int) -> None:
+        self._set_status(f'Click {label}   ({remaining} left - Esc to cancel)')
+
+    def _on_picks_complete(self, points: List[Tuple[int, int]]) -> None:
+        """Distribute the collected points across the parameters that wanted them."""
+        values: Dict[str, Any] = {}
+        index = 0
+        for parameter, count, _prompt in self._pick_plan:
+            taken = points[index:index + count]
+            index += count
+            # One point stays a pair; several flatten, which is how the entry
+            # parses them back - four corners become eight numbers
+            values[parameter] = list(taken[0]) if count == 1 else [
+                coordinate for point in taken for coordinate in point]
+
+        filled = self.parameters.set_values(values)
+        self._set_status(f"Picked {len(points)} points into {', '.join(filled)}")
+        self._refresh_buttons()
+
+    def cancel_point_picking(self) -> None:
+        if self.viewer.picking:
+            self.viewer.cancel_picking()
+            self._set_status('Picking cancelled')
+            self._refresh_buttons()
 
     def _on_region(self, x: int, y: int, width: int, height: int) -> None:
         """
@@ -988,6 +1049,9 @@ class CVToolsApp(tk.Tk):
             else 'disabled')
         self.analysis_button.configure(
             state='normal' if has_image and not self._analysis_running else 'disabled')
+        self.pick_button.configure(
+            state='normal' if has_image and not self.viewer.picking
+            and self._selected_filter in POINT_PICKS else 'disabled')
 
     # ---- helpers ----
 

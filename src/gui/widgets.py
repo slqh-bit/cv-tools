@@ -96,6 +96,11 @@ VIEW_MODES = ('processed', 'original', 'split', 'side by side')
 SELECTION_COLOR = '#ffc832'
 MIN_REGION = 4
 
+# Picked points are drawn on the canvas, so they need a colour that survives
+# both a dark frame and a blown-out window
+PICK_COLOR = '#4dd2ff'
+PICK_RADIUS = 6
+
 
 def _dynamic_choices() -> Dict[str, List[str]]:
     """Choice lists that come from the filter modules' own constants."""
@@ -109,6 +114,71 @@ def _dynamic_choices() -> Dict[str, List[str]]:
         'space': sorted(COLOR_SPACES),
         'format_name': sorted(PIXEL_ASPECT_RATIOS),
     }
+
+
+def choices_for(spec) -> Dict[str, List[str]]:
+    """
+    Valid values per parameter, narrowed to the filter being configured.
+
+    CHOICES is one map for every filter, so a name that means different things
+    to two filters ends up holding the union - and offering a user the half
+    their filter rejects. ``color_mode`` is the case that bites: CLAHE
+    implements 'luminance' and not 'grayscale', histogram equalization the
+    reverse, and a shared list offers both to both.
+
+    Args:
+        spec: A ``FilterSpec`` or ``AnalysisSpec``
+
+    Returns:
+        The choice map, with the entries this filter narrows replaced
+    """
+    from ..filters.aspect_ratio import INTERPOLATIONS as ASPECT_INTERPOLATIONS
+    from ..filters.clahe import COLOR_MODES as CLAHE_MODES
+    from ..filters.color_deconvolution import STAIN_PRESETS
+    from ..filters.component_separation import COLOR_SPACES
+    from ..filters.curves import CURVE_PRESETS
+    from ..filters.fisheye_correction import BORDER_MODES as FISHEYE_BORDERS
+    from ..filters.histogram_equalization import COLOR_MODES as HISTEQ_MODES
+    from ..filters.redaction import IRREVERSIBLE_METHODS, REVERSIBLE_METHODS
+    from ..filters.saturation import DESATURATE_METHODS
+    from ..filters.super_resolution import METHODS as UPSCALE_METHODS
+    from ..filters.white_balance import METHODS as WHITE_BALANCE_METHODS
+
+    merged = dict(CHOICES)
+    merged.update(_dynamic_choices())
+
+    # 'method' is the worst of them: four filters use the name for four
+    # unrelated vocabularies, so the shared list is their union and every one
+    # of the four is offered the other three's values
+    narrowed = {
+        'clahe': {'color_mode': list(CLAHE_MODES)},
+        'histeq': {'color_mode': list(HISTEQ_MODES)},
+        'redact': {'method': sorted(IRREVERSIBLE_METHODS | REVERSIBLE_METHODS)},
+        'white_balance': {'method': list(WHITE_BALANCE_METHODS)},
+        'desaturate': {'method': list(DESATURATE_METHODS)},
+        'upscale': {'method': list(UPSCALE_METHODS)},
+        'pixel_aspect': {'interpolation': list(ASPECT_INTERPOLATIONS)},
+        'fit_aspect': {'interpolation': list(ASPECT_INTERPOLATIONS)},
+        'barrel': {'border_mode': list(FISHEYE_BORDERS)},
+        'fisheye': {'border_mode': list(FISHEYE_BORDERS)},
+    }
+
+    name = getattr(spec, 'name', '')
+    if name in narrowed:
+        merged.update(narrowed[name])
+    elif name == 'component':
+        # Channel names belong to the chosen colour space, and are matched
+        # case-sensitively; the global r/g/b list cannot drive this at all
+        names: List[str] = []
+        for _code, channels in COLOR_SPACES.values():
+            names.extend(channels)
+        merged['channel'] = sorted(dict.fromkeys(names))
+    elif name == 'curves':
+        merged['preset'] = [''] + sorted(CURVE_PRESETS)
+    elif name == 'stain':
+        merged['preset'] = sorted(STAIN_PRESETS)
+
+    return merged
 
 
 def to_display(image: np.ndarray) -> np.ndarray:
@@ -150,6 +220,10 @@ class ImageCanvas(ttk.Frame):
         self._display_size = (1, 1)
         self._region_start = None
         self._region_item = None
+        # Point picking: the labels still to be collected, and what has been
+        # collected so far. Empty means ordinary click-and-drag behaviour.
+        self._pick_queue = []
+        self._picked = []
 
         self.canvas = tk.Canvas(self, bg=self.palette['canvas'], highlightthickness=0,
                                 cursor='crosshair')
@@ -176,6 +250,10 @@ class ImageCanvas(ttk.Frame):
         self.on_pixel: Optional[Callable[[int, int], None]] = None
         self.on_zoom: Optional[Callable[[float], None]] = None
         self.on_region: Optional[Callable[[int, int, int, int], None]] = None
+        # Called with (label, remaining) after each pick, and with the full
+        # list of (x, y) once the queue empties
+        self.on_pick_progress: Optional[Callable[[str, int], None]] = None
+        self.on_picks_complete: Optional[Callable[[List[Tuple[int, int]]], None]] = None
 
     # ---- content ----
 
@@ -275,6 +353,8 @@ class ImageCanvas(ttk.Frame):
         if self.on_zoom is not None:
             self.on_zoom(self.zoom)
 
+        self._draw_picks()
+
         if self.mode.get() in ('split', 'side by side'):
             for text, x in (('ORIGINAL', 8), ('PROCESSED', display_w // 2 + 8)):
                 # Drawn on the image, so these stay white in either theme
@@ -282,6 +362,67 @@ class ImageCanvas(ttk.Frame):
                                         fill='#000000', font=FONT_BOLD)
                 self.canvas.create_text(x, 8, text=text, anchor='nw',
                                         fill='#ffffff', font=FONT_BOLD)
+
+    # ---- point picking ----
+
+    @property
+    def picking(self) -> bool:
+        """Whether clicks are currently collecting points rather than dragging."""
+        return bool(self._pick_queue)
+
+    def start_picking(self, labels: List[str]) -> None:
+        """
+        Collect one point per label, in order, from clicks on the image.
+
+        Typing four corner coordinates read off a hover readout is the slowest
+        thing this window asks of anyone, and the numbers are on the image
+        already. The labels drive the prompt so the user is told which point
+        is wanted next rather than having to remember the order.
+        """
+        self._pick_queue = list(labels)
+        self._picked = []
+        self.canvas.configure(cursor='tcross')
+        self.redraw()
+        if self.on_pick_progress is not None and self._pick_queue:
+            self.on_pick_progress(self._pick_queue[0], len(self._pick_queue))
+
+    def cancel_picking(self) -> None:
+        """Abandon a pick in progress, keeping nothing."""
+        self._pick_queue = []
+        self._picked = []
+        self.canvas.configure(cursor='crosshair')
+        self.redraw()
+
+    def _record_pick(self, x: int, y: int) -> None:
+        """Take one point, and finish if it was the last one wanted."""
+        self._picked.append((x, y))
+        self._pick_queue.pop(0)
+        self.redraw()
+
+        if self._pick_queue:
+            if self.on_pick_progress is not None:
+                self.on_pick_progress(self._pick_queue[0], len(self._pick_queue))
+            return
+
+        picked = list(self._picked)
+        self.cancel_picking()
+        if self.on_picks_complete is not None:
+            self.on_picks_complete(picked)
+
+    def _draw_picks(self) -> None:
+        """Mark what has been picked, so the user can see it before applying."""
+        for index, (x, y) in enumerate(self._picked, start=1):
+            cx, cy = x * self.zoom, y * self.zoom
+            self.canvas.create_line(cx - PICK_RADIUS, cy, cx + PICK_RADIUS, cy,
+                                    fill=PICK_COLOR, width=1)
+            self.canvas.create_line(cx, cy - PICK_RADIUS, cx, cy + PICK_RADIUS,
+                                    fill=PICK_COLOR, width=1)
+            self.canvas.create_oval(cx - PICK_RADIUS, cy - PICK_RADIUS,
+                                    cx + PICK_RADIUS, cy + PICK_RADIUS,
+                                    outline=PICK_COLOR)
+            self.canvas.create_text(cx + PICK_RADIUS + 3, cy - PICK_RADIUS - 3,
+                                    text=str(index), anchor='nw',
+                                    fill=PICK_COLOR, font=FONT_BOLD)
 
     # ---- interaction ----
 
@@ -291,6 +432,14 @@ class ImageCanvas(ttk.Frame):
         return x, y
 
     def _on_press(self, event) -> None:
+        if self.picking:
+            if self._processed is not None:
+                x, y = self._to_image_coords(event)
+                height, width = self._processed.shape[:2]
+                self._record_pick(max(0, min(x, width - 1)),
+                                  max(0, min(y, height - 1)))
+            return
+
         if self.mode.get() == 'split':
             self._dragging_split = True
             self._on_drag(event)
@@ -415,14 +564,56 @@ class ParameterPanel(ttk.Frame):
     a usable panel, and a filter added later needs no GUI work at all.
     """
 
-    def __init__(self, master, on_change: Optional[Callable[[], None]] = None, **kwargs):
+    def __init__(self, master, on_change: Optional[Callable[[], None]] = None,
+                 palette: Optional[Dict[str, str]] = None, **kwargs):
         super().__init__(master, **kwargs)
         self._on_change = on_change
         self._entries: Dict[str, Dict[str, Any]] = {}
-        self._choices = dict(CHOICES)
-        self._choices.update(_dynamic_choices())
+        self._choices: Dict[str, List[str]] = dict(CHOICES)
         self._body: Optional[ttk.Frame] = None
+        self.palette = palette or DARK
+
+        # Scrolled, because the forms are generated: measure_3d has fourteen
+        # parameters and undistort's is longer still. Without this the tail of
+        # a long form is simply unreachable, and so is anything packed below
+        # the panel.
+        self._canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0,
+                                 background=self.palette['panel'])
+        self._scroll = ttk.Scrollbar(self, orient='vertical',
+                                     command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=self._scroll.set)
+
+        self._canvas.grid(row=0, column=0, sticky='nsew')
+        self._scroll.grid(row=0, column=1, sticky='ns')
+        self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
+
+        self._holder = ttk.Frame(self._canvas)
+        self._window = self._canvas.create_window((0, 0), window=self._holder,
+                                                  anchor='nw')
+        self._holder.bind('<Configure>', self._on_holder_resize)
+        self._canvas.bind('<Configure>', self._on_canvas_resize)
+        self._canvas.bind('<MouseWheel>', self._on_wheel)
+
+    def _on_holder_resize(self, _event=None) -> None:
+        self._canvas.configure(scrollregion=self._canvas.bbox('all'))
+
+    def _on_canvas_resize(self, event) -> None:
+        # The form tracks the canvas width, so entries fill it rather than
+        # keeping whatever width their contents asked for
+        self._canvas.itemconfigure(self._window, width=event.width)
+
+    def _on_wheel(self, event) -> None:
+        if self._canvas.bbox('all') is None:
+            return
+        _, top, _, bottom = self._canvas.bbox('all')
+        if bottom - top > self._canvas.winfo_height():
+            self._canvas.yview_scroll(-1 if event.delta > 0 else 1, 'units')
+
+    def set_palette(self, palette: Dict[str, str]) -> None:
+        """Follow a theme change; ttk cannot reach the scrolling canvas."""
+        self.palette = palette
+        self._canvas.configure(background=palette['panel'])
 
     def clear(self) -> None:
         """Remove every control."""
@@ -441,10 +632,15 @@ class ParameterPanel(ttk.Frame):
         """
         self.clear()
         values = values or {}
+        # Narrowed per filter, so the list never offers a value this one
+        # rejects
+        self._choices = choices_for(spec)
 
-        self._body = ttk.Frame(self)
+        self._body = ttk.Frame(self._holder)
         self._body.grid(row=0, column=0, sticky='nsew')
         self._body.columnconfigure(1, weight=1)
+        self._holder.columnconfigure(0, weight=1)
+        self._canvas.yview_moveto(0.0)
 
         ttk.Label(self._body, text=spec.description, wraplength=250,
                   style='Muted.TLabel').grid(row=0, column=0, columnspan=2,
@@ -558,6 +754,13 @@ class ParameterPanel(ttk.Frame):
                 entry['var'].set(bool(value))
             elif entry['kind'] in ('int', 'float'):
                 entry['var'].set(float(value))
+            elif isinstance(value, (tuple, list)):
+                # Flattened and comma-joined, which is how the entry parses
+                # back: str([[1, 2]]) would not survive the round trip
+                flat = []
+                for item in value:
+                    flat.extend(item if isinstance(item, (tuple, list)) else [item])
+                entry['var'].set(','.join(str(v) for v in flat))
             else:
                 entry['var'].set(str(value))
 

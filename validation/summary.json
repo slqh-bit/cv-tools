@@ -1,0 +1,691 @@
+{
+  "when": "2026-08-21T12:46:59",
+  "python": "3.12.10",
+  "opencv": "4.14.0",
+  "results": [
+    {
+      "name": "clahe",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 16,
+      "failed_checks": 0,
+      "seconds": 0.6
+    },
+    {
+      "name": "contrast_brightness",
+      "kind": "filter",
+      "runs": 63,
+      "failures": 0,
+      "checks": 8,
+      "failed_checks": 0,
+      "seconds": 1.1
+    },
+    {
+      "name": "auto_contrast",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.3
+    },
+    {
+      "name": "levels",
+      "kind": "filter",
+      "runs": 99,
+      "failures": 0,
+      "checks": 10,
+      "failed_checks": 0,
+      "seconds": 1.3
+    },
+    {
+      "name": "auto_levels",
+      "kind": "filter",
+      "runs": 18,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 0.3
+    },
+    {
+      "name": "histeq",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 7,
+      "failed_checks": 0,
+      "seconds": 0.3
+    },
+    {
+      "name": "roi_crop",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 2,
+      "failed_checks": 0,
+      "seconds": 0.0
+    },
+    {
+      "name": "roi_draw",
+      "kind": "filter",
+      "runs": 36,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.3
+    },
+    {
+      "name": "crop",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 0.0
+    },
+    {
+      "name": "resize",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 0.0
+    },
+    {
+      "name": "rotate",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 5,
+      "failed_checks": 0,
+      "seconds": 0.7
+    },
+    {
+      "name": "flip",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 4,
+      "failed_checks": 0,
+      "seconds": 0.3
+    },
+    {
+      "name": "curves",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 8,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "s_curve",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.3
+    },
+    {
+      "name": "white_balance",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 5,
+      "failed_checks": 0,
+      "seconds": 0.7
+    },
+    {
+      "name": "white_balance_patch",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "temperature",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 0.7
+    },
+    {
+      "name": "saturation",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 16,
+      "failed_checks": 0,
+      "seconds": 0.4
+    },
+    {
+      "name": "vibrance",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.4
+    },
+    {
+      "name": "desaturate",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.1
+    },
+    {
+      "name": "selective_saturation",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.6
+    },
+    {
+      "name": "color_balance",
+      "kind": "filter",
+      "runs": 18,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.5
+    },
+    {
+      "name": "cmyk",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "channel_mixer",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "invert",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 2,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "invert_channel",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 4,
+      "failed_checks": 0,
+      "seconds": 0.0
+    },
+    {
+      "name": "invert_luminance",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "solarize",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 0.3
+    },
+    {
+      "name": "sharpen",
+      "kind": "filter",
+      "runs": 63,
+      "failures": 0,
+      "checks": 11,
+      "failed_checks": 0,
+      "seconds": 3.0
+    },
+    {
+      "name": "sharpen_laplacian",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.5
+    },
+    {
+      "name": "gaussian_blur",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 8,
+      "failed_checks": 0,
+      "seconds": 2.8
+    },
+    {
+      "name": "median_filter",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "bilateral_filter",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 5,
+      "failed_checks": 0,
+      "seconds": 0.7
+    },
+    {
+      "name": "nl_means",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 6,
+      "failed_checks": 0,
+      "seconds": 17.6
+    },
+    {
+      "name": "nl_means_auto",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 13.9
+    },
+    {
+      "name": "upscale",
+      "kind": "filter",
+      "runs": 50,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 5.8
+    },
+    {
+      "name": "local_contrast",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 11,
+      "failed_checks": 0,
+      "seconds": 3.9
+    },
+    {
+      "name": "detail_enhance",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 5,
+      "failed_checks": 0,
+      "seconds": 2.5
+    },
+    {
+      "name": "multiscale_detail",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 1.1
+    },
+    {
+      "name": "texture_boost",
+      "kind": "filter",
+      "runs": 36,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 0.9
+    },
+    {
+      "name": "perspective",
+      "kind": "filter",
+      "runs": 33,
+      "failures": 0,
+      "checks": 2,
+      "failed_checks": 0,
+      "seconds": 0.4
+    },
+    {
+      "name": "auto_perspective",
+      "kind": "filter",
+      "runs": 10,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "barrel",
+      "kind": "filter",
+      "runs": 90,
+      "failures": 0,
+      "checks": 1,
+      "failed_checks": 0,
+      "seconds": 2.1
+    },
+    {
+      "name": "fisheye",
+      "kind": "filter",
+      "runs": 70,
+      "failures": 0,
+      "checks": 4,
+      "failed_checks": 0,
+      "seconds": 1.7
+    },
+    {
+      "name": "pixel_aspect",
+      "kind": "filter",
+      "runs": 54,
+      "failures": 0,
+      "checks": 5,
+      "failed_checks": 0,
+      "seconds": 0.6
+    },
+    {
+      "name": "fit_aspect",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.3
+    },
+    {
+      "name": "undistort",
+      "kind": "filter",
+      "runs": 40,
+      "failures": 0,
+      "checks": 6,
+      "failed_checks": 0,
+      "seconds": 0.3
+    },
+    {
+      "name": "canny",
+      "kind": "filter",
+      "runs": 72,
+      "failures": 0,
+      "checks": 7,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "auto_canny",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "sobel",
+      "kind": "filter",
+      "runs": 18,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "laplacian",
+      "kind": "filter",
+      "runs": 36,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "blocking_map",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.6
+    },
+    {
+      "name": "deblock",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 1,
+      "failed_checks": 0,
+      "seconds": 0.4
+    },
+    {
+      "name": "ela",
+      "kind": "filter",
+      "runs": 66,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.9
+    },
+    {
+      "name": "fft_spectrum",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 0.8
+    },
+    {
+      "name": "fft_filter",
+      "kind": "filter",
+      "runs": 72,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 3.6
+    },
+    {
+      "name": "remove_periodic",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 2,
+      "failed_checks": 0,
+      "seconds": 12.0
+    },
+    {
+      "name": "noise_map",
+      "kind": "filter",
+      "runs": 27,
+      "failures": 0,
+      "checks": 2,
+      "failed_checks": 0,
+      "seconds": 0.1
+    },
+    {
+      "name": "clone_detect",
+      "kind": "filter",
+      "runs": 33,
+      "failures": 0,
+      "checks": 2,
+      "failed_checks": 0,
+      "seconds": 24.7
+    },
+    {
+      "name": "deblur_motion",
+      "kind": "filter",
+      "runs": 70,
+      "failures": 0,
+      "checks": 2,
+      "failed_checks": 0,
+      "seconds": 10.9
+    },
+    {
+      "name": "deblur_defocus",
+      "kind": "filter",
+      "runs": 50,
+      "failures": 0,
+      "checks": 1,
+      "failed_checks": 0,
+      "seconds": 9.9
+    },
+    {
+      "name": "ghost",
+      "kind": "filter",
+      "runs": 22,
+      "failures": 0,
+      "checks": 7,
+      "failed_checks": 0,
+      "seconds": 3.1
+    },
+    {
+      "name": "stain",
+      "kind": "filter",
+      "runs": 40,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 1.0
+    },
+    {
+      "name": "component",
+      "kind": "filter",
+      "runs": 54,
+      "failures": 0,
+      "checks": 34,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "bit_plane",
+      "kind": "filter",
+      "runs": 9,
+      "failures": 0,
+      "checks": 9,
+      "failed_checks": 0,
+      "seconds": 0.1
+    },
+    {
+      "name": "redact",
+      "kind": "filter",
+      "runs": 45,
+      "failures": 0,
+      "checks": 7,
+      "failed_checks": 0,
+      "seconds": 0.5
+    },
+    {
+      "name": "measure_3d",
+      "kind": "filter",
+      "runs": 18,
+      "failures": 0,
+      "checks": 4,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "noise",
+      "kind": "analysis",
+      "runs": 8,
+      "failures": 0,
+      "checks": 7,
+      "failed_checks": 0,
+      "seconds": 0.1
+    },
+    {
+      "name": "ela",
+      "kind": "analysis",
+      "runs": 8,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 0.1
+    },
+    {
+      "name": "clone",
+      "kind": "analysis",
+      "runs": 8,
+      "failures": 0,
+      "checks": 0,
+      "failed_checks": 0,
+      "seconds": 4.2
+    },
+    {
+      "name": "compression",
+      "kind": "analysis",
+      "runs": 8,
+      "failures": 0,
+      "checks": 6,
+      "failed_checks": 0,
+      "seconds": 0.2
+    },
+    {
+      "name": "ghost",
+      "kind": "analysis",
+      "runs": 8,
+      "failures": 0,
+      "checks": 7,
+      "failed_checks": 0,
+      "seconds": 1.2
+    },
+    {
+      "name": "metadata",
+      "kind": "analysis",
+      "runs": 8,
+      "failures": 0,
+      "checks": 7,
+      "failed_checks": 0,
+      "seconds": 0.1
+    },
+    {
+      "name": "differential",
+      "kind": "standalone",
+      "runs": 0,
+      "failures": 0,
+      "checks": 10,
+      "failed_checks": 0,
+      "seconds": 0.6
+    },
+    {
+      "name": "differential_denoise",
+      "kind": "standalone",
+      "runs": 0,
+      "failures": 0,
+      "checks": 3,
+      "failed_checks": 0,
+      "seconds": 1.1
+    },
+    {
+      "name": "per_channel",
+      "kind": "standalone",
+      "runs": 0,
+      "failures": 0,
+      "checks": 12,
+      "failed_checks": 0,
+      "seconds": 0.0
+    }
+  ]
+}

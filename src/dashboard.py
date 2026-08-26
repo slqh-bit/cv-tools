@@ -40,6 +40,7 @@ from src.core import FilterStep, Pipeline, ReportGenerator
 from src.filters import (
     ANALYSIS_REGISTRY,
     CATEGORY_ORDER,
+    POINT_PARAMETERS,
     FILTER_REGISTRY,
     dynamic_range_used,
     filter_function,
@@ -51,7 +52,7 @@ from src.filters import (
     run_analysis,
 )
 from src.gui.theme import DARK, HISTOGRAM_BACKGROUND
-from src.gui.widgets import CHOICES, SLIDER_RANGES, _dynamic_choices, to_display
+from src.gui.widgets import SLIDER_RANGES, choices_for, to_display
 from src.utils.parsing import parse_value
 
 # streamlit-image-coordinates 0.4.0 (the latest) imports UseColumnWith, a type
@@ -169,6 +170,8 @@ def _init_state() -> None:
     st.session_state.setdefault('picks', [])
     st.session_state.setdefault('last_tap', None)
     st.session_state.setdefault('analysis', None)
+    # The filter a guided pick is collecting points for, or None
+    st.session_state.setdefault('picking_for', None)
 
 
 def _load_image(data: bytes, name: str) -> None:
@@ -177,8 +180,13 @@ def _load_image(data: bytes, name: str) -> None:
     if previous:
         shutil.rmtree(previous, ignore_errors=True)
 
+    # Kept as RGB, which is what the filters expect: core.ImageLoader
+    # converts BGR to RGB on load and save_image converts back, so RGB is the
+    # pipeline's colour order throughout. Converting to BGR here fed every
+    # filter its channels reversed - harmless for a luminance operation like
+    # CLAHE, and wrong for every colour one. Inverting the red channel
+    # inverted blue instead.
     image = np.array(Image.open(io.BytesIO(data)).convert('RGB'))
-    image = image[:, :, ::-1].copy()  # RGB -> BGR, filters are OpenCV-shaped
     st.session_state.pipeline = Pipeline(image)
     st.session_state.metadata = {'filename': name, 'width': image.shape[1],
                                   'height': image.shape[0]}
@@ -221,34 +229,6 @@ def _source_file() -> Optional[Path]:
 
 # ---- parameter form, mirrors gui.widgets.ParameterPanel ----------------
 
-def _choices_for(spec) -> Dict[str, Any]:
-    """
-    Valid values per parameter, narrowed to the filter being configured.
-
-    The Tkinter panel used one global map because its comboboxes were
-    editable - a wrong suggestion could always be typed over. A Streamlit
-    selectbox offers only what it lists, so a global 'channel' list of
-    r/g/b makes ``component`` impossible to drive: it needs the channel
-    names of the chosen colour space, and matches them case-sensitively.
-    """
-    from src.filters import COLOR_SPACES, CURVE_PRESETS, STAIN_PRESETS
-
-    merged = dict(CHOICES)
-    merged.update(_dynamic_choices())
-
-    if spec.name == 'component':
-        names = []
-        for _code, channels in COLOR_SPACES.values():
-            names.extend(channels)
-        merged['channel'] = sorted(dict.fromkeys(names))
-    elif spec.name == 'curves':
-        merged['preset'] = [''] + sorted(CURVE_PRESETS)
-    elif spec.name == 'stain':
-        merged['preset'] = sorted(STAIN_PRESETS)
-
-    return merged
-
-
 def _param_form(spec, container=None, key_prefix: str = 'param') -> Dict[str, Any]:
     """
     Build Streamlit controls from a filter's signature and collect values.
@@ -271,7 +251,7 @@ def _param_form(spec, container=None, key_prefix: str = 'param') -> Dict[str, An
     skip = set(getattr(spec, 'skip_params', ()))
     parameters = [p for p in parameters if p.name not in skip]
 
-    choices = _choices_for(spec)
+    choices = choices_for(spec)
     params: Dict[str, Any] = {}
     missing_required = []
 
@@ -468,6 +448,10 @@ def _add_filter_panel(pipeline: Pipeline) -> None:
     spec = resolve_filter(name)
     st.sidebar.caption(spec.description)
 
+    plan = POINT_PARAMETERS.get(name)
+    if plan is not None:
+        _picking_controls(name, plan)
+
     params = _param_form(spec)
 
     if st.sidebar.button('Apply filter', type='primary', disabled=params is None):
@@ -477,6 +461,65 @@ def _add_filter_panel(pipeline: Pipeline) -> None:
         except Exception as exc:
             st.sidebar.error(str(exc))
         st.rerun()
+
+
+def _picking_controls(name: str, plan) -> None:
+    """
+    Collect a filter's coordinate parameters from taps on the image.
+
+    The desktop viewer fills these from clicks; without the same thing here,
+    the dashboard's answer to "where is the object's foot" was read four
+    numbers off a grid overlay and type them. The tap component already
+    existed - what was missing was knowing which point each tap is *for*.
+    """
+    wanted = [prompt if count == 1 else f'{prompt} ({index + 1}/{count})'
+              for _parameter, count, prompt in plan
+              for index in range(count)]
+    picks = st.session_state.picks
+    active = st.session_state.picking_for == name
+
+    if not active:
+        if st.sidebar.button(f'Pick {len(wanted)} points on the image',
+                             key=f'pick_{name}'):
+            st.session_state.picking_for = name
+            st.session_state.picks = []
+            st.session_state.last_tap = None
+            st.rerun()
+        return
+
+    if len(picks) < len(wanted):
+        st.sidebar.info(f'Tap **{wanted[len(picks)]}**  \n'
+                        f'({len(wanted) - len(picks)} of {len(wanted)} left)')
+        st.sidebar.caption('Turn on "Tap to pick coordinates" over the image.')
+    else:
+        # Every point collected: write them into the parameter fields
+        filled = _fill_from_picks(name, plan, picks)
+        st.session_state.picking_for = None
+        st.sidebar.success(f'Filled {", ".join(filled)}')
+
+    if st.sidebar.button('Cancel picking', key=f'cancel_{name}'):
+        st.session_state.picking_for = None
+        st.rerun()
+
+
+def _fill_from_picks(name: str, plan, picks) -> List[str]:
+    """
+    Distribute collected points across the parameters that wanted them.
+
+    Written into the widgets' own session-state keys, which is how a value
+    reaches a Streamlit control that has already been created once.
+    """
+    filled, index = [], 0
+    for parameter, count, _prompt in plan:
+        taken = picks[index:index + count]
+        index += count
+        if len(taken) < count:
+            break
+        flat = [coordinate for point in taken for coordinate in point]
+        st.session_state[f'param_{name}_{parameter}'] = ','.join(
+            str(v) for v in flat)
+        filled.append(parameter)
+    return filled
 
 
 def _preset_panel(pipeline: Pipeline) -> None:
@@ -652,13 +695,23 @@ def _viewer_tab(pipeline: Pipeline) -> None:
              'Needs streamlit-image-coordinates; use the grid instead.')
 
     def shown(image: np.ndarray) -> np.ndarray:
-        rgb = to_display(image)[:, :, ::-1]
+        rgb = to_display(image)
         return _draw_coordinate_grid(rgb, spacing) if show_grid else rgb
 
     if tap and TAP_TO_PICK:
         # One tappable image: a side-by-side pair has no unambiguous target
         source = original if view == 'Original' else current
         frame = shown(source)
+        target = st.session_state.picking_for
+        if target:
+            plan = POINT_PARAMETERS.get(target, ())
+            wanted = [prompt if count == 1 else f'{prompt} ({i + 1}/{count})'
+                      for _p, count, prompt in plan for i in range(count)]
+            done = len(st.session_state.picks)
+            if done < len(wanted):
+                st.info(f'Tap **{wanted[done]}** '
+                        f'({len(wanted) - done} of {len(wanted)} left)')
+
         picked = streamlit_image_coordinates(
             Image.fromarray(frame), use_column_width='always', key='tap_picker')
         _record_tap(picked, frame.shape)
@@ -797,7 +850,7 @@ def _export_tab(pipeline: Pipeline) -> None:
     name = Path(st.session_state.source_name or 'image').stem
 
     buffer = io.BytesIO()
-    Image.fromarray(to_display(pipeline.current)[:, :, ::-1]).save(buffer, format='PNG')
+    Image.fromarray(to_display(pipeline.current)).save(buffer, format='PNG')
 
     preset = {
         'name': f'preset_{st.session_state.source_name or "image"}',

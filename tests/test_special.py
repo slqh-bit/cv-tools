@@ -445,6 +445,32 @@ class TestRedaction(unittest.TestCase):
         self.assertEqual(int(result[20:60, 20:80].max()), 0)
 
 
+class TestRedactionReproducibility(unittest.TestCase):
+    """A chain that cannot replay identically cannot back a report."""
+
+    def test_noise_redaction_is_reproducible_when_seeded(self):
+        image = textured(96, 128) if 'textured' in globals() else np.full(
+            (96, 128, 3), 128, np.uint8)
+        first = redact_region(image, 10, 10, 60, 40, method='noise', seed=7)
+        again = redact_region(image, 10, 10, 60, 40, method='noise', seed=7)
+        np.testing.assert_array_equal(first, again)
+
+    def test_noise_redaction_varies_without_a_seed(self):
+        # The default has to stay random: a fixed default would make every
+        # redaction in the world identical, which is worse
+        image = np.full((96, 128, 3), 128, np.uint8)
+        first = redact_region(image, 10, 10, 60, 40, method='noise')
+        again = redact_region(image, 10, 10, 60, 40, method='noise')
+        self.assertFalse(np.array_equal(first, again))
+
+    def test_a_seeded_redaction_still_destroys_the_region(self):
+        image = np.tile(np.arange(128, dtype=np.uint8), (96, 1))
+        image = np.stack([image] * 3, axis=2)
+        redacted = redact_region(image, 10, 10, 60, 40, method='noise', seed=7)
+        report = verify_redaction(image, redacted, [(10, 10, 60, 40)])
+        self.assertTrue(report['safe'])
+
+
 class TestAnnotate(unittest.TestCase):
 
     def setUp(self):

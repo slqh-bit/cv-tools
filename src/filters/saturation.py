@@ -103,6 +103,11 @@ def adjust_vibrance(image: np.ndarray, factor: float = 1.0) -> np.ndarray:
     return result
 
 
+# The greyscale conversions this module implements. 'method' on redaction,
+# white balance and upscaling means something else entirely.
+DESATURATE_METHODS = ('luminance', 'average', 'lightness', 'max', 'min')
+
+
 def desaturate(image: np.ndarray, method: str = 'luminance') -> np.ndarray:
     """
     Convert to grayscale by a chosen rule.
@@ -140,7 +145,8 @@ def desaturate(image: np.ndarray, method: str = 'luminance') -> np.ndarray:
         gray = channels.min(axis=2)
     else:
         raise ValueError(
-            f"Unknown method '{method}'. Use luminance, average, lightness, max, or min"
+            f"Unknown method '{method}'. "
+            f"Available: {', '.join(DESATURATE_METHODS)}"
         )
 
     return np.clip(gray, 0, 255).astype(np.uint8)

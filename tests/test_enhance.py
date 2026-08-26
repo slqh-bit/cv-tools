@@ -11,11 +11,14 @@ from src.filters import (
     compute_histogram,
     dynamic_range_used,
     edge_density,
+    estimate_h,
+    estimate_noise,
     gaussian_blur,
     histogram_stats,
     laplacian_edges,
     laplacian_sharpen,
     median_filter,
+    nl_means_denoise_auto,
     render_histogram,
     sharpen_grid,
     sobel_edges,
@@ -311,6 +314,77 @@ class TestEdgeDetection(unittest.TestCase):
     def test_edge_density_on_empty_raises(self):
         with self.assertRaises(ValueError):
             edge_density(np.array([], dtype=np.uint8))
+
+
+class TestDenoiseStrength(unittest.TestCase):
+    """The automatic strength has to improve the image, not flatten it."""
+
+    @staticmethod
+    def _psnr(candidate, truth):
+        import cv2
+        a = cv2.cvtColor(candidate, cv2.COLOR_RGB2GRAY).astype(float)
+        b = cv2.cvtColor(truth, cv2.COLOR_RGB2GRAY).astype(float)
+        return 10 * np.log10(255 ** 2 / max(float(((a - b) ** 2).mean()), 1e-9))
+
+    def test_auto_denoising_beats_leaving_the_noise_alone(self):
+        # It did not. estimate_h returned three times the measured sigma - a
+        # strength quoted for other implementations of the algorithm - and at
+        # that setting the filter scored 6.9 dB *below* the untouched input on
+        # a real CCTV frame, removing more picture than noise.
+        rng = np.random.default_rng(7)
+        truth = np.repeat(np.repeat(
+            rng.integers(40, 210, (24, 32, 3)).astype(np.uint8), 6, axis=0), 6, axis=1)
+        noisy = np.clip(truth.astype(float) + rng.normal(0, 12, truth.shape),
+                        0, 255).astype(np.uint8)
+
+        cleaned = nl_means_denoise_auto(noisy)
+        self.assertGreater(self._psnr(cleaned, truth), self._psnr(noisy, truth))
+
+    def test_the_suggested_strength_stays_near_the_measured_noise(self):
+        rng = np.random.default_rng(3)
+        frame = np.clip(np.full((96, 128, 3), 120.0) + rng.normal(0, 10, (96, 128, 3)),
+                        0, 255).astype(np.uint8)
+        sigma = estimate_noise(frame)
+        suggested = estimate_h(frame)
+
+        # Below sigma, not a multiple of it: above about 1.5x sigma the filter
+        # starts taking texture with the noise
+        self.assertLess(suggested, sigma * 1.5)
+        self.assertGreater(suggested, sigma * 0.2)
+
+    def test_aggressiveness_scales_the_suggestion(self):
+        rng = np.random.default_rng(5)
+        frame = np.clip(np.full((64, 64, 3), 120.0) + rng.normal(0, 8, (64, 64, 3)),
+                        0, 255).astype(np.uint8)
+        self.assertAlmostEqual(estimate_h(frame, aggressiveness=2.0),
+                               estimate_h(frame) * 2.0, places=3)
+
+
+class TestDeterminism(unittest.TestCase):
+    """A chain that does not replay identically cannot back a report."""
+
+    def test_sobel_returns_the_same_map_every_time(self):
+        # cv2.magnitude dispatches to different SIMD paths between calls and
+        # returns results differing in the last float bits - 553.759887695
+        # against 553.759826660 for one input. A pixel of a real CCTV frame
+        # sat on an integer boundary, so the same image gave two different
+        # uint8 maps from one run to the next.
+        image = noisy_image(120, 160)
+        first = sobel_edges(image)
+        for _ in range(8):
+            np.testing.assert_array_equal(sobel_edges(image), first)
+
+    def test_every_edge_filter_replays_identically(self):
+        image = noisy_image(120, 160)
+        for name, call in (
+                ('sobel', lambda i: sobel_edges(i)),
+                ('laplacian', lambda i: laplacian_edges(i)),
+                ('canny', lambda i: canny_edges(i, 50, 150)),
+                ('auto_canny', lambda i: auto_canny(i)),
+        ):
+            with self.subTest(filter=name):
+                first = call(image)
+                np.testing.assert_array_equal(call(image), first)
 
 
 class TestHistogram(unittest.TestCase):

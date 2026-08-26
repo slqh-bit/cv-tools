@@ -682,8 +682,9 @@ class TestCLICatalogue(CLITestCase):
     def test_ghost_stats_printed(self):
         code, output = self.run_cli([str(self.input), '--ghost-stats'])
         self.assertEqual(code, 0)
-        self.assertIn('JPEG ghost detection', output)
-        self.assertIn('dominant quality', output)
+        self.assertIn('JPEG ghost', output)
+        # Without a region it says what it cannot do rather than guessing
+        self.assertIn('does not search for one', output)
 
     def test_metadata_stats_printed(self):
         code, output = self.run_cli([str(self.input), '--metadata-stats'])

@@ -100,6 +100,38 @@ class TestDashboard(unittest.TestCase):
         app.button(key='remove_0').click().run()
         self.assertEqual([s.name for s in app.session_state.pipeline.chain], ['invert'])
 
+    def test_guided_point_picking_fills_the_parameters(self):
+        # The desktop viewer has filled coordinate parameters from clicks
+        # since hour 5; the dashboard collected loose taps and left the user
+        # to type them in
+        app = self._app()
+        app.selectbox(key='selected_filter').select('measure_3d').run()
+
+        pick = [b for b in app.button if b.label.startswith('Pick')]
+        self.assertTrue(pick, 'no picking button offered for measure_3d')
+        pick[0].click().run()
+        self.assertEqual(app.session_state.picking_for, 'measure_3d')
+
+        # The prompt names the point wanted rather than counting
+        self.assertTrue(any('FOOT of the reference' in info.value
+                            for info in app.info))
+
+        app.session_state.picks = [(300, 400), (300, 250), (450, 420),
+                                   (450, 300), (0, 180), (639, 180)]
+        app.run()
+
+        self.assertEqual(app.exception, [])
+        self.assertIsNone(app.session_state.picking_for)
+        self.assertEqual(app.session_state['param_measure_3d_base'], '450,420')
+        # Two taps become the four numbers a horizon line takes
+        self.assertEqual(app.session_state['param_measure_3d_horizon'],
+                         '0,180,639,180')
+
+    def test_picking_is_offered_only_where_it_applies(self):
+        app = self._app()
+        app.selectbox(key='selected_filter').select('clahe').run()
+        self.assertFalse([b for b in app.button if b.label.startswith('Pick')])
+
     def test_running_an_image_report(self):
         app = self._app()
         app.selectbox(key='analysis_name').select('noise').run()

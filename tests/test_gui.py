@@ -5,6 +5,7 @@ Tkinter needs a display. Where there is none - a headless CI box - the whole
 module skips rather than fails, since the GUI is an optional component.
 """
 
+import inspect
 import json
 import tempfile
 import unittest
@@ -73,6 +74,48 @@ class TestParameterPanel(unittest.TestCase):
         self.assertAlmostEqual(params['clip_limit'], 2.0, places=3)
         self.assertEqual(params['color_mode'], 'lab')
         panel.destroy()
+
+    def test_every_offered_choice_is_one_the_filter_accepts(self):
+        """
+        The panel must not offer a value the filter rejects.
+
+        CHOICES is one map for every filter, so a parameter name that means
+        different things to two of them holds the union: clahe implements
+        color_mode 'luminance' and not 'grayscale', histeq the reverse. The
+        Tkinter combobox is editable so a bad suggestion can be typed over,
+        but the dashboard's selectbox offers only what it lists - there it is
+        a dead end. choices_for narrows per filter; this holds it to that.
+        """
+        from src.gui.widgets import choices_for
+
+        image = sample_image(32, 40)
+        for name, spec in FILTER_REGISTRY.items():
+            offered = choices_for(spec)
+            signature = inspect.signature(spec.fn)
+            parameters = list(signature.parameters.values())[1:]
+
+            for parameter in parameters:
+                if parameter.name not in offered:
+                    continue
+                if not isinstance(parameter.default, str):
+                    continue        # a required or non-string parameter
+
+                for value in offered[parameter.name]:
+                    if value == '':
+                        continue
+                    with self.subTest(filter=name, parameter=parameter.name,
+                                      value=value):
+                        try:
+                            spec.fn(image, **{parameter.name: value})
+                        except ValueError as exc:
+                            if 'Unknown' in str(exc) or 'Expected one of' in str(exc):
+                                self.fail(f'{name} offers {parameter.name}='
+                                          f'{value!r} but rejects it: {exc}')
+                        except Exception:
+                            # Anything else means the value was understood and
+                            # something further along objected, which is not
+                            # what this test is about
+                            pass
 
     def test_set_values_fills_only_the_names_it_recognises(self):
         panel = self.ParameterPanel(self.root)
@@ -328,6 +371,9 @@ class TestApp(unittest.TestCase):
         self.app.pipeline = Pipeline(self.image)
         self.app.metadata = {'filename': 'test.png', 'width': 64, 'height': 48,
                              'sha256': 'a' * 64}
+        # As open_image would: the viewer only holds an image once refreshed,
+        # and anything driving the canvas needs one
+        self.app._refresh()
         self.app.update_idletasks()
 
     def tearDown(self):
@@ -565,6 +611,99 @@ class TestApp(unittest.TestCase):
 
         self.assertEqual(self.app.last_region, (5, 5, 20, 20))
         self.assertIn('takes no region', self.app.status.cget('text'))
+
+    def test_a_long_parameter_form_does_not_hide_the_buttons(self):
+        # measure_3d has fourteen parameters. Packed after the form, the
+        # buttons were pushed out of the window entirely - so the filter
+        # that most needs Pick points was the one that could not reach it,
+        # and Apply was unreachable with it.
+        self.app.deiconify()
+        self.app.update()
+
+        for name in ('measure_3d', 'undistort', 'roi_draw', 'clahe'):
+            with self.subTest(filter=name):
+                self._select(name)
+                self.app.update_idletasks()
+                for button in (self.app.apply_button, self.app.pick_button,
+                               self.app.update_button):
+                    self.assertTrue(button.winfo_ismapped(),
+                                    f'{name}: a button is not laid out')
+
+    def test_picking_points_fills_every_coordinate_parameter(self):
+        # measure_3d has five required parameters and all of them are
+        # coordinates; typing them from a hover readout is the slow path
+        self._select('measure_3d')
+        self.app.viewer.set_zoom(1.0)
+        self.app.start_point_picking()
+
+        self.assertTrue(self.app.viewer.picking)
+        self.assertIn('FOOT of the reference', self.app.status.cget('text'))
+
+        for x, y in [(30, 40), (30, 20), (45, 42), (45, 25), (0, 18), (60, 18)]:
+            self.app.viewer._on_press(SimpleNamespace(x=x, y=y))
+
+        self.assertFalse(self.app.viewer.picking)
+        params = self.app.parameters.get_params()
+        self.assertEqual(params['reference_base'], [30, 40])
+        self.assertEqual(params['reference_top'], [30, 20])
+        self.assertEqual(params['base'], [45, 42])
+        self.assertEqual(params['top'], [45, 25])
+        # Two clicks become the four numbers a horizon line takes
+        self.assertEqual(params['horizon'], [0, 18, 60, 18])
+
+        # And the filter accepts what the picking produced
+        result = resolve_filter('measure_3d').fn(self.app.pipeline.current, **params)
+        self.assertIsInstance(result, np.ndarray)
+
+    def test_picking_prompts_for_each_point_in_turn(self):
+        self._select('measure_3d')
+        self.app.start_point_picking()
+
+        seen = [self.app.status.cget('text')]
+        for x, y in [(10, 10), (10, 5), (20, 12)]:
+            self.app.viewer._on_press(SimpleNamespace(x=x, y=y))
+            seen.append(self.app.status.cget('text'))
+
+        self.assertIn('FOOT of the reference', seen[0])
+        self.assertIn('TOP of the reference', seen[1])
+        self.assertIn('FOOT of the object', seen[2])
+        self.assertIn('TOP of the object', seen[3])
+
+    def test_four_corners_become_one_parameter(self):
+        self._select('perspective')
+        self.app.viewer.set_zoom(1.0)
+        self.app.start_point_picking()
+
+        for x, y in [(5, 5), (55, 8), (58, 40), (2, 38)]:
+            self.app.viewer._on_press(SimpleNamespace(x=x, y=y))
+
+        # Eight numbers, which the entry parses back into four pairs
+        self.assertEqual(self.app.parameters.get_params()['corners'],
+                         [[5, 5], [55, 8], [58, 40], [2, 38]])
+
+    def test_escape_cancels_a_pick_in_progress(self):
+        self._select('measure_3d')
+        self.app.start_point_picking()
+        self.app.viewer._on_press(SimpleNamespace(x=10, y=10))
+
+        self.app.cancel_point_picking()
+        self.assertFalse(self.app.viewer.picking)
+        self.assertEqual(self.app.viewer._picked, [])
+
+    def test_picking_is_offered_only_where_it_applies(self):
+        self._select('measure_3d')
+        self.assertEqual(str(self.app.pick_button.cget('state')), 'normal')
+        self._select('clahe')
+        self.assertEqual(str(self.app.pick_button.cget('state')), 'disabled')
+
+    def test_a_pick_is_clamped_to_the_image(self):
+        self._select('measure_3d')
+        self.app.viewer.set_zoom(1.0)
+        self.app.start_point_picking()
+        self.app.viewer._on_press(SimpleNamespace(x=9999, y=9999))
+
+        height, width = self.app.pipeline.current.shape[:2]
+        self.assertEqual(self.app.viewer._picked, [(width - 1, height - 1)])
 
     def test_theme_switch_recolours_every_kind_of_widget(self):
         from src.gui.theme import LIGHT

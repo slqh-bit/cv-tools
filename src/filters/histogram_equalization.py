@@ -7,6 +7,12 @@ import numpy as np
 import cv2
 
 
+# The colour strategies this filter implements. Not the same set as CLAHE's:
+# 'grayscale' discards colour outright, which adaptive equalization has no
+# reason to offer, and 'luminance' is CLAHE's blend, which this does not do.
+COLOR_MODES = ('lab', 'hsv', 'yuv', 'channelwise', 'grayscale')
+
+
 def histogram_equalization(
     image: np.ndarray,
     color_mode: str = 'lab',
@@ -80,7 +86,9 @@ def histogram_equalization(
         result = cv2.cvtColor(equalized, cv2.COLOR_GRAY2RGB)
 
     else:
-        raise ValueError(f"Unknown color_mode: {color_mode}")
+        raise ValueError(
+            f"Unknown color_mode: {color_mode}. "
+            f"Expected one of: {', '.join(COLOR_MODES)}")
 
     if has_alpha and alpha is not None:
         result = np.concatenate([result, alpha], axis=2)

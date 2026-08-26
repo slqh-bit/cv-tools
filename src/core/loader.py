@@ -147,7 +147,16 @@ class ImageLoader:
         return self._load_image()
 
     def _load_raw(self) -> np.ndarray:
-        """Decode a camera raw file via rawpy."""
+        """
+        Decode a camera raw file via rawpy.
+
+        ``postprocess`` returns RGB, which is this pipeline's colour order, so
+        unlike the still and video paths nothing is converted here. That is
+        the one loader path with no test behind it - there is no raw file in
+        the repository to test against - so it rests on rawpy's documented
+        output rather than on a measurement. See tests/test_colour_pipeline.py
+        for the paths that are measured.
+        """
         try:
             import rawpy
         except ImportError:

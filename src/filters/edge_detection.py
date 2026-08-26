@@ -139,7 +139,15 @@ def sobel_edges(
     if dx and dy:
         grad_x = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=kernel_size)
         grad_y = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=kernel_size)
-        magnitude = cv2.magnitude(grad_x, grad_y)
+        # numpy rather than cv2.magnitude: the OpenCV routine dispatches to
+        # different SIMD paths between calls and returns results that differ in
+        # the last float bits - 553.759887695 against 553.759826660 for the
+        # same input. One pixel of this frame sat on an integer boundary, so
+        # the same image gave two different uint8 maps from one run to the
+        # next. A chain that does not replay identically is not a chain you
+        # can put in a report.
+        magnitude = np.sqrt(grad_x.astype(np.float64) ** 2
+                            + grad_y.astype(np.float64) ** 2)
     else:
         magnitude = np.abs(cv2.Sobel(gray, cv2.CV_32F, dx, dy, ksize=kernel_size))
 

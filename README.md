@@ -412,6 +412,12 @@ Selecting a step in the chain loads its own parameters into the panel; **Update 
 step** re-applies it and re-processes everything after it, so an early value can be
 corrected without rebuilding the chain by hand.
 
+Filters whose parameters are coordinates — `measure_3d`, `perspective` — are filled by
+clicking: **Pick points on the image** walks you through them one at a time, naming each
+point in the status bar and marking it on the frame. The dashboard offers the same sequence
+over its tap-to-pick. The order lives in `filters.registry.POINT_PARAMETERS`, so both front
+ends prompt for the same points.
+
 Dragging a rectangle on the image fills `x`, `y`, `width` and `height` into the parameter
 panel — the same four names `crop`, `roi_crop`, `roi_draw`, `redact` and
 `white_balance_patch` all take. The region is reported in the status bar either way, so it
@@ -463,7 +469,7 @@ streamlit run src/dashboard.py
 
 | Tab | What it does |
 |---|---|
-| Viewer | Processed / original / side-by-side, coordinate grid or tap-to-pick, histogram and stat tiles |
+| Viewer | Processed / original / side-by-side, coordinate grid or guided tap-to-pick, histogram and stat tiles |
 | Analysis | The reports above, run on demand |
 | Export | Processed PNG, preset JSON, and the processing report as Markdown or JSON |
 

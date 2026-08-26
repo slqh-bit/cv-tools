@@ -69,6 +69,30 @@ class FilterSpec:
     category: str = 'Special'
 
 
+# Filters whose parameters are points on the image, and the order to collect
+# them in: (parameter, how many points, what to click).
+#
+# measure_3d is the case that needs it most - five required parameters, all
+# coordinates, and single-view metrology is unforgiving about which point is
+# which: a reference top confused with an object top gives a confidently wrong
+# height. Naming each click removes that.
+#
+# Lives here rather than in a front end because both of them need it, and two
+# copies would drift.
+POINT_PARAMETERS: Dict[str, Tuple[Tuple[str, int, str], ...]] = {
+    'measure_3d': (
+        ('reference_base', 1, 'the FOOT of the reference object'),
+        ('reference_top', 1, 'the TOP of the reference object'),
+        ('base', 1, 'the FOOT of the object to measure'),
+        ('top', 1, 'the TOP of the object to measure'),
+        ('horizon', 2, 'two points on the HORIZON'),
+    ),
+    'perspective': (
+        ('corners', 4, 'the four corners, clockwise from top-left'),
+    ),
+}
+
+
 # Display order for anything that groups filters by family instead of A-Z,
 # e.g. the dashboard's filter picker. Matches docs/filters.md's sections.
 CATEGORY_ORDER: List[str] = [
@@ -250,7 +274,8 @@ FILTER_REGISTRY: Dict[str, FilterSpec] = {
         FilterSpec('deblur_defocus', deblur_defocus, 'src.filters.motion_deblur',
                    'Wiener deconvolution of defocus blur', 'Forensic'),
         FilterSpec('ghost', ghost_map, 'src.filters.jpeg_ghost',
-                   'JPEG ghost map: best-match recompression quality per block',
+                   'JPEG ghost: the recompression sweep frame with the most '
+                   'structure, dark where the pixels match that quality',
                    'Forensic'),
         # ---- Special ----
         FilterSpec('stain', extract_stain, 'src.filters.color_deconvolution',
