@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+from ..utils.compare import difference_map
 from ..utils.parsing import parse_value
 from .theme import DARK, FONT_BOLD
 
@@ -89,7 +90,7 @@ CHOICES: Dict[str, List[str]] = {
     'shape': ['rectangle', 'circle', 'ellipse', 'line', 'polygon'],
 }
 
-VIEW_MODES = ('processed', 'original', 'split', 'side by side')
+VIEW_MODES = ('processed', 'original', 'split', 'side by side', 'difference')
 
 # The rubber band drawn while dragging a region out of the image, and the
 # smallest drag that counts as one rather than as a click
@@ -257,6 +258,9 @@ class ImageCanvas(ttk.Frame):
         # list of (x, y) once the queue empties
         self.on_pick_progress: Optional[Callable[[str, int], None]] = None
         self.on_picks_complete: Optional[Callable[[List[Tuple[int, int]]], None]] = None
+        # Peak, mean and scale of the last difference view drawn, so the
+        # status bar can quote numbers the picture cannot carry
+        self.difference_stats: Optional[Dict[str, float]] = None
 
     # ---- content ----
 
@@ -307,6 +311,12 @@ class ImageCanvas(ttk.Frame):
             return canvas
 
         left, right = padded(original), padded(processed)
+
+        if mode == 'difference':
+            # The map carries its own scale factor and true peak, so the view
+            # cannot be read as showing more change than there was
+            composite, self.difference_stats = difference_map(left, right)
+            return composite
 
         if mode == 'side by side':
             gap = np.full((height, 8, 3), 40, dtype=np.uint8)
@@ -508,8 +518,13 @@ class ImageCanvas(ttk.Frame):
         Side by side puts two frames on the canvas, so a point past the
         midpoint means something different from the same point before it;
         split already spends the drag on its divider.
+
+        Difference is included on purpose. It is drawn on the processed
+        frame's own grid, so a drag maps straight through - and seeing where a
+        filter actually acted and then dragging that region out is the whole
+        point of having the view next to roi_filter.
         """
-        return self.mode.get() in ('processed', 'original')
+        return self.mode.get() in ('processed', 'original', 'difference')
 
     def _region_between(self, start, end) -> Optional[Tuple[int, int, int, int]]:
         """

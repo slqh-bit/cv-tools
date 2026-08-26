@@ -315,7 +315,7 @@ explicitement.
 | `src/filters/roi.py:94` | `apply_to_roi` appliquait un filtre à une région sans être enregistré dans `FILTER_REGISTRY` : aucune interface ne pouvait l'atteindre, et les bords étaient nets. **Corrigé** : enregistré sous `roi_filter`, et la transition est désormais une rampe (le saut moyen au bord passe de 59,3 à 7,9 sur `cctv_dark.png`, le gradient propre de l'image étant de 7,2). Un filtre qui redimensionne la région est refusé plutôt que diffusé en silence |
 | `src/filters/clahe.py:117` | `apply_clahe_grid` produisait la planche d'aperçu sans être enregistré non plus — **corrigé** : enregistré sous `clahe_grid`, avec des valeurs par défaut utilisables |
 | `src/core/report.py:72` | Le rapport écrivait nom, module, horodatage et paramètres, mais aucune description, alors que chaque entrée de `FILTER_REGISTRY` en porte une — **corrigé** : `ReportGenerator` reçoit un résolveur `describe` et pose la description sous chaque étape, en Markdown comme en PDF |
-| `src/gui/widgets.py:92` | `VIEW_MODES` n'offre pas de vue différence — **reste ouvert** |
+| `src/gui/widgets.py:92` | `VIEW_MODES` n'offrait pas de vue différence — **corrigé** : mode `difference` dans le visualiseur du bureau et dans le tableau de bord. La carte est par canal (un décalage de couleur se lit en couleur) et mise à l'échelle pour être visible ; comme cette mise à l'échelle rend un écart de 2 niveaux semblable à un écart de 200, le pic et la moyenne réels sont inscrits sur l'image et répétés dans la barre d'état. Une région peut y être tracée à la souris, pour être passée à `roi_filter` |
 
 ---
 

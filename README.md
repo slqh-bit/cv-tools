@@ -397,13 +397,21 @@ python -m src.gui samples/cctv_dark.png
 | Panel | What it does |
 |---|---|
 | Left | The filter chain, with reorder, duplicate and remove; below it the filter picker, grouped by family and searchable |
-| Centre | Image viewer — processed, original, **split**, or side-by-side, with fit/100%/200%/400% and Ctrl+wheel zoom; drag a rectangle to select a region |
+| Centre | Image viewer — processed, original, **split**, side-by-side, or **difference**, with fit/100%/200%/400% and Ctrl+wheel zoom; drag a rectangle to select a region |
 | Right | Parameters for the selected filter — or for the selected chain step, to correct it in place |
 | Bottom | **Statistics**: live histogram, source metadata with SHA-256, per-channel clipping. **Analysis**: the forensic reports |
 
 The split view puts the original left of a draggable divider and the processed image right
 of it — the eye compares far better across an edge than across a gap. Magnified views use
 nearest-neighbour so you see the actual pixels rather than a smoothed guess.
+
+The difference view is how you *see* what a filter did instead of measuring it. On a night
+scene it shows at once that most of a contrast filter's action landed in the sky — nowhere
+anyone wanted it — which no single noise figure conveys. The difference is per channel, so
+an operation that shifted colour reads as colour. A raw difference is too dark to read, so
+it is scaled to fill the range; because that makes a two-level change and a two-hundred-level
+one look alike, the true peak and mean are written on the image and repeated in the status
+bar. The dashboard offers the same view with the numbers in its caption.
 
 The parameter forms are built by introspecting each filter's signature, so every registered
 filter has a working panel and a filter added later needs no GUI work.
@@ -419,12 +427,13 @@ over its tap-to-pick. The order lives in `filters.registry.POINT_PARAMETERS`, so
 ends prompt for the same points.
 
 Dragging a rectangle on the image fills `x`, `y`, `width` and `height` into the parameter
-panel — the same four names `crop`, `roi_crop`, `roi_draw`, `redact` and
+panel — the same four names `crop`, `roi_crop`, `roi_filter`, `roi_draw`, `redact` and
 `white_balance_patch` all take. The region is reported in the status bar either way, so it
 is still there to paste into the CLI when the selected filter takes no region. Dragging in
 split view moves the divider instead, and side-by-side offers no region at all: two frames
 on one canvas make a point past the midpoint mean something different from the same point
-before it.
+before it. The difference view does allow it, and is the reason to want it: spot where the
+filter actually acted, drag that region out, and hand it to `roi_filter`.
 
 The window is dark by default — a bright surround biases the eye when judging shadow
 detail, which is most of what a CCTV frame is. *View → Theme* switches to light.

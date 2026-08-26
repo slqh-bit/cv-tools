@@ -54,6 +54,7 @@ from src.filters import (
 )
 from src.gui.theme import DARK, HISTOGRAM_BACKGROUND
 from src.gui.widgets import SLIDER_RANGES, choices_for, to_display
+from src.utils.compare import difference_map
 from src.utils.parsing import parse_value
 
 # streamlit-image-coordinates 0.4.0 (the latest) imports UseColumnWith, a type
@@ -680,7 +681,8 @@ def _viewer_tab(pipeline: Pipeline) -> None:
     original, current = pipeline.compare()
 
     controls = st.columns([3, 2, 2, 3], vertical_alignment='center')
-    view = controls[0].radio('View', ['Processed', 'Original', 'Side by side'],
+    view = controls[0].radio('View',
+                             ['Processed', 'Original', 'Side by side', 'Difference'],
                              horizontal=True, label_visibility='collapsed')
     show_grid = controls[1].checkbox(
         'Coordinate grid', value=False,
@@ -721,6 +723,13 @@ def _viewer_tab(pipeline: Pipeline) -> None:
         cols = st.columns(2)
         cols[0].image(shown(original), caption='Original', width='stretch')
         cols[1].image(shown(current), caption='Processed', width='stretch')
+    elif view == 'Difference':
+        # Scaled so a small change is visible at all, which means the picture
+        # cannot say how large the change was - so the numbers go beside it
+        diff, stats = difference_map(original, current, label=False)
+        st.image(shown(diff), width='stretch')
+        st.caption(f"Peak {stats['peak']:.0f}, mean {stats['mean']:.2f}, "
+                   f"shown at ×{stats['scale']:.1f}")
     elif view == 'Original':
         st.image(shown(original), width='stretch')
     else:

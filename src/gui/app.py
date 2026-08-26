@@ -873,6 +873,25 @@ class CVToolsApp(tk.Tk):
     def _set_view(self, mode: str) -> None:
         self.view_mode.set(mode)
         self.viewer.set_mode(mode)
+        self._report_difference()
+
+    def _report_difference(self) -> None:
+        """
+        Put the difference view's real numbers in the status bar.
+
+        The map is scaled so a small change can be seen at all, which means the
+        picture alone cannot say whether a filter moved two levels or two
+        hundred. The caption on the image says so; this says it again where an
+        operator is already reading.
+        """
+        if self.view_mode.get() != 'difference':
+            return
+        stats = self.viewer.difference_stats
+        if not stats:
+            return
+        self._set_status(
+            f"Difference: peak {stats['peak']:.0f}, mean {stats['mean']:.2f}, "
+            f"shown at x{stats['scale']:.1f}")
 
     def _set_zoom(self, zoom: Optional[float]) -> None:
         self.viewer.set_zoom(zoom)
@@ -987,6 +1006,7 @@ class CVToolsApp(tk.Tk):
             return
         original, current = self.pipeline.compare()
         self.viewer.set_images(original, current)
+        self._report_difference()
 
     def _refresh_histogram(self) -> None:
         self.histogram_canvas.delete('all')

@@ -305,6 +305,53 @@ class TestImageCanvas(unittest.TestCase):
         self._drag((10, 10), (12, 11))
         self.assertEqual(seen, [])
 
+    def test_difference_mode_shows_where_the_filter_acted(self):
+        """
+        The point of the view: it must light up where the images differ and
+        stay dark where they do not.
+        """
+        original = np.full((300, 400, 3), 100, dtype=np.uint8)
+        processed = original.copy()
+        processed[100:160, 120:260] = 104       # a change of 4 levels, invisible raw
+
+        self.canvas.set_images(original, processed)
+        self.canvas.set_mode('difference')
+        composite = self.canvas._compose()
+
+        self.assertEqual(composite.shape[:2], original.shape[:2])
+        # The changed block is bright, the untouched corner is not
+        self.assertGreater(int(composite[110:150, 130:250].mean()), 200)
+        self.assertLess(int(composite[200:, 300:].mean()), 10)
+
+    def test_difference_mode_records_the_true_numbers(self):
+        original = np.full((300, 400, 3), 100, dtype=np.uint8)
+        processed = original.copy()
+        processed[100:160, 120:260] = 104
+
+        self.canvas.set_images(original, processed)
+        self.canvas.set_mode('difference')
+        self.canvas._compose()
+
+        stats = self.canvas.difference_stats
+        self.assertEqual(stats['peak'], 4.0)
+        self.assertGreater(stats['scale'], 1.0)
+
+    def test_identical_images_make_a_dark_difference(self):
+        image = np.full((300, 400, 3), 77, dtype=np.uint8)
+        self.canvas.set_images(image, image.copy())
+        self.canvas.set_mode('difference')
+        composite = self.canvas._compose()
+
+        self.assertEqual(self.canvas.difference_stats['peak'], 0.0)
+        # Below the caption the picture is black: nothing changed
+        self.assertEqual(int(composite[60:, :].max()), 0)
+
+    def test_difference_allows_a_region_drag(self):
+        # Spot where the filter acted, drag it out, hand it to roi_filter
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_mode('difference')
+        self.assertTrue(self.canvas._can_select_region())
+
     def test_side_by_side_offers_no_region(self):
         # Two frames on one canvas: a point past the midpoint means something
         # different from the same point before it
@@ -754,7 +801,9 @@ class TestApp(unittest.TestCase):
             self.assertIn('clahe', path.read_text(encoding='utf-8'))
 
     def test_view_modes_switch(self):
-        for mode in ('processed', 'original', 'split', 'side by side'):
+        from src.gui.widgets import VIEW_MODES
+
+        for mode in VIEW_MODES:
             with self.subTest(mode=mode):
                 self.app._set_view(mode)
                 self.assertEqual(self.app.viewer.mode.get(), mode)
