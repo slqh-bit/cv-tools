@@ -210,6 +210,7 @@ from .roi import (
     ROI,
     extract_roi,
     apply_to_roi,
+    feather_mask,
     draw_roi,
     analyze_roi,
     get_centered_roi,
@@ -225,6 +226,8 @@ from .registry import (
     resolve_filter,
     filter_function,
     filter_description,
+    filters_with_all_defaults,
+    roi_filter,
     list_filters,
     apply_preset,
 )
@@ -252,7 +255,8 @@ __all__ = [
     # levels
     'adjust_levels', 'auto_levels',
     # roi
-    'ROI', 'extract_roi', 'apply_to_roi', 'draw_roi', 'analyze_roi',
+    'ROI', 'extract_roi', 'apply_to_roi', 'feather_mask', 'draw_roi',
+    'analyze_roi',
     'get_centered_roi', 'roi_from_ratio',
     # sharpen
     'unsharp_mask', 'laplacian_sharpen', 'sharpen_grid',
@@ -339,6 +343,7 @@ __all__ = [
     # registry
     'FILTER_REGISTRY', 'POINT_PARAMETERS', 'FilterSpec', 'CATEGORY_ORDER',
     'resolve_filter', 'filter_function', 'filter_description',
+    'filters_with_all_defaults', 'roi_filter',
     'list_filters', 'apply_preset',
     # analysis registry
     'ANALYSIS_REGISTRY', 'AnalysisSpec', 'Row', 'list_analyses', 'render_report',

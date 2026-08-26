@@ -12,6 +12,8 @@ from src.filters import (
     CLAHE_SIXTEEN_BIT_MODES,
     apply_clahe,
     apply_clahe_grid,
+    feather_mask,
+    roi_filter,
     apply_to_roi,
     auto_contrast,
     auto_levels,
@@ -373,6 +375,75 @@ class TestROI(unittest.TestCase):
         result = apply_to_roi(image, roi, adjust_contrast_brightness, brightness=60)
         self.assertGreater(result[10:30, 10:30].mean(), image[10:30, 10:30].mean())
         np.testing.assert_array_equal(result[0:10, :], image[0:10, :])
+
+    def test_feather_softens_the_border(self):
+        """
+        A visible seam around an enhanced region is a question at the hearing.
+        The ramp has to make the step across the border materially smaller
+        than the hard-edged version.
+        """
+        image = low_contrast_image(80, 120)
+        roi = ROI(30, 20, 50, 40)
+
+        def step(result):
+            inside = result[roi.y:roi.y2, roi.x].astype(float)
+            outside = result[roi.y:roi.y2, roi.x - 1].astype(float)
+            return float(np.abs(inside - outside).mean())
+
+        hard = apply_to_roi(image, roi, adjust_contrast_brightness,
+                            brightness=60, feather=0)
+        soft = apply_to_roi(image, roi, adjust_contrast_brightness,
+                            brightness=60, feather=10)
+
+        self.assertLess(step(soft), step(hard) / 2)
+        # and the region is still actually enhanced in the middle
+        self.assertGreater(soft[40:50, 50:60].mean(), image[40:50, 50:60].mean())
+
+    def test_feather_leaves_the_outside_alone(self):
+        image = low_contrast_image(80, 120)
+        roi = ROI(30, 20, 50, 40)
+        result = apply_to_roi(image, roi, adjust_contrast_brightness,
+                              brightness=60, feather=10)
+        np.testing.assert_array_equal(result[:roi.y, :], image[:roi.y, :])
+        np.testing.assert_array_equal(result[:, :roi.x], image[:, :roi.x])
+
+    def test_feather_mask_ramps_from_edge_to_middle(self):
+        mask = feather_mask(40, 60, 8)
+        self.assertEqual(mask.shape, (40, 60))
+        self.assertAlmostEqual(float(mask[20, 30]), 1.0)
+        self.assertLess(float(mask[0, 30]), float(mask[4, 30]))
+        self.assertLess(float(mask[4, 30]), 1.0)
+
+    def test_feather_is_clamped_to_a_small_region(self):
+        # Two ramps must not meet and leave the middle unfiltered
+        mask = feather_mask(6, 6, 50)
+        self.assertGreater(float(mask.max()), 0.0)
+        self.assertEqual(mask.shape, (6, 6))
+
+    def test_a_filter_that_resizes_the_region_is_refused(self):
+        from src.filters import resize
+        image = low_contrast_image(80, 120)
+        with self.assertRaises(ValueError) as ctx:
+            apply_to_roi(image, ROI(30, 20, 50, 40), resize, scale=0.5)
+        self.assertIn('same region', str(ctx.exception))
+
+    def test_roi_filter_is_registered_and_runs(self):
+        from src.filters import FILTER_REGISTRY
+        self.assertIn('roi_filter', FILTER_REGISTRY)
+
+        image = low_contrast_image(80, 120)
+        result = roi_filter(image, x=30, y=20, width=50, height=40,
+                            filter_name='clahe')
+        self.assertEqual(result.shape, image.shape)
+        np.testing.assert_array_equal(result[:20, :], image[:20, :])
+
+    def test_roi_filter_refuses_itself_and_filters_needing_arguments(self):
+        image = low_contrast_image(80, 120)
+        for inner in ('roi_filter', 'crop'):
+            with self.subTest(inner=inner):
+                with self.assertRaises(ValueError):
+                    roi_filter(image, x=30, y=20, width=50, height=40,
+                               filter_name=inner)
 
     def test_draw_roi_does_not_change_size(self):
         image = low_contrast_image()

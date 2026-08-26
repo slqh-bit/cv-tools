@@ -134,6 +134,7 @@ def choices_for(spec) -> Dict[str, List[str]]:
     """
     from ..filters.aspect_ratio import INTERPOLATIONS as ASPECT_INTERPOLATIONS
     from ..filters.clahe import COLOR_MODES as CLAHE_MODES
+    from ..filters.registry import filters_with_all_defaults
     from ..filters.color_deconvolution import STAIN_PRESETS
     from ..filters.component_separation import COLOR_SPACES
     from ..filters.curves import CURVE_PRESETS
@@ -152,6 +153,7 @@ def choices_for(spec) -> Dict[str, List[str]]:
     # of the four is offered the other three's values
     narrowed = {
         'clahe': {'color_mode': list(CLAHE_MODES)},
+        'roi_filter': {'filter_name': filters_with_all_defaults()},
         'clahe_grid': {'color_mode': list(CLAHE_MODES)},
         'histeq': {'color_mode': list(HISTEQ_MODES)},
         'redact': {'method': sorted(IRREVERSIBLE_METHODS | REVERSIBLE_METHODS)},
@@ -736,7 +738,7 @@ class ParameterPanel(ttk.Frame):
 
         This is how a region dragged on the image reaches the form: x, y,
         width and height are the same four names on crop, roi_crop, roi_draw,
-        redact and white_balance_patch, so nothing here has to know which
+        roi_filter, redact and white_balance_patch, so nothing here has to know which
         filter is selected.
 
         Args:

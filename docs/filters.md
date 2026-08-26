@@ -21,6 +21,7 @@ compression, JPEG ghost and metadata — are not chain steps and are listed sepa
 | `auto_levels` | `auto_levels` | `src.filters.levels` | 1 |
 | `histeq` | `histogram_equalization` | `src.filters.histogram_equalization` | 1 |
 | `roi_crop` | `roi_crop` | `src.filters.roi` | 1 |
+| `roi_filter` | `roi_filter` | `src.filters.roi` | — |
 | `roi_draw` | `roi_draw` | `src.filters.roi` | 1 |
 | `crop` | `crop` | `src.filters.crop_resize` | 1 |
 | `resize` | `resize` | `src.filters.crop_resize` | 1 |
@@ -154,6 +155,28 @@ prone to amplifying noise in flat regions.
 | `mask` | ndarray or None | `None` | Restrict the region used to build the histogram |
 
 CLI: `--histeq mode=lab`
+
+## ROI Filter — `roi_filter`
+
+Runs another registered filter inside one region and leaves the rest of the frame as it
+was, because the rest is not what is being demonstrated. This is also the honest answer
+to a bimodal histogram: applied to the region that carries the question, a contrast
+operation works on the histogram that matters.
+
+| parameter | type | default | notes |
+|---|---|---|---|
+| `x`, `y`, `width`, `height` | int | — | The region, clipped to the image |
+| `filter_name` | str | `'clahe'` | Registry name of the filter to run inside |
+| `feather` | int | `8` | Width of the blend ramp in pixels; `0` for a hard edge |
+
+The edge is ramped rather than cut: a visible seam around an enhanced region is a
+question at the hearing. The ramp is clamped to the region, so a small ROI gets a
+proportionate one.
+
+The inner filter runs with its own defaults — naming a filter *and* its parameters would
+need nested parameters, which the registry's flat JSON contract has no room for. Only
+filters that run on an image alone can go inside; the rest are refused by name rather
+than failing further in. A filter that resizes the region is refused too.
 
 ## ROI Crop — `roi_crop`
 

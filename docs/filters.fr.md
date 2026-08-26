@@ -23,6 +23,7 @@ regroupées à part, sous [Rapports d'analyse](#rapports-danalyse-pas-des-étape
 | `auto_levels` | `auto_levels` | `src.filters.levels` | 1 |
 | `histeq` | `histogram_equalization` | `src.filters.histogram_equalization` | 1 |
 | `roi_crop` | `roi_crop` | `src.filters.roi` | 1 |
+| `roi_filter` | `roi_filter` | `src.filters.roi` | — |
 | `roi_draw` | `roi_draw` | `src.filters.roi` | 1 |
 | `crop` | `crop` | `src.filters.crop_resize` | 1 |
 | `resize` | `resize` | `src.filters.crop_resize` | 1 |
@@ -160,6 +161,29 @@ CLAHE ; a tendance à amplifier le bruit dans les zones plates.
 | `mask` | ndarray ou None | `None` | Restreint la région utilisée pour construire l'histogramme |
 
 CLI : `--histeq mode=lab`
+
+## Filtre sur ROI — `roi_filter`
+
+Applique un autre filtre enregistré à une seule région et laisse le reste de l'image
+intact, parce que le reste n'est pas ce qu'on démontre. C'est aussi la vraie réponse à
+l'histogramme bimodal : appliquée à la zone qui porte la question, une opération de
+contraste travaille sur l'histogramme qui intéresse.
+
+| paramètre | type | défaut | notes |
+|---|---|---|---|
+| `x`, `y`, `width`, `height` | int | — | La région, rognée aux bornes de l'image |
+| `filter_name` | str | `'clahe'` | Nom du filtre à appliquer dans la région |
+| `feather` | int | `8` | Largeur de la rampe de fondu en pixels ; `0` pour un bord net |
+
+La transition est adoucie plutôt que coupée : une couture nette autour d'une zone
+rehaussée est une question à l'audience. La rampe est bornée par la région, de sorte
+qu'une petite ROI en reçoit une proportionnée.
+
+Le filtre intérieur tourne avec ses propres valeurs par défaut — nommer un filtre *et*
+ses paramètres demanderait des paramètres imbriqués, ce que le contrat JSON plat du
+registre n'autorise pas. Seuls les filtres qui tournent sur une image seule peuvent être
+imbriqués ; les autres sont refusés par leur nom plutôt qu'en échouant plus loin. Un
+filtre qui redimensionne la région est refusé également.
 
 ## Recadrage ROI — `roi_crop`
 

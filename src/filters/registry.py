@@ -54,7 +54,7 @@ from .white_balance import (
 )
 from .histogram_equalization import histogram_equalization
 from .levels import adjust_levels, auto_levels
-from .roi import ROI, extract_roi, draw_roi
+from .roi import ROI, apply_to_roi, extract_roi, draw_roi
 from .sharpen import laplacian_sharpen, unsharp_mask
 from .smoothing import bilateral_filter, gaussian_blur, median_filter
 
@@ -133,6 +133,49 @@ def roi_draw(
     )
 
 
+def roi_filter(
+    image: np.ndarray,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    filter_name: str = 'clahe',
+    feather: int = 8,
+) -> np.ndarray:
+    """
+    Run another registered filter over one region only, feathered at its edge.
+
+    Selective filtering is what an exhibit usually wants: enhance the plate,
+    the face or the hand, and leave the rest alone, because the rest is not
+    what is being demonstrated. It is also the honest answer to a bimodal
+    histogram - applied to the region that matters, a contrast operation works
+    on the histogram that matters.
+
+    The inner filter runs with its own defaults. Naming a filter and giving its
+    parameters as well would need nested parameters, which the registry's flat
+    JSON contract has no room for; a chain that needs tuned parameters inside a
+    region can crop, filter and compose instead.
+
+    Args:
+        image: Source image
+        x, y, width, height: The region, clipped to the image
+        filter_name: Registry name of the filter to run inside the region
+        feather: Width of the blend ramp in pixels; 0 for a hard edge
+
+    Raises:
+        KeyError: If filter_name is not registered
+        ValueError: If filter_name is this filter, or it resizes the region
+    """
+    if filter_name == 'roi_filter':
+        raise ValueError("roi_filter cannot be its own inner filter")
+    spec = resolve_filter(filter_name)
+    if filter_name not in filters_with_all_defaults():
+        raise ValueError(
+            f"{filter_name!r} needs parameters that cannot be passed through a "
+            f"region. Filters usable here: {', '.join(filters_with_all_defaults())}")
+    return apply_to_roi(image, ROI(x, y, width, height), spec.fn, feather=feather)
+
+
 # ---- Registry -------------------------------------------------------------
 
 FILTER_REGISTRY: Dict[str, FilterSpec] = {
@@ -152,6 +195,9 @@ FILTER_REGISTRY: Dict[str, FilterSpec] = {
                    'Automatic levels stretch', 'Adjust'),
         FilterSpec('histeq', histogram_equalization, 'src.filters.histogram_equalization',
                    'Global histogram equalization', 'Adjust'),
+        FilterSpec('roi_filter', roi_filter, 'src.filters.roi',
+                   'Run another filter inside one region only, with a '
+                   'softened edge', 'Adjust'),
         FilterSpec('roi_crop', roi_crop, 'src.filters.roi',
                    'Crop to a region of interest', 'Adjust'),
         FilterSpec('roi_draw', roi_draw, 'src.filters.roi',
@@ -322,6 +368,27 @@ def filter_function(name: str) -> Callable[..., np.ndarray]:
         KeyError: If the name is not registered
     """
     return resolve_filter(name).fn
+
+
+def filters_with_all_defaults() -> List[str]:
+    """
+    Names of filters that run on an image alone, with no parameters supplied.
+
+    ``roi_filter`` runs its inner filter with that filter's own defaults, so
+    only these can go inside a region; offering an operator ``crop``, which
+    needs four coordinates it has no way to pass, would be a dead end. Itself
+    excluded, since a filter cannot be nested in itself.
+    """
+    import inspect
+
+    runnable = []
+    for name, spec in FILTER_REGISTRY.items():
+        if name == 'roi_filter':
+            continue
+        parameters = list(inspect.signature(spec.fn).parameters.values())[1:]
+        if all(p.default is not inspect.Parameter.empty for p in parameters):
+            runnable.append(name)
+    return sorted(runnable)
 
 
 def filter_description(name: str) -> str:
