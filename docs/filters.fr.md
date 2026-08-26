@@ -881,7 +881,22 @@ Metrology*, IJCV 40(2), 2000.
 | `unit_name` | `'mm'` | Libellé de l'unité |
 | `show_horizon` | `True` | Dessine l'horizon sur lequel repose l'estimation |
 
-`measure_height` renvoie le nombre sans dessiner, ainsi que `uncertainty_per_pixel` — de
+`measure_height` renvoie deux sensibilités : `uncertainty_per_pixel` pour une erreur
+d'un pixel sur les points cliqués, et `horizon_uncertainty_per_pixel` pour un
+décalage d'un pixel de l'horizon. Lisez la seconde d'abord : une base et un sommet se
+cliquent sur des détails visibles et sont rarement faux de plus d'un ou deux pixels,
+alors qu'un horizon se *déduit* et se trompe facilement de dix. Les deux sont écrites
+sous la hauteur, sauf `show_uncertainty=False`.
+
+Aucune des deux ne détecte un horizon simplement mal placé : ce sont des pentes
+locales. Placez l'horizon sur un plafond plutôt qu'au point de fuite et la
+sensibilité rapportée *diminue*, alors que l'erreur réelle explose. Vérifiez
+l'horizon sur la scène : il passe par le point où les parallèles convergent.
+
+Des bases de part et d'autre de l'horizon sont refusées : deux objets posés sur un
+même plan se projettent du même côté de l'horizon de ce plan.
+
+`measure_height` renvoie aussi le nombre sans dessiner, ainsi que `uncertainty_per_pixel` — de
 combien la réponse varie pour une erreur d'un pixel sur les points cliqués. À lire avant de
 citer une hauteur ; c'est le plancher de l'erreur, pas l'erreur totale. `vanishing_point`
 résout un point de fuite à partir de deux lignes parallèles de la scène ou plus, par moindres

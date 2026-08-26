@@ -877,12 +877,30 @@ Criminisi, Reid and Zisserman, *Single View Metrology*, IJCV 40(2), 2000.
 | `vertical_point` | `None` | Vertical vanishing point; omit if verticals are parallel |
 | `unit_name` | `'mm'` | Unit label |
 | `show_horizon` | `True` | Draw the horizon the estimate rests on |
+| `show_uncertainty` | `True` | Write the two sensitivities under the height |
 
-`measure_height` returns the number without drawing, along with
-`uncertainty_per_pixel` — how far the answer moves for a one-pixel error in the clicked
-points. Read it before quoting a height; it is the floor on the error, not the whole of it.
+`measure_height` returns the number without drawing, along with two sensitivities:
+`uncertainty_per_pixel` for a one-pixel error in the clicked base and top, and
+`horizon_uncertainty_per_pixel` for a one-pixel shift of the horizon. Read the second
+first. A base and a top are clicked on features you can see and are rarely more than a
+pixel or two out; a horizon is *inferred*, and is easily ten pixels out — so the smaller
+per-pixel figure is usually the larger real error. Both are drawn under the height unless
+you pass `show_uncertainty=False`.
+
+Neither figure can catch a horizon that is simply in the wrong place. They are local
+slopes: put the horizon on a ceiling instead of the vanishing point and the reported
+sensitivity actually *falls*, because a far-off horizon moves the answer little per pixel
+— while being 170 px wrong moves it enormously. The arithmetic stays self-consistent, so
+nothing in the five clicked points can flag it. Check the horizon against the scene: it
+passes through the point where the scene's parallel lines converge.
+
 `vanishing_point` solves for a vanishing point from two or more scene-parallel lines by
-least squares, and `horizon_from_vanishing_points` builds the horizon from two of them.
+least squares, and `horizon_from_vanishing_points` builds the horizon from two of them —
+use them rather than eyeballing two points on the horizon.
+
+Bases either side of the horizon are refused outright: two objects on one ground plane
+image on one side of that plane's horizon, so straddling it is impossible rather than
+merely inaccurate.
 
 The estimate is only as good as its assumptions, and each one fails quietly:
 

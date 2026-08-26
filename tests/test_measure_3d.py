@@ -145,6 +145,56 @@ class TestMeasureHeight(unittest.TestCase):
         self.assertGreater(far, near)
         self.assertGreater(near, 0.0)
 
+    def test_horizon_sensitivity_is_reported(self):
+        result = self._measure(0, 12000, 1750.0)
+        self.assertIn('horizon_uncertainty_per_pixel', result)
+        self.assertGreater(result['horizon_uncertainty_per_pixel'], 0.0)
+
+    def test_horizon_sensitivity_grows_with_distance(self):
+        """
+        Far from the camera the base crowds the horizon, so a horizon shifted
+        by a pixel spans more real ground - the same reason the click
+        sensitivity grows, and the reason the number is worth printing.
+        """
+        near = self._measure(0, 7000, 1750.0)['horizon_uncertainty_per_pixel']
+        far = self._measure(0, 22000, 1750.0)['horizon_uncertainty_per_pixel']
+        self.assertGreater(far, near)
+
+    def test_horizon_sensitivity_does_not_depend_on_the_line_scaling(self):
+        # The horizon is homogeneous, so (a, b, c) and -37(a, b, c) are one
+        # line; a per-pixel figure that moved with the scaling would be junk
+        base, top = self.camera.pole(0, 12000, 1750.0)
+        args = (base, top, self.reference[0], self.reference[1], self.reference_height)
+        plain = measure_height(*args, self.camera.horizon, self.camera.vertical_point)
+        scaled = measure_height(*args, self.camera.horizon * -37.0,
+                                self.camera.vertical_point * 5.0)
+        self.assertAlmostEqual(plain['horizon_uncertainty_per_pixel'],
+                               scaled['horizon_uncertainty_per_pixel'], places=6)
+
+    def test_bases_straddling_the_horizon_are_refused(self):
+        """
+        Two objects on one ground plane image on one side of its horizon.
+        Bases either side of it is not a hard measurement but an impossible
+        one, and the usual cause is a horizon drawn along a ceiling.
+        """
+        base, top = self.camera.pole(0, 12000, 1750.0)
+        line = resolve_horizon(self.camera.horizon)
+
+        # Mirror the reference base across the horizon to put it on the far side
+        reference_base = list(self.reference[0])
+        y_horizon = -(line[0] * reference_base[0] + line[2]) / line[1]
+        reference_base[1] = y_horizon - (reference_base[1] - y_horizon)
+
+        with self.assertRaises(ValueError) as ctx:
+            measure_height(base, top, reference_base, self.reference[1],
+                           self.reference_height, self.camera.horizon,
+                           self.camera.vertical_point)
+        self.assertIn('opposite sides', str(ctx.exception))
+
+    def test_a_valid_pair_is_not_refused(self):
+        # The guard must not fire on ordinary geometry
+        self.assertGreater(self._measure(0, 12000, 1750.0)['height'], 0)
+
     def test_parallel_vertical_assumption_is_exact_for_a_level_camera(self):
         camera = SyntheticCamera(pitch_degrees=0.0)
         reference = camera.pole(-900, 9000, 1800.0)
@@ -186,6 +236,22 @@ class TestMeasure3dFilter(unittest.TestCase):
         self.assertEqual(result.dtype, np.uint8)
         # Something was drawn
         self.assertFalse(np.array_equal(result, self.image))
+
+    def test_the_uncertainty_is_drawn_not_just_computed(self):
+        """
+        The figure existed all along and never reached the operator: the label
+        showed only the height. A number with no error beside it reads as a
+        measurement rather than an estimate.
+        """
+        common = dict(base=(300, 400), top=(300, 250),
+                      reference_base=(150, 380), reference_top=(150, 250),
+                      horizon=200, reference_height=1800.0)
+        with_note = draw_height_measurement(self.image, **common)
+        without = draw_height_measurement(self.image, show_uncertainty=False, **common)
+
+        self.assertFalse(np.array_equal(with_note, without))
+        # The note sits below the height label, so the extra ink is lower down
+        self.assertGreater(int((with_note != without).sum()), 0)
 
     def test_does_not_modify_the_input(self):
         before = self.image.copy()

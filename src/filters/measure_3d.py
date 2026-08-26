@@ -222,14 +222,18 @@ def measure_height(
         unit_name: Unit the reference height is given in
 
     Returns:
-        Dict with ``height``, ``unit``, ``ratio`` against the reference, and
-        ``uncertainty_per_pixel`` - how much ``height`` moves for a one-pixel
-        error in the clicked points. Treat that as the floor on the error, not
-        the whole of it.
+        Dict with ``height``, ``unit``, ``ratio`` against the reference, and two
+        sensitivities: ``uncertainty_per_pixel`` for a one-pixel error in the
+        clicked base and top, and ``horizon_uncertainty_per_pixel`` for a
+        one-pixel shift of the horizon. Read the second one first. A base and a
+        top are clicked on features you can see and are rarely more than a
+        pixel or two out; a horizon is inferred and is easily ten pixels out,
+        so the smaller per-pixel figure is usually the larger real error.
 
     Raises:
-        ValueError: If the reference height is not positive, or the geometry is
-                    degenerate (base on the horizon, top at the vanishing point)
+        ValueError: If the reference height is not positive, the two bases
+                    straddle the horizon, or the geometry is degenerate (base
+                    on the horizon, top at the vanishing point)
 
     Example:
         >>> result = measure_height(
@@ -250,9 +254,25 @@ def measure_height(
     if vertical.shape != (3,) or not np.any(vertical):
         raise ValueError(f"Invalid vertical vanishing point: {vertical_point!r}")
 
-    target_term = _height_term(_homogeneous(base), _homogeneous(top), line, vertical)
-    reference_term = _height_term(
-        _homogeneous(reference_base), _homogeneous(reference_top), line, vertical)
+    base_h, top_h = _homogeneous(base), _homogeneous(top)
+    reference_base_h, reference_top_h = (_homogeneous(reference_base),
+                                         _homogeneous(reference_top))
+
+    # Two objects standing on one ground plane image on one side of that
+    # plane's horizon. Bases that straddle it are not a hard measurement, they
+    # are an impossible one - almost always a horizon drawn somewhere else,
+    # such as along a ceiling.
+    side_target = float(line @ base_h)
+    side_reference = float(line @ reference_base_h)
+    if side_target * side_reference < 0:
+        raise ValueError(
+            "The target and reference bases fall on opposite sides of the "
+            "horizon, which cannot happen for two objects on one ground plane. "
+            "Check the horizon: it is usually drawn through the scene's "
+            "vanishing point, not along a ceiling or a wall top")
+
+    target_term = _height_term(base_h, top_h, line, vertical)
+    reference_term = _height_term(reference_base_h, reference_top_h, line, vertical)
 
     if abs(reference_term) < 1e-12:
         raise ValueError("The reference segment has no measurable extent")
@@ -274,12 +294,39 @@ def measure_height(
             continue
         spread = max(spread, abs(nudged / reference_term * reference_height - height))
 
+    # The horizon deserves its own figure. It is the input the estimate is most
+    # sensitive to and the one a person is least able to place accurately: a
+    # base and a top are clicked on visible features, while the horizon is
+    # inferred from converging lines and is easily ten pixels out. Reporting
+    # only the click sensitivity flatters the result, because it is the small
+    # error on the input that is nearly always right.
+    #
+    # The nudge is perpendicular to the line, so it means one pixel however the
+    # horizon is tilted: shifting a line by d perpendicular moves c by
+    # d * hypot(a, b).
+    horizon_spread = 0.0
+    normal = float(np.hypot(line[0], line[1]))
+    if normal > 1e-12:
+        for delta in (1.0, -1.0):
+            shifted = np.array([line[0], line[1], line[2] + delta * normal])
+            try:
+                nudged_target = _height_term(base_h, top_h, shifted, vertical)
+                nudged_reference = _height_term(
+                    reference_base_h, reference_top_h, shifted, vertical)
+            except ValueError:
+                continue
+            if abs(nudged_reference) < 1e-12:
+                continue
+            horizon_spread = max(horizon_spread, abs(
+                nudged_target / nudged_reference * reference_height - height))
+
     return {
         'height': float(height),
         'unit': unit_name,
         'ratio': float(ratio),
         'reference_height': float(reference_height),
         'uncertainty_per_pixel': float(spread),
+        'horizon_uncertainty_per_pixel': float(horizon_spread),
     }
 
 
@@ -326,6 +373,7 @@ def draw_height_measurement(
     font_scale: float = 0.5,
     precision: int = 0,
     show_horizon: bool = True,
+    show_uncertainty: bool = True,
 ) -> np.ndarray:
     """
     Measure an object's height from one view and draw the result.
@@ -353,6 +401,10 @@ def draw_height_measurement(
         font_scale: Label size
         precision: Decimal places in the labels
         show_horizon: Draw the horizon, which is what the estimate rests on
+        show_uncertainty: Write the two per-pixel sensitivities under the
+            height. The number on its own reads like a measurement; these say
+            how far it moves when the inputs move, which is the difference
+            between an estimate and a claim
 
     Returns:
         Annotated copy of the image
@@ -392,5 +444,12 @@ def draw_height_measurement(
         label_x = min(max(p2[0] + 8, 2), max(width_px - 4, 2))
         label_y = min(max(p2[1] - 6, 14), height_px - 4)
         _draw_label(canvas, text, (label_x, label_y), tone, font_scale, 1)
+
+        if show_uncertainty and tone is color:
+            note = (f"+/-{result['uncertainty_per_pixel']:.0f} per px clicked, "
+                    f"+/-{result['horizon_uncertainty_per_pixel']:.0f} per px horizon")
+            note_y = min(label_y + int(round(font_scale * 34)), height_px - 4)
+            _draw_label(canvas, note, (label_x, note_y), tone,
+                        font_scale * 0.8, 1)
 
     return canvas
