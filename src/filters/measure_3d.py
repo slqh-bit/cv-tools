@@ -133,6 +133,72 @@ def horizon_from_vanishing_points(
     return line
 
 
+def _flat_floats(values) -> list:
+    """Flatten a mix of scalars and (x, y) pairs into one list of floats."""
+    out = []
+    for value in values:
+        if isinstance(value, (list, tuple, np.ndarray)):
+            out.extend(float(item) for item in value)
+        else:
+            out.append(float(value))
+    return out
+
+
+def horizon_from_lines(
+    lines: Sequence[Sequence[float]],
+    cross_lines: Optional[Sequence[Sequence[float]]] = None,
+) -> np.ndarray:
+    """
+    The horizon from lines that are parallel in the scene, not on the horizon.
+
+    This exists because asking someone for "two points on the horizon" asks
+    them for the answer. The horizon is rarely visible indoors, and eyeballing
+    it is the single largest error in a single-view height: put it on a ceiling
+    rather than the vanishing point and the estimate moves by hundreds of
+    millimetres while every reported sensitivity stays small and reassuring.
+
+    Lines that are parallel in the scene meet at their vanishing point in the
+    image, and the vanishing point of any direction parallel to the ground lies
+    on the ground's horizon. So a corridor's floor edge and ceiling edge - both
+    running the way the corridor runs - give a point the horizon passes
+    through, and they are things you can actually see and click along.
+
+    Args:
+        lines: Two or more lines along one scene direction, each as
+            ``(x1, y1, x2, y2)``. Their vanishing point is found by least
+            squares. With only this set the horizon is taken horizontal through
+            that point, which is exact for a camera with no roll.
+        cross_lines: Two or more lines along a second, different scene
+            direction. Supply these when the camera is rolled: the horizon then
+            runs through both vanishing points and no levelness is assumed.
+
+    Returns:
+        Homogeneous 3-vector
+
+    Raises:
+        ValueError: If a set has fewer than two lines, or the two vanishing
+            points coincide
+
+    Example:
+        >>> # two lines converging on (100, 50), camera level
+        >>> h = horizon_from_lines([(0, 0, 100, 50), (0, 100, 100, 50)])
+        >>> [round(v, 6) for v in (h / h[1])]
+        [0.0, 1.0, -50.0]
+    """
+    point = vanishing_point(lines)
+
+    if cross_lines is None:
+        if abs(point[2]) < 1e-12:
+            raise ValueError(
+                "The lines are parallel in the image, so their vanishing point "
+                "is at infinity and its height cannot place a level horizon. "
+                "Supply cross_lines, or give the horizon directly")
+        # Level camera: the horizon is the image row through the vanishing point
+        return np.array([0.0, 1.0, -float(point[1] / point[2])])
+
+    return horizon_from_vanishing_points(point, vanishing_point(cross_lines))
+
+
 def resolve_horizon(horizon: Union[float, Sequence[float]]) -> np.ndarray:
     """
     Accept the several ways a horizon is naturally specified.
@@ -141,8 +207,19 @@ def resolve_horizon(horizon: Union[float, Sequence[float]]) -> np.ndarray:
         horizon: One of
 
             - a number ``y``: a level camera, horizon horizontal at that row
-            - ``(x1, y1, x2, y2)``: two points lying on the horizon
             - ``(a, b, c)``: the homogeneous line directly
+            - ``(x1, y1, x2, y2)``: two points lying on the horizon
+            - 8 numbers: two lines along one scene direction, as
+              ``(x1, y1, x2, y2, x3, y3, x4, y4)``. Their vanishing point is
+              solved for and the horizon taken horizontal through it - which is
+              what you want indoors, where the horizon is not visible but the
+              floor and ceiling edges are. Assumes the camera has no roll.
+            - 16 numbers: four lines, the first two along one scene direction
+              and the last two along another. The horizon runs through both
+              vanishing points, so no levelness is assumed.
+
+        Points may be given flat or as (x, y) pairs; both are accepted, because
+        the parameter forms hand back whichever they parsed.
 
     Returns:
         Homogeneous 3-vector
@@ -154,7 +231,7 @@ def resolve_horizon(horizon: Union[float, Sequence[float]]) -> np.ndarray:
         # ax + by + c = 0 with a=0, b=1 is the horizontal row y = value
         return np.array([0.0, 1.0, -float(horizon)])
 
-    values = [float(v) for v in horizon]
+    values = _flat_floats(horizon)
     if len(values) == 4:
         return line_through(values[:2], values[2:])
     if len(values) == 3:
@@ -162,9 +239,15 @@ def resolve_horizon(horizon: Union[float, Sequence[float]]) -> np.ndarray:
         if not np.any(line):
             raise ValueError("The horizon line is all zeros")
         return line
+    if len(values) == 8:
+        return horizon_from_lines([values[0:4], values[4:8]])
+    if len(values) == 16:
+        return horizon_from_lines([values[0:4], values[4:8]],
+                                  [values[8:12], values[12:16]])
 
     raise ValueError(
-        f"Expected a y value, (x1, y1, x2, y2), or (a, b, c); got {horizon!r}"
+        f"Expected a y value, (a, b, c), (x1, y1, x2, y2), 8 numbers for two "
+        f"receding lines, or 16 for four; got {len(values)} numbers"
     )
 
 

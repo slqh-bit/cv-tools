@@ -117,15 +117,17 @@ class TestDashboard(unittest.TestCase):
                             for info in app.info))
 
         app.session_state.picks = [(300, 400), (300, 250), (450, 420),
-                                   (450, 300), (0, 180), (639, 180)]
+                                   (450, 300),
+                                   (0, 100), (600, 250), (0, 500), (600, 350)]
         app.run()
 
         self.assertEqual(app.exception, [])
         self.assertIsNone(app.session_state.picking_for)
         self.assertEqual(app.session_state['param_measure_3d_base'], '450,420')
-        # Two taps become the four numbers a horizon line takes
+        # Four taps become the eight numbers of two receding lines, which is
+        # what the horizon is now derived from rather than guessed
         self.assertEqual(app.session_state['param_measure_3d_horizon'],
-                         '0,180,639,180')
+                         '0,100,600,250,0,500,600,350')
 
     def test_picking_is_offered_only_where_it_applies(self):
         app = self._app()

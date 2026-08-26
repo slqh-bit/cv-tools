@@ -888,6 +888,13 @@ cliquent sur des détails visibles et sont rarement faux de plus d'un ou deux pi
 alors qu'un horizon se *déduit* et se trompe facilement de dix. Les deux sont écrites
 sous la hauteur, sauf `show_uncertainty=False`.
 
+`horizon_from_lines` évite d'avoir à le deviner : donnez-lui des droites *parallèles
+dans la scène* — l'arête sol/mur d'un couloir et son arête plafond/mur, les deux
+bordures d'une route — et elle renvoie l'horizon passant par leur point de fuite. Un
+jeu de droites suffit si la caméra n'a pas de roulis ; un second jeu dans une autre
+direction lève cette hypothèse. Le paramètre `horizon` accepte 8 nombres pour deux
+droites, 16 pour quatre, et **Choisir des points sur l'image** les collecte.
+
 Aucune des deux ne détecte un horizon simplement mal placé : ce sont des pentes
 locales. Placez l'horizon sur un plafond plutôt qu'au point de fuite et la
 sensibilité rapportée *diminue*, alors que l'erreur réelle explose. Vérifiez

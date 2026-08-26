@@ -85,7 +85,10 @@ POINT_PARAMETERS: Dict[str, Tuple[Tuple[str, int, str], ...]] = {
         ('reference_top', 1, 'the TOP of the reference object'),
         ('base', 1, 'the FOOT of the object to measure'),
         ('top', 1, 'the TOP of the object to measure'),
-        ('horizon', 2, 'two points on the HORIZON'),
+        # Two lines that run the way the scene runs - a floor edge and a
+        # ceiling edge - not the horizon itself, which is usually invisible
+        # indoors and is the input people get most wrong.
+        ('horizon', 4, 'a RECEDING line (2 points), then a second one'),
     ),
     'perspective': (
         ('corners', 4, 'the four corners, clockwise from top-left'),

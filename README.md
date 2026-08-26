@@ -422,7 +422,10 @@ corrected without rebuilding the chain by hand.
 
 Filters whose parameters are coordinates — `measure_3d`, `perspective` — are filled by
 clicking: **Pick points on the image** walks you through them one at a time, naming each
-point in the status bar and marking it on the frame. The dashboard offers the same sequence
+point in the status bar and marking it on the frame. For `measure_3d` it asks for two
+*receding* lines rather than two points on the horizon, because the horizon is usually
+invisible indoors and eyeballing it is the largest error in a single-view height — the
+floor and ceiling edges that give it away are right there to click along. The dashboard offers the same sequence
 over its tap-to-pick. The order lives in `filters.registry.POINT_PARAMETERS`, so both front
 ends prompt for the same points.
 

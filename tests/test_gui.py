@@ -687,7 +687,12 @@ class TestApp(unittest.TestCase):
         self.assertTrue(self.app.viewer.picking)
         self.assertIn('FOOT of the reference', self.app.status.cget('text'))
 
-        for x, y in [(30, 40), (30, 20), (45, 42), (45, 25), (0, 18), (60, 18)]:
+        # Four points, then two receding lines of two points each. The lines
+        # converge at (90, 26), so the horizon they imply is the row y = 26.
+        # Every point stays inside the frame: the canvas clamps a drag that
+        # overshoots, which would quietly move the line
+        for x, y in [(30, 40), (30, 20), (45, 42), (45, 25),
+                     (0, 8), (60, 20), (0, 44), (60, 32)]:
             self.app.viewer._on_press(SimpleNamespace(x=x, y=y))
 
         self.assertFalse(self.app.viewer.picking)
@@ -696,8 +701,13 @@ class TestApp(unittest.TestCase):
         self.assertEqual(params['reference_top'], [30, 20])
         self.assertEqual(params['base'], [45, 42])
         self.assertEqual(params['top'], [45, 25])
-        # Two clicks become the four numbers a horizon line takes
-        self.assertEqual(params['horizon'], [0, 18, 60, 18])
+
+        # Eight numbers reach the form as four pairs, which resolve_horizon
+        # flattens; either shape has to give the same line
+        from src.filters.measure_3d import resolve_horizon
+        line = resolve_horizon(params['horizon'])
+        self.assertAlmostEqual(-line[2] / line[1], 26.0, places=6)
+        self.assertAlmostEqual(line[0], 0.0, places=9)
 
         # And the filter accepts what the picking produced
         result = resolve_filter('measure_3d').fn(self.app.pipeline.current, **params)

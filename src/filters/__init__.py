@@ -106,6 +106,7 @@ from .metadata_forensics import (
 from .measure_3d import (
     VERTICAL_AT_INFINITY,
     draw_height_measurement,
+    horizon_from_lines,
     horizon_from_vanishing_points,
     line_through,
     measure_height,
@@ -338,7 +339,8 @@ __all__ = [
     'draw_scale_bar', 'measure_distance', 'measure_area', 'scale_from_reference',
     # measure 3d
     'VERTICAL_AT_INFINITY', 'draw_height_measurement',
-    'horizon_from_vanishing_points', 'line_through', 'measure_height',
+    'horizon_from_lines', 'horizon_from_vanishing_points', 'line_through',
+    'measure_height',
     'resolve_horizon', 'vanishing_point',
     # registry
     'FILTER_REGISTRY', 'POINT_PARAMETERS', 'FilterSpec', 'CATEGORY_ORDER',

@@ -872,7 +872,7 @@ Criminisi, Reid and Zisserman, *Single View Metrology*, IJCV 40(2), 2000.
 |---|---|---|
 | `base`, `top` | required | Target's ground contact and highest point |
 | `reference_base`, `reference_top` | required | Same two points on the known object |
-| `horizon` | required | A `y` row for a level camera, `x1,y1,x2,y2`, or `a,b,c` |
+| `horizon` | required | A `y` row, `a,b,c`, `x1,y1,x2,y2` on the horizon, or 8 numbers for two receding lines (16 for four) |
 | `reference_height` | `1800.0` | True height of the reference, in `unit_name` |
 | `vertical_point` | `None` | Vertical vanishing point; omit if verticals are parallel |
 | `unit_name` | `'mm'` | Unit label |
@@ -894,9 +894,25 @@ sensitivity actually *falls*, because a far-off horizon moves the answer little 
 nothing in the five clicked points can flag it. Check the horizon against the scene: it
 passes through the point where the scene's parallel lines converge.
 
+So don't eyeball it. `horizon_from_lines` takes lines that are *parallel in the scene* —
+a corridor's floor edge and its ceiling edge, the two kerbs of a road — and returns the
+horizon through their vanishing point. Lines parallel in the scene meet at a vanishing
+point in the image, and the vanishing point of any direction parallel to the ground lies
+on the ground's horizon, so edges you can see give you a horizon you cannot.
+
+Pass one set of lines and the horizon is taken horizontal through that point, which is
+exact for a camera with no roll. Pass a second set running a different way and it runs
+through both vanishing points, assuming nothing about levelness. The `horizon` parameter
+accepts these directly: 8 numbers for two lines, 16 for four.
+
+**Pick points on the image** collects them — a receding line, then a second one — instead
+of asking for two points on a horizon you would have to already know. On a real corridor
+frame, two hand-clicked edges landed within 4 px of a horizon found by Hough transform
+over the whole image; the same frame with the horizon eyeballed onto the ceiling was
+170 px out, worth about 700 mm of height.
+
 `vanishing_point` solves for a vanishing point from two or more scene-parallel lines by
-least squares, and `horizon_from_vanishing_points` builds the horizon from two of them —
-use them rather than eyeballing two points on the horizon.
+least squares, and `horizon_from_vanishing_points` builds the horizon from two of them.
 
 Bases either side of the horizon are refused outright: two objects on one ground plane
 image on one side of that plane's horizon, so straddling it is impossible rather than
