@@ -10,7 +10,7 @@ import json
 import hashlib
 import textwrap
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from datetime import datetime
 
 import numpy as np
@@ -34,9 +34,35 @@ _STYLES = {
 class ReportGenerator:
     """Generate scientific reports of image processing chains."""
 
-    def __init__(self, pipeline_report: Dict[str, Any], source_metadata: Dict[str, Any]):
+    def __init__(
+        self,
+        pipeline_report: Dict[str, Any],
+        source_metadata: Dict[str, Any],
+        describe: Optional[Callable[[str], str]] = None,
+    ):
+        """
+        Args:
+            pipeline_report: As returned by ``core.pipeline.Pipeline.generate_report``
+            source_metadata: Loader metadata for the source file
+            describe: Maps a step's ``name`` to a plain-language description of
+                what the filter does. A report is read by someone who is not an
+                image analyst, so a name and a parameter list do not tell them
+                what was done. This module cannot look descriptions up itself -
+                that would make ``core`` depend on the filters package it sits
+                underneath - so the caller supplies a resolver, exactly as
+                ``Pipeline.replace_chain`` takes one.
+                ``filters.registry.filter_description`` is one for every
+                registered filter. Omit it and the reports read as before.
+        """
         self.pipeline_report = pipeline_report
         self.source_metadata = source_metadata
+        self.describe = describe
+
+    def _description(self, step: Dict[str, Any]) -> str:
+        """Return the description for a step, or '' if there is none to give."""
+        if self.describe is None:
+            return ''
+        return self.describe(step['name']) or ''
 
     def to_dict(self) -> Dict[str, Any]:
         """Return full report as dictionary."""
@@ -70,8 +96,11 @@ class ReportGenerator:
         ])
 
         for i, step in enumerate(self.pipeline_report.get('filters', []), 1):
+            lines.append(f"### Step {i}: {step['name']}")
+            description = self._description(step)
+            if description:
+                lines.extend([description, ""])
             lines.extend([
-                f"### Step {i}: {step['name']}",
                 f"- **Module:** `{step['module']}`",
                 f"- **Timestamp:** {step['timestamp']}",
                 "- **Parameters:**",
@@ -128,6 +157,9 @@ class ReportGenerator:
 
         for index, step in enumerate(self.pipeline_report.get('filters', []), 1):
             lines.append((f"Step {index}: {step['name']}", 'heading'))
+            description = self._description(step)
+            if description:
+                lines.append((description, 'body'))
             lines.append((f"Module: {step['module']}", 'body'))
             lines.append((f"Timestamp: {step['timestamp']}", 'body'))
             params = step.get('params', {})

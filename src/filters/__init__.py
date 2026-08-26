@@ -219,6 +219,7 @@ from .registry import (
     CATEGORY_ORDER,
     resolve_filter,
     filter_function,
+    filter_description,
     list_filters,
     apply_preset,
 )
@@ -330,7 +331,8 @@ __all__ = [
     'horizon_from_vanishing_points', 'line_through', 'measure_height',
     'resolve_horizon', 'vanishing_point',
     # registry
-    'FILTER_REGISTRY', 'POINT_PARAMETERS', 'FilterSpec', 'CATEGORY_ORDER', 'resolve_filter', 'filter_function',
+    'FILTER_REGISTRY', 'POINT_PARAMETERS', 'FilterSpec', 'CATEGORY_ORDER',
+    'resolve_filter', 'filter_function', 'filter_description',
     'list_filters', 'apply_preset',
     # analysis registry
     'ANALYSIS_REGISTRY', 'AnalysisSpec', 'Row', 'list_analyses', 'render_report',

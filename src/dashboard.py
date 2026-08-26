@@ -43,6 +43,7 @@ from src.filters import (
     POINT_PARAMETERS,
     FILTER_REGISTRY,
     dynamic_range_used,
+    filter_description,
     filter_function,
     histogram_stats,
     render_histogram,
@@ -856,7 +857,8 @@ def _export_tab(pipeline: Pipeline) -> None:
         'name': f'preset_{st.session_state.source_name or "image"}',
         'filters': [step.to_dict() for step in pipeline.chain],
     }
-    report = ReportGenerator(pipeline.generate_report(), st.session_state.metadata)
+    report = ReportGenerator(pipeline.generate_report(), st.session_state.metadata,
+                             describe=filter_description)
 
     cols = st.columns(4)
     cols[0].download_button('Processed PNG', buffer.getvalue(),

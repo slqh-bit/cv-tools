@@ -33,6 +33,7 @@ from ..filters import (
     Row,
     FILTER_REGISTRY,
     dynamic_range_used,
+    filter_description,
     filter_function,
     histogram_stats,
     render_histogram,
@@ -724,7 +725,8 @@ class CVToolsApp(tk.Tk):
         if not path:
             return
 
-        report = ReportGenerator(self.pipeline.generate_report(), self.metadata)
+        report = ReportGenerator(self.pipeline.generate_report(), self.metadata,
+                                 describe=filter_description)
         fmt = REPORT_FORMATS.get(Path(path).suffix.lower(), 'markdown')
         try:
             report.save(path, format=fmt)

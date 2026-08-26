@@ -38,7 +38,7 @@ from .filters.frame_averaging import (
     sharpest_frames,
 )
 from .filters.histogram import dynamic_range_used, histogram_stats, render_histogram
-from .filters.registry import resolve_filter, list_filters
+from .filters.registry import resolve_filter, list_filters, filter_description
 from .filters.roi import ROI, analyze_roi
 from .utils.compare import side_by_side
 from .utils.parsing import (
@@ -1004,7 +1004,8 @@ def _process_source(
             print(f"Saved histogram: {args.histogram}")
 
         if args.report:
-            report = ReportGenerator(pipeline.generate_report(), metadata)
+            report = ReportGenerator(pipeline.generate_report(), metadata,
+                                     describe=filter_description)
             fmt = REPORT_FORMATS.get(Path(args.report).suffix.lower(), 'markdown')
             report.save(args.report, format=fmt)
             print(f"Saved report: {args.report}")

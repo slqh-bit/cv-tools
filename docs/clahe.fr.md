@@ -102,7 +102,7 @@ sur la même scène en 720p et en 4K ne produit pas le même résultat.**
 |---|---|
 | `lab` | **Recommandé.** CLAHE sur le canal L, teintes préservées |
 | `yuv` | Équivalent en pratique ; travaille sur le Y de BT.601 |
-| `luminance` | **Doublon de `yuv`** — voir l'annexe |
+| `luminance` | Quasi identique à `yuv` (1/255 près) — voir l'annexe |
 | `hsv` | Sur V ; peut saturer les couleurs vives |
 | `channelwise` | **À proscrire sur une pièce à conviction** |
 
@@ -309,8 +309,8 @@ explicitement.
 
 | Emplacement | Constat |
 |---|---|
-| `src/filters/clahe.py:100` | Ligne morte : `result` est écrasé deux lignes plus bas |
-| `src/filters/clahe.py:96` | Le mode `luminance` est un doublon de `yuv`. Mesuré sur une trame réelle : **écart maximal 0, 0.0 % des pixels différents**. Arithmétiquement forcé — `RGB2GRAY` et le Y de `RGB2YUV` sont la même combinaison BT.601 |
+| `src/filters/clahe.py:100` | Ligne morte : `result` est écrasé deux lignes plus bas — **corrigé** (sortie inchangée au bit près, vérifiée sur 10 images) |
+| `src/filters/clahe.py:96` | Le mode `luminance` est *presque* un doublon de `yuv` : `RGB2GRAY` et le Y de `RGB2YUV` sont la même combinaison BT.601, mais **les arrondis diffèrent**. Repris sur l'ensemble du corpus (29 images, 35,6 M pixels) : écart de 1 sur 400 pixels (0,001 %), que CLAHE amplifie ensuite jusqu'à **4/255** en sortie. La mesure initiale — « écart maximal 0 » — portait sur une seule trame et ne se généralise pas. Fusionner les deux branches changerait donc ce que rejoue un preset existant : **corrigé en documentant l'écart, pas en fusionnant** |
 | `src/filters/clahe.py:60,66` | Le 8 bits est forcé en entrée, alors qu'OpenCV accepte le 16 bits. Sur une source 10 ou 12 bits, la précision est jetée juste avant l'étape qui étire le contraste |
 | `src/filters/roi.py:94` | `apply_to_roi` applique un filtre à une région et **n'est pas enregistré** dans `FILTER_REGISTRY` : aucune interface ne peut l'atteindre. Bords nets, sans adoucissement |
 | `src/filters/clahe.py:117` | `apply_clahe_grid` produit la planche d'aperçu et **n'est pas enregistré** non plus |

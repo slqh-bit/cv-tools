@@ -35,7 +35,8 @@ def apply_clahe(
             - 'lab': Convert to LAB, apply CLAHE to L channel (recommended)
             - 'hsv': Convert to HSV, apply CLAHE to V channel
             - 'yuv': Convert to YUV, apply CLAHE to Y channel
-            - 'luminance': Apply to grayscale, then blend back
+            - 'luminance': Equalize the grayscale luma, write it back as Y
+              (within 1/255 of 'yuv'; see the note on the branch)
             - 'channelwise': Apply CLAHE to each RGB channel separately
 
     Returns:
@@ -93,12 +94,15 @@ def apply_clahe(
         for c in range(3):
             result[:, :, c] = clahe.apply(rgb[:, :, c])
 
+    # Very nearly 'yuv', and deliberately not merged with it. RGB2GRAY and the
+    # Y of RGB2YUV are the same BT.601 combination but round differently: over
+    # the validation corpus they disagree by 1 on 400 pixels in 35.6M (0.001%),
+    # which CLAHE then amplifies to as much as 4/255 in the output. Neither
+    # rounding is the correct one, so collapsing these two branches would buy a
+    # few lines at the price of changing what an existing preset replays.
     elif color_mode == 'luminance':
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
         equalized = clahe.apply(gray)
-        # Simple luminance replacement (not perfect but fast)
-        result = cv2.cvtColor(equalized, cv2.COLOR_GRAY2RGB)
-        # Blend to preserve color
         yuv = cv2.cvtColor(rgb, cv2.COLOR_RGB2YUV)
         yuv[:, :, 0] = equalized
         result = cv2.cvtColor(yuv, cv2.COLOR_YUV2RGB)

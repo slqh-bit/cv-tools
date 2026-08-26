@@ -321,6 +321,22 @@ def filter_function(name: str) -> Callable[..., np.ndarray]:
     return resolve_filter(name).fn
 
 
+def filter_description(name: str) -> str:
+    """
+    Look up just the plain-language description for a registry name.
+
+    This is the resolver ``core.report.ReportGenerator`` expects. Unlike
+    ``resolve_filter`` it does not raise: a report is written after the fact,
+    often about a chain that has already been applied, and an unregistered step
+    name should cost the reader a description rather than the whole document.
+
+    Returns:
+        The description, or an empty string if the name is not registered
+    """
+    spec = FILTER_REGISTRY.get(name)
+    return spec.description if spec else ''
+
+
 def list_filters() -> List[Tuple[str, str]]:
     """Return (name, description) pairs for every registered filter."""
     return [(spec.name, spec.description) for spec in FILTER_REGISTRY.values()]

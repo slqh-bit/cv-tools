@@ -85,6 +85,24 @@ class TestClahe(unittest.TestCase):
         with self.assertRaises(ValueError):
             apply_clahe(np.array([], dtype=np.uint8))
 
+    def test_luminance_is_close_to_yuv_but_not_identical(self):
+        """
+        The two modes are the same BT.601 combination rounded differently.
+
+        Both halves matter. They are close, so 'luminance' is not some other
+        operation; they are not identical, so collapsing the branches would
+        silently change what an existing preset replays. On the validation
+        corpus the luma channels differ by 1 on 0.001% of pixels, which CLAHE
+        amplifies to a handful of levels in the output - more on a synthetic
+        low-contrast fixture like this one than on a real frame.
+        """
+        image = low_contrast_image()
+        difference = np.abs(
+            apply_clahe(image, color_mode='luminance').astype(int)
+            - apply_clahe(image, color_mode='yuv').astype(int))
+        self.assertGreater(difference.max(), 0)
+        self.assertLess(difference.max(), 16)
+
 
 class TestContrastBrightness(unittest.TestCase):
 
