@@ -4,7 +4,7 @@ CLAHE - Contrast Limited Adaptive Histogram Equalization.
 Inspired by Amped FIVE's adaptive contrast enhancement for low-quality CCTV footage.
 """
 
-from typing import Union, Tuple
+from typing import Sequence, Union, Tuple
 import numpy as np
 import cv2
 
@@ -120,26 +120,43 @@ def apply_clahe(
 
 def apply_clahe_grid(
     image: np.ndarray,
-    clip_limits: list,
-    tile_grid_sizes: list,
+    clip_limits: Union[float, Sequence[float]] = (1.0, 2.0, 3.0, 4.0),
+    tile_grid_sizes: Union[int, Sequence[int]] = 8,
     color_mode: str = 'lab',
 ) -> np.ndarray:
     """
     Apply multiple CLAHE settings and return a grid comparison.
     Useful for finding optimal parameters (like Amped FIVE's preview).
 
+    The noise an operator pays for a given clip_limit varies by a factor of
+    1.4 to 1.9 from image to image, so the value that is right for one frame is
+    not right for the next. Facing a slider, an operator keeps the default;
+    facing this board, they choose a value they can justify.
+
     Args:
         image: Input image
-        clip_limits: List of clip limit values to try
-        tile_grid_sizes: List of tile grid sizes to try
+        clip_limits: Clip limit values to try; a single value is accepted
+        tile_grid_sizes: Grid sizes to try; a single value is accepted
         color_mode: Color processing mode
 
     Returns:
-        Grid image showing all combinations
+        Grid image showing all combinations, each labelled with its settings
+
+    Example:
+        >>> board = apply_clahe_grid(frame, clip_limits=[1.5, 2, 3])
     """
     import math
 
+    # The registry passes whatever the parameter form parsed, and a form with
+    # one value typed in it yields a scalar rather than a list of one
+    if isinstance(clip_limits, (int, float)):
+        clip_limits = [clip_limits]
+    if isinstance(tile_grid_sizes, int):
+        tile_grid_sizes = [tile_grid_sizes]
+
     combinations = [(c, t) for c in clip_limits for t in tile_grid_sizes]
+    if not combinations:
+        raise ValueError("Need at least one clip limit and one tile grid size")
     n = len(combinations)
     cols = math.ceil(math.sqrt(n))
     rows = math.ceil(n / cols)

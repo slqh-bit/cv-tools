@@ -56,6 +56,7 @@ compression, JPEG ghost and metadata — are not chain steps and are listed sepa
 | `barrel` / `fisheye` | `correct_barrel_distortion` / `correct_fisheye` | `src.filters.fisheye_correction` | — |
 | `pixel_aspect` / `fit_aspect` | `correct_pixel_aspect` / `fit_to_aspect` | `src.filters.aspect_ratio` | — |
 | `undistort` | `undistort_with_file` | `src.filters.undistort` | — |
+| `clahe_grid` | `apply_clahe_grid` | `src.filters.clahe` | — |
 | `blocking_map` / `deblock` | see module | `src.filters.compression_analysis` | — |
 | `stain` | `extract_stain` | `src.filters.color_deconvolution` | — |
 | `component` / `bit_plane` | `extract_component` / `extract_bit_plane` | `src.filters.component_separation` | — |
@@ -83,7 +84,10 @@ it only when you want that.
 CLI: `--clahe clip=3.0 tile=8x8 mode=lab`
 
 `apply_clahe_grid(image, clip_limits, tile_grid_sizes)` renders a labelled grid of parameter
-combinations for picking values quickly.
+combinations for picking values quickly. Registered as `clahe_grid`, so both front ends
+offer it; both arguments default to a usable sweep and accept a single value. The noise
+cost of a given `clip_limit` varies by a factor of 1.4 to 1.9 from image to image, which is
+why the value to use is chosen from the board rather than guessed at a slider.
 
 ## Contrast & Brightness — `contrast_brightness`
 

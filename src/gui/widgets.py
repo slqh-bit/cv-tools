@@ -152,6 +152,7 @@ def choices_for(spec) -> Dict[str, List[str]]:
     # of the four is offered the other three's values
     narrowed = {
         'clahe': {'color_mode': list(CLAHE_MODES)},
+        'clahe_grid': {'color_mode': list(CLAHE_MODES)},
         'histeq': {'color_mode': list(HISTEQ_MODES)},
         'redact': {'method': sorted(IRREVERSIBLE_METHODS | REVERSIBLE_METHODS)},
         'white_balance': {'method': list(WHITE_BALANCE_METHODS)},

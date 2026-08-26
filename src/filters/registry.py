@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import numpy as np
 
 from .aspect_ratio import correct_pixel_aspect, fit_to_aspect
-from .clahe import apply_clahe
+from .clahe import apply_clahe, apply_clahe_grid
 from .contrast_brightness import adjust_contrast_brightness, auto_contrast
 from .clone_detection import highlight_clones
 from .color_balance import adjust_cmyk, adjust_color_balance, channel_mixer
@@ -252,6 +252,9 @@ FILTER_REGISTRY: Dict[str, FilterSpec] = {
                    'Sobel gradient magnitude', 'Analyze'),
         FilterSpec('laplacian', laplacian_edges, 'src.filters.edge_detection',
                    'Laplacian edge map', 'Analyze'),
+        FilterSpec('clahe_grid', apply_clahe_grid, 'src.filters.clahe',
+                   'Contact sheet of CLAHE settings, for choosing one you can '
+                   'justify', 'Analyze'),
         FilterSpec('blocking_map', blocking_map, 'src.filters.compression_analysis',
                    'Per-region JPEG blocking map', 'Analyze'),
         FilterSpec('deblock', deblock, 'src.filters.compression_analysis',

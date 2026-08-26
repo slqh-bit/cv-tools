@@ -424,7 +424,8 @@ class TestApp(unittest.TestCase):
     def test_search_filters_the_list(self):
         self.app.search.set('clahe')
         self.app.update_idletasks()
-        self.assertEqual(self._listed(), ['clahe'])
+        # Both CLAHE entries match the term: the filter and its settings board
+        self.assertEqual(self._listed(), ['clahe', 'clahe_grid'])
 
     def test_search_matches_descriptions_too(self):
         self.app.search.set('wiener')

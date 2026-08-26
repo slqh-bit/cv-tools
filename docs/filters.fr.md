@@ -58,6 +58,7 @@ regroupées à part, sous [Rapports d'analyse](#rapports-danalyse-pas-des-étape
 | `barrel` / `fisheye` | `correct_barrel_distortion` / `correct_fisheye` | `src.filters.fisheye_correction` | — |
 | `pixel_aspect` / `fit_aspect` | `correct_pixel_aspect` / `fit_to_aspect` | `src.filters.aspect_ratio` | — |
 | `undistort` | `undistort_with_file` | `src.filters.undistort` | — |
+| `clahe_grid` | `apply_clahe_grid` | `src.filters.clahe` | — |
 | `blocking_map` / `deblock` | voir le module | `src.filters.compression_analysis` | — |
 | `stain` | `extract_stain` | `src.filters.color_deconvolution` | — |
 | `component` / `bit_plane` | `extract_component` / `extract_bit_plane` | `src.filters.component_separation` | — |
@@ -86,7 +87,11 @@ inchangée, la couleur reste donc stable. `channelwise` égalise R, G et B indé
 CLI : `--clahe clip=3.0 tile=8x8 mode=lab`
 
 `apply_clahe_grid(image, clip_limits, tile_grid_sizes)` génère une grille annotée de
-combinaisons de paramètres pour choisir des valeurs rapidement.
+combinaisons de paramètres pour choisir des valeurs rapidement. Enregistré sous le nom
+`clahe_grid`, donc offert par les deux interfaces ; les deux arguments ont des valeurs par
+défaut utilisables et acceptent une valeur unique. Le coût en bruit d'un `clip_limit` donné
+variant d'un facteur 1,4 à 1,9 selon l'image, la valeur se choisit sur la planche plutôt
+qu'au jugé devant un curseur.
 
 ## Contraste & Luminosité — `contrast_brightness`
 

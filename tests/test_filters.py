@@ -10,6 +10,7 @@ from src.filters import (
     adjust_levels,
     analyze_roi,
     apply_clahe,
+    apply_clahe_grid,
     apply_to_roi,
     auto_contrast,
     auto_levels,
@@ -102,6 +103,36 @@ class TestClahe(unittest.TestCase):
             - apply_clahe(image, color_mode='yuv').astype(int))
         self.assertGreater(difference.max(), 0)
         self.assertLess(difference.max(), 16)
+
+
+class TestCLAHEGrid(unittest.TestCase):
+    """The contact sheet an operator picks a clip_limit from."""
+
+    def test_grid_covers_every_combination(self):
+        image = low_contrast_image()
+        result = apply_clahe_grid(image, clip_limits=[1.5, 3.0], tile_grid_sizes=[4, 8])
+        self.assertEqual(result.ndim, 3)
+        self.assertEqual(result.shape[2], 3)
+
+    def test_defaults_need_no_arguments(self):
+        # The registry offers this filter, so its form must produce a board
+        # without the operator typing a list first
+        result = apply_clahe_grid(low_contrast_image())
+        self.assertEqual(result.ndim, 3)
+
+    def test_single_values_are_accepted(self):
+        # A parameter form with one value typed in it yields a scalar
+        result = apply_clahe_grid(low_contrast_image(), clip_limits=2.0,
+                                  tile_grid_sizes=8)
+        self.assertEqual(result.ndim, 3)
+
+    def test_empty_settings_raise(self):
+        with self.assertRaises(ValueError):
+            apply_clahe_grid(low_contrast_image(), clip_limits=[], tile_grid_sizes=[8])
+
+    def test_registered_so_a_front_end_can_reach_it(self):
+        from src.filters import FILTER_REGISTRY
+        self.assertIn('clahe_grid', FILTER_REGISTRY)
 
 
 class TestContrastBrightness(unittest.TestCase):
