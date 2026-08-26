@@ -15,6 +15,11 @@ import cv2
 # filters options that one of them rejects.
 COLOR_MODES = ('lab', 'hsv', 'yuv', 'channelwise', 'luminance')
 
+# Of those, the ones OpenCV can run without dropping to 8 bits. cvtColor
+# rejects CV_16U for LAB and HSV, so a 10- or 12-bit source cannot go through
+# those two with its precision intact; the rest convert and equalize at 16.
+SIXTEEN_BIT_MODES = ('yuv', 'channelwise', 'luminance')
+
 
 def apply_clahe(
     image: np.ndarray,
@@ -26,7 +31,8 @@ def apply_clahe(
     Apply CLAHE (Contrast Limited Adaptive Histogram Equalization).
 
     Args:
-        image: Input image (RGB, RGBA, or grayscale)
+        image: Input image (RGB, RGBA, or grayscale). uint16 is equalized at
+               16 bits; see SIXTEEN_BIT_MODES for the colour modes that allow it
         clip_limit: Threshold for contrast limiting (higher = more contrast)
         tile_grid_size: Size of grid for histogram equalization.
                         If int, creates square tiles (e.g., 8 -> 8x8).
@@ -48,6 +54,19 @@ def apply_clahe(
     if image is None or image.size == 0:
         raise ValueError("Input image is empty")
 
+    is_gray = image.ndim == 2 or (image.ndim == 3 and image.shape[2] == 1)
+
+    # A 10- or 12-bit source arrives as uint16, and OpenCV equalizes that
+    # directly. Casting it to uint8 would not just coarsen the image, it would
+    # wrap: a 12-bit value of 4096 lands on 0, turning a bright pixel black
+    # immediately before the step whose whole purpose is to stretch contrast.
+    if image.dtype == np.uint16 and not is_gray and color_mode not in SIXTEEN_BIT_MODES:
+        raise ValueError(
+            f"color_mode {color_mode!r} cannot keep 16 bits: OpenCV's conversion "
+            f"for it accepts 8-bit only. Use one of "
+            f"{', '.join(SIXTEEN_BIT_MODES)} to preserve the source depth, or "
+            f"convert the image to 8-bit first and accept the loss.")
+
     # Normalize tile grid size
     if isinstance(tile_grid_size, int):
         tile_grid_size = (tile_grid_size, tile_grid_size)
@@ -57,14 +76,14 @@ def apply_clahe(
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_size)
 
     # Handle grayscale
-    if image.ndim == 2 or (image.ndim == 3 and image.shape[2] == 1):
-        gray = image.astype(np.uint8) if image.dtype != np.uint8 else image
+    if is_gray:
+        gray = image if image.dtype in (np.uint8, np.uint16) else image.astype(np.uint8)
         if gray.ndim == 3:
             gray = gray[:, :, 0]
         return clahe.apply(gray)
 
     # Handle color images
-    image = image.astype(np.uint8) if image.dtype != np.uint8 else image.copy()
+    image = image.copy() if image.dtype in (np.uint8, np.uint16) else image.astype(np.uint8)
     has_alpha = image.shape[2] == 4 if image.ndim == 3 else False
 
     if has_alpha:
@@ -166,8 +185,18 @@ def apply_clahe_grid(
 
     grid = np.zeros((thumb_h * rows, thumb_w * cols, 3), dtype=np.uint8)
 
+    # The board is a preview, labelled and read side by side, so it is rendered
+    # at 8 bits even when the source is 16. The scale is taken from the source
+    # once rather than per tile: normalizing each tile to its own range would
+    # make them individually pretty and mutually incomparable, which is the one
+    # thing a comparison board must not do. The filter itself still runs at the
+    # source depth, so the settings chosen here apply at full precision.
+    display_scale = 255.0 / max(int(image.max()), 1) if image.dtype != np.uint8 else None
+
     for idx, (clip, tile) in enumerate(combinations):
         enhanced = apply_clahe(image, clip_limit=clip, tile_grid_size=tile, color_mode=color_mode)
+        if display_scale is not None:
+            enhanced = np.clip(enhanced * display_scale, 0, 255).astype(np.uint8)
         if enhanced.ndim == 2:
             enhanced = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2RGB)
         elif enhanced.shape[2] == 4:

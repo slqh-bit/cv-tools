@@ -9,6 +9,7 @@ from src.filters import (
     adjust_contrast_brightness,
     adjust_levels,
     analyze_roi,
+    CLAHE_SIXTEEN_BIT_MODES,
     apply_clahe,
     apply_clahe_grid,
     apply_to_roi,
@@ -103,6 +104,49 @@ class TestClahe(unittest.TestCase):
             - apply_clahe(image, color_mode='yuv').astype(int))
         self.assertGreater(difference.max(), 0)
         self.assertLess(difference.max(), 16)
+
+    def test_sixteen_bit_survives_instead_of_wrapping(self):
+        """
+        A 10- or 12-bit source arrives as uint16. Casting it to uint8 does not
+        coarsen it, it wraps it modulo 256 - so 4096 becomes 0 and a bright
+        pixel goes black immediately before the step meant to stretch
+        contrast. Rank correlation catches that where a shape check would not.
+        """
+        ramp = np.tile(np.linspace(0, 4095, 256, dtype=np.uint16), (64, 1))
+        result = apply_clahe(ramp)
+
+        self.assertEqual(result.dtype, np.uint16)
+        # Ordering must survive: CLAHE redistributes levels, it does not
+        # reorder them wholesale
+        order = np.corrcoef(ramp.ravel().argsort().argsort(),
+                            result.ravel().argsort().argsort())[0, 1]
+        self.assertGreater(order, 0.9)
+
+    def test_sixteen_bit_colour_modes_keep_their_depth(self):
+        rng = np.random.default_rng(4)
+        image = (rng.random((32, 48, 3)) * 4095).astype(np.uint16)
+        for mode in CLAHE_SIXTEEN_BIT_MODES:
+            with self.subTest(mode=mode):
+                result = apply_clahe(image, color_mode=mode)
+                self.assertEqual(result.dtype, np.uint16)
+                self.assertEqual(result.shape, image.shape)
+
+    def test_sixteen_bit_is_refused_by_modes_that_cannot_hold_it(self):
+        """
+        OpenCV's LAB and HSV conversions reject CV_16U. Saying so beats
+        quietly dropping to 8 bits, which is what the cast used to do.
+        """
+        rng = np.random.default_rng(5)
+        image = (rng.random((32, 48, 3)) * 4095).astype(np.uint16)
+        for mode in ('lab', 'hsv'):
+            with self.subTest(mode=mode):
+                with self.assertRaises(ValueError) as ctx:
+                    apply_clahe(image, color_mode=mode)
+                self.assertIn('16 bits', str(ctx.exception))
+
+    def test_eight_bit_is_untouched_by_the_depth_handling(self):
+        image = low_contrast_image()
+        self.assertEqual(apply_clahe(image).dtype, np.uint8)
 
 
 class TestCLAHEGrid(unittest.TestCase):

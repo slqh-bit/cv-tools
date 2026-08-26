@@ -36,7 +36,12 @@ from .aspect_ratio import (
     fit_to_aspect,
     describe_aspect,
 )
-from .clahe import COLOR_MODES as CLAHE_COLOR_MODES, apply_clahe, apply_clahe_grid
+from .clahe import (
+    COLOR_MODES as CLAHE_COLOR_MODES,
+    SIXTEEN_BIT_MODES as CLAHE_SIXTEEN_BIT_MODES,
+    apply_clahe,
+    apply_clahe_grid,
+)
 from .clone_detection import detect_copy_move, draw_clone_regions, highlight_clones
 from .color_balance import adjust_color_balance, adjust_cmyk, channel_mixer
 from .color_deconvolution import (
@@ -236,7 +241,8 @@ from .analysis import (
 
 __all__ = [
     # clahe
-    'CLAHE_COLOR_MODES', 'apply_clahe', 'apply_clahe_grid',
+    'CLAHE_COLOR_MODES', 'CLAHE_SIXTEEN_BIT_MODES', 'apply_clahe',
+    'apply_clahe_grid',
     # contrast / brightness
     'adjust_contrast_brightness', 'auto_contrast',
     # crop / resize

@@ -85,6 +85,12 @@ inchangée, la couleur reste donc stable. `channelwise` égalise R, G et B indé
 **modifiera** la couleur — à n'utiliser que si c'est l'effet recherché.
 
 CLI : `--clahe clip=3.0 tile=8x8 mode=lab`
+Sur la profondeur : une source 10 ou 12 bits arrive en `uint16` et est égalisée en
+16 bits par `yuv`, `channelwise` et `luminance`. `lab` et `hsv` lèvent une erreur sur
+une entrée 16 bits, la conversion OpenCV correspondante n'acceptant que le 8 bits —
+convertissez l'image vous-même en acceptant la perte, ou choisissez un mode qui tient
+la profondeur.
+
 
 `apply_clahe_grid(image, clip_limits, tile_grid_sizes)` génère une grille annotée de
 combinaisons de paramètres pour choisir des valeurs rapidement. Enregistré sous le nom

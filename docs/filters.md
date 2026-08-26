@@ -82,6 +82,11 @@ stay stable. `channelwise` equalizes R, G and B independently and **will** shift
 it only when you want that.
 
 CLI: `--clahe clip=3.0 tile=8x8 mode=lab`
+On depth: a 10- or 12-bit source arrives as `uint16` and is equalized at 16 bits by
+`yuv`, `channelwise` and `luminance`. `lab` and `hsv` raise on 16-bit input, because
+OpenCV's conversions for those two accept 8-bit only — convert the image yourself and
+accept the loss, or pick a mode that holds the depth.
+
 
 `apply_clahe_grid(image, clip_limits, tile_grid_sizes)` renders a labelled grid of parameter
 combinations for picking values quickly. Registered as `clahe_grid`, so both front ends
