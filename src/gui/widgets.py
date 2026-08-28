@@ -199,6 +199,23 @@ def to_display(image: np.ndarray) -> np.ndarray:
     return img
 
 
+def side_by_side(original: np.ndarray, processed: np.ndarray, gap: int = 8) -> np.ndarray:
+    """Pad both images onto a common canvas and place them side by side."""
+    original = to_display(original)
+    processed = to_display(processed)
+
+    height = max(original.shape[0], processed.shape[0])
+    width = max(original.shape[1], processed.shape[1])
+
+    def padded(img: np.ndarray) -> np.ndarray:
+        canvas = np.zeros((height, width, 3), dtype=np.uint8)
+        canvas[:img.shape[0], :img.shape[1]] = img
+        return canvas
+
+    divider = np.full((height, gap, 3), 40, dtype=np.uint8)
+    return np.hstack([padded(original), divider, padded(processed)])
+
+
 class ImageCanvas(ttk.Frame):
     """
     Scrollable image view with original/processed comparison.
@@ -319,8 +336,7 @@ class ImageCanvas(ttk.Frame):
             return composite
 
         if mode == 'side by side':
-            gap = np.full((height, 8, 3), 40, dtype=np.uint8)
-            return np.hstack([left, gap, right])
+            return side_by_side(left, right)
 
         # split
         divider = int(np.clip(self._split, 0.0, 1.0) * width)

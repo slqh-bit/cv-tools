@@ -50,7 +50,7 @@ from .theme import (
     listbox_options,
     text_options,
 )
-from .widgets import VIEW_MODES, ImageCanvas, ParameterPanel
+from .widgets import VIEW_MODES, ImageCanvas, ParameterPanel, side_by_side
 
 REPORT_FORMATS = {'.json': 'json', '.pdf': 'pdf', '.md': 'markdown'}
 
@@ -128,6 +128,7 @@ class CVToolsApp(tk.Tk):
                               command=self.open_image)
         file_menu.add_command(label='Save processed image...', accelerator='Ctrl+S',
                               command=self.save_image_as)
+        file_menu.add_command(label='Save side-by-side...', command=self.save_side_by_side)
         file_menu.add_separator()
         file_menu.add_command(label='Load preset...', command=self.load_preset)
         file_menu.add_command(label='Save preset...', accelerator='Ctrl+Shift+S',
@@ -676,13 +677,32 @@ class CVToolsApp(tk.Tk):
 
         path = filedialog.asksaveasfilename(
             title='Save processed image', defaultextension='.png',
-            filetypes=[('PNG', '*.png'), ('JPEG', '*.jpg'), ('TIFF', '*.tif')],
+            filetypes=[('PNG', '*.png'), ('JPEG', '*.jpg'), ('TIFF', '*.tif'), ('WebP', '*.webp')],
         )
         if not path:
             return
 
         try:
             save_image(self.pipeline.current, path)
+            self._set_status(f'Saved {Path(path).name}')
+        except OSError as exc:
+            messagebox.showerror('Could not save', str(exc))
+
+    def save_side_by_side(self) -> None:
+        if not self._require_image():
+            return
+
+        path = filedialog.asksaveasfilename(
+            title='Save side-by-side image', defaultextension='.png',
+            filetypes=[('PNG', '*.png'), ('JPEG', '*.jpg'), ('TIFF', '*.tif'), ('WebP', '*.webp')],
+        )
+        if not path:
+            return
+
+        original, current = self.pipeline.compare()
+        composite = side_by_side(original, current)
+        try:
+            save_image(composite, path)
             self._set_status(f'Saved {Path(path).name}')
         except OSError as exc:
             messagebox.showerror('Could not save', str(exc))
