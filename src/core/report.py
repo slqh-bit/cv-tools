@@ -64,6 +64,40 @@ class ReportGenerator:
             return ''
         return self.describe(step['name']) or ''
 
+    def _alignment(self) -> Optional[Dict[str, Any]]:
+        """The frame-alignment record, if the source was a stabilised stack."""
+        alignment = self.source_metadata.get('alignment')
+        return alignment if isinstance(alignment, dict) else None
+
+    def _alignment_summary(self) -> str:
+        """One sentence on what the alignment did."""
+        alignment = self._alignment() or {}
+        return (
+            f"Aligned {alignment.get('aligned', 0)} of "
+            f"{alignment.get('frames', 0)} frames with the "
+            f"{alignment.get('model', '?')} motion model. Largest motion "
+            f"{alignment.get('max_shift_pixels', 0)} px, mean confidence "
+            f"{alignment.get('mean_confidence', 0):.2f}."
+        )
+
+    def _alignment_rows(self) -> List[Tuple[str, str, str, str, str]]:
+        """Per-frame alignment as (frame, method, confidence, shift, note)."""
+        alignment = self._alignment()
+        if alignment is None:
+            return []
+
+        rows = []
+        for record in alignment.get('per_frame', []):
+            shift = record.get('shift', [0, 0])
+            rows.append((
+                str(record.get('index', '?')),
+                str(record.get('method', '?')),
+                f"{record.get('confidence', 0):.3f}",
+                f"{shift[0]:+.2f}, {shift[1]:+.2f}",
+                str(record.get('note', '')),
+            ))
+        return rows
+
     def to_dict(self) -> Dict[str, Any]:
         """Return full report as dictionary."""
         return {
@@ -85,7 +119,28 @@ class ReportGenerator:
         ]
 
         for key, value in self.source_metadata.items():
+            # Rendered as its own section below: dumped inline it is a wall of
+            # matrices, and this is a document someone has to read
+            if key == 'alignment' and self._alignment() is not None:
+                continue
             lines.append(f"- **{key}:** {value}")
+
+        if self._alignment() is not None:
+            lines.extend([
+                "",
+                "## Frame Alignment",
+                "",
+                self._alignment_summary(),
+                "",
+                "A frame that could not be matched is left out rather than "
+                "warped on a guess.",
+                "",
+                "| Frame | Method | Confidence | Shift (x, y) | Note |",
+                "|---|---|---|---|---|",
+            ])
+            for frame, method, confidence, shift, note in self._alignment_rows():
+                lines.append(
+                    f"| {frame} | {method} | {confidence} | {shift} | {note} |")
 
         lines.extend([
             "",
@@ -136,6 +191,8 @@ class ReportGenerator:
         ]
 
         for key, value in self.source_metadata.items():
+            if key == 'alignment' and self._alignment() is not None:
+                continue        # its own section below
             if key == 'exif' and isinstance(value, dict):
                 lines.append(('exif:', 'body'))
                 for tag, tag_value in value.items():
@@ -147,6 +204,20 @@ class ReportGenerator:
                 lines.append((f"    {value}", 'mono'))
             else:
                 lines.append((f"{key}: {value}", 'body'))
+
+        if self._alignment() is not None:
+            lines.extend([
+                ('', 'spacer'),
+                ('Frame Alignment', 'heading'),
+                (self._alignment_summary(), 'body'),
+                ('A frame that could not be matched is left out rather than '
+                 'warped on a guess.', 'body'),
+                (f"{'frame':>5}  {'method':<14}{'conf':>6}  "
+                 f"{'shift (x, y)':<16}note", 'mono'),
+            ])
+            for frame, method, confidence, shift, note in self._alignment_rows():
+                lines.append((f"{frame:>5}  {method:<14}{confidence:>6}  "
+                              f"{shift:<16}{note}", 'mono'))
 
         lines.extend([
             ('', 'spacer'),

@@ -360,6 +360,29 @@ python -m src.cli clip.avi --frames 20 --frame-method sharpest -o sharpest.png
 python -m src.cli clip.avi --frames 12 --frame-step 5 --frame-method median -o bg.png
 ```
 
+**Every one of those assumes the frames line up, and none of them can tell that they
+don't** — a moving camera just returns something softer. `--stabilise` aligns the stack
+first. On a shaky sequence it is worth about **6 dB** over averaging the frames as they came,
+which is the difference between a smeared plate and a legible one:
+
+```bash
+# Handheld: rotation as well as shake
+python -m src.cli handheld.mp4 --frames 24 --stabilise -o clean.png
+
+# A locked-off camera on a shaky mount needs no more than translation
+python -m src.cli cctv.avi --frames 24 --stabilise translation -o clean.png
+
+# A pan across a flat scene
+python -m src.cli ptz.mp4 --frames 16 --stabilise homography -o clean.png
+```
+
+Pick the least freedom the camera actually had — a model with more will happily fit noise.
+The result is cropped to the area every frame covers, because the border is data the
+sequence does not have. A frame that cannot be matched is **left out rather than warped on a
+guess**: a misaligned frame in an average is exactly the blur stabilising exists to prevent,
+and it would be invisible in the result. `--report` records the per-frame confidence and
+motion, so which frames were used is on the record.
+
 ### Analysis and reporting
 
 ```bash

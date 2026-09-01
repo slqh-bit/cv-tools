@@ -716,13 +716,66 @@ before the filter chain rather than inside it. On the CLI this is `--frames N`, 
 | `integrate_frames(frames, gain, auto_scale)` | `integrate` | Accumulates light from very dark footage without amplifying noise the way gain would |
 | `sharpest_frames(frames, count)` | `sharpest` | Ranks frames by focus; the CLI averages the best-focused half |
 
-All of them assume the frames are **aligned**. Handheld or PTZ footage needs stabilising
-first — a moving camera turns averaging into a blur.
+All of them assume the frames are **aligned**, and none of them can tell that they are not —
+a moving camera just returns something softer, with nothing to say why.
 
 `frame_difference(a, b, amplify)` gives the absolute difference between two frames, for
 isolating what moved.
 
 CLI: `--frames 24 --frame-method median --frame-step 5`
+
+## Stabilisation — `--stabilise`
+
+`stabilise.py` brings a sequence into a common alignment, which is what makes the methods
+above usable on footage that was not shot on a tripod. Measured on a shaky, noisy 16-frame
+sequence against the clean original:
+
+| | PSNR |
+|---|---|
+| one noisy frame | 17.86 dB |
+| averaged, not aligned | 22.01 dB |
+| **averaged after aligning** | **28.27 dB** |
+
+Averaging alone recovers 4 dB of the noise and then stalls, because it is now fighting the
+camera's own motion. Aligning first recovers another 6 dB — the difference between a smeared
+plate and a legible one.
+
+**Motion models.** Pick the least freedom the camera actually had; a model with more will
+fit noise happily.
+
+| Model | For |
+|---|---|
+| `translation` | A locked-off camera on a shaky mount |
+| `euclidean` | Handheld — shake plus roll (the default) |
+| `affine` | Handheld with some scale change |
+| `homography` | A pan or zoom across a broadly flat scene |
+
+**Methods.** `features` matches ORB keypoints and survives large motion but needs texture;
+`ecc` maximises correlation, is sub-pixel accurate, and is a *local* search that only
+converges for small motion unless it is given a starting point. `auto` seeds `ecc` from the
+feature estimate and so gets both, falling back to whichever half succeeded.
+
+This is not the same job as `super_resolution.estimate_shifts`, and the two are not
+interchangeable: `estimate_shifts` measures pure translation to a small fraction of a pixel,
+which is what a reconstruction needs from a nearly-static camera. `align_frames` handles
+rotation, scale and perspective at whole- or near-pixel accuracy, which is what makes a
+moving camera's frames combinable at all. Stabilise first, then reconstruct.
+
+> **A bad alignment smears, and hides that it did.** A frame that could not be matched is
+> worse than a frame left out, because averaging conceals it — the result simply looks
+> softer. So every frame comes back with a confidence, frames below `--stabilise-min-confidence`
+> are dropped rather than warped on a guess, and `--report` records which. Note that
+> confidence is not one scale: from `ecc` it is the correlation coefficient, from `features`
+> the RANSAC inlier ratio. Both run 0 to 1 and more is better, but a 0.7 from one is not a
+> 0.7 from the other.
+
+The output is **cropped to the region every frame covers**. Aligning slides and turns each
+frame, so its far edge leaves a strip with no data behind it; averaging across that strip
+mixes real pixels with black and darkens the border, which looks like vignetting and is not.
+The border is data the sequence does not have.
+
+CLI: `--stabilise [MODEL] --stabilise-method auto|ecc|features --stabilise-reference N
+--stabilise-min-confidence C`. `--stabilize` spellings work too.
 
 ---
 

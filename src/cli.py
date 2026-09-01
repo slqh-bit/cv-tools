@@ -37,6 +37,13 @@ from .filters.frame_averaging import (
     median_frames,
     sharpest_frames,
 )
+from .filters.stabilise import (
+    DEFAULT_MIN_CONFIDENCE,
+    METHODS as STABILISE_METHODS,
+    MOTION_MODELS,
+    align_frames,
+    alignment_report,
+)
 from .filters.histogram import dynamic_range_used, histogram_stats, render_histogram
 from .filters.registry import resolve_filter, list_filters, filter_description
 from .filters.roi import ROI, analyze_roi
@@ -386,6 +393,28 @@ def build_parser() -> argparse.ArgumentParser:
                      help='How --frames are combined: mean denoises, median removes moving '
                           'objects, integrate brightens dark footage, sharpest averages only '
                           'the best-focused half (default: mean)')
+    out.add_argument('--stabilise', '--stabilize', nargs='?',
+                     const='euclidean', choices=sorted(MOTION_MODELS),
+                     metavar='MODEL',
+                     help='Align --frames before combining them. Every method '
+                          'assumes the frames line up and none can tell that '
+                          'they do not. Pick the least freedom the camera had: '
+                          'translation for a shaky mount, euclidean for '
+                          'handheld (default), homography for a pan across a '
+                          'flat scene. The result is cropped to the area every '
+                          'frame covers')
+    out.add_argument('--stabilise-method', '--stabilize-method', default='auto',
+                     choices=list(STABILISE_METHODS),
+                     help='features survives large motion, ecc is sub-pixel but '
+                          'local, auto seeds ecc from features (default: auto)')
+    out.add_argument('--stabilise-reference', '--stabilize-reference', type=int,
+                     default=0, metavar='N',
+                     help='Index within the gathered frames that the others are '
+                          'aligned to (default: 0)')
+    out.add_argument('--stabilise-min-confidence', '--stabilize-min-confidence',
+                     type=float, default=DEFAULT_MIN_CONFIDENCE, metavar='C',
+                     help=f'Frames matching below this are left out rather than '
+                          f'warped on a guess (default: {DEFAULT_MIN_CONFIDENCE})')
     out.add_argument('--batch', action='store_true',
                      help='Process every image in the input directory')
     out.add_argument('--recursive', action='store_true',
@@ -955,6 +984,51 @@ def print_histogram_stats(stats: Dict[str, Any], dynamic_range: float) -> None:
             print(f"     clipped: {shadows:.2f}% shadows, {highlights:.2f}% highlights")
 
 
+def stabilise_frames(
+    frames: List[np.ndarray],
+    args: argparse.Namespace,
+) -> Tuple[List[np.ndarray], Optional[Dict[str, Any]]]:
+    """
+    Align a frame stack, if the run asked for it.
+
+    Every combination method assumes the frames line up, and none of them can
+    tell that they do not - averaging a moving camera just returns something
+    softer. So this runs before the combination, and says what it did.
+
+    Returns:
+        (frames to combine, the alignment report or None if not stabilising)
+    """
+    if not args.stabilise:
+        return frames, None
+
+    aligned, results = align_frames(
+        frames,
+        reference=args.stabilise_reference,
+        model=args.stabilise,
+        method=args.stabilise_method,
+        min_confidence=args.stabilise_min_confidence,
+    )
+    report = alignment_report(results)
+
+    if args.verbose:
+        print(f"  aligned {report['aligned']}/{report['frames']} frames "
+              f"({args.stabilise}, {args.stabilise_method}), "
+              f"largest motion {report['max_shift_pixels']}px, "
+              f"mean confidence {report['mean_confidence']:.2f}",
+              file=sys.stderr)
+        for record in report['per_frame']:
+            if record['note']:
+                print(f"    frame {record['index']}: {record['note']}",
+                      file=sys.stderr)
+    elif report['dropped']:
+        # Quiet runs still need to hear this: frames silently missing from an
+        # average is exactly the failure stabilising is meant to prevent
+        print(f"note: {report['dropped']} of {report['frames']} frames could "
+              f"not be aligned and were left out", file=sys.stderr)
+
+    return aligned, report
+
+
 def combine_frames(frames: List[np.ndarray], method: str) -> np.ndarray:
     """
     Reduce a sequence of video frames to one source image.
@@ -1062,10 +1136,13 @@ def _combine_stills(directory: Path,
                 f"frames must share a size to be combined")
         frames.append(frame)
 
+    frames, alignment = stabilise_frames(frames, args)
     image = combine_frames(frames, args.frame_method)
     metadata['filename'] = f'{len(frames)} frames from {directory.name}'
     metadata['combined_from'] = [source.name for source in selected]
     metadata['frame_method'] = args.frame_method
+    if alignment is not None:
+        metadata['alignment'] = alignment
     if args.verbose:
         print(f"Combined {len(frames)} stills with '{args.frame_method}'",
               file=sys.stderr)
@@ -1113,10 +1190,15 @@ def _load_one(path: Path,
                     f"got: {path.name}")
             frames = loader.load_frames(args.frames, start=args.frame,
                                         step=args.frame_step)
+            frames, alignment = stabilise_frames(frames, args)
             image = combine_frames(frames, args.frame_method)
             if args.verbose:
                 print(f"Combined {len(frames)} frames with '{args.frame_method}'",
                       file=sys.stderr)
+            metadata = dict(loader.metadata)
+            if alignment is not None:
+                metadata['alignment'] = alignment
+            return image, metadata
         else:
             image = loader.load(args.frame if loader.is_video else None)
         return image, loader.metadata

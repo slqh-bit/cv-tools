@@ -286,7 +286,9 @@ def super_resolve(
         raise ValueError(
             f"Only the reference frame fell within max_shift ({max_shift}px), so "
             f"the result would be a plain upscale rather than a reconstruction. "
-            f"The frames may not show the same scene, or may need stabilising first."
+            f"The frames may not show the same scene, or may need stabilising "
+            f"first - see stabilise.align_frames, which handles the rotation "
+            f"and perspective that estimate_shifts cannot."
         )
 
     result = np.divide(accumulator, weights, out=np.zeros_like(accumulator),

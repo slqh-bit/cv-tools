@@ -965,5 +965,102 @@ class TestCLIVideo(CLITestCase):
                         loader.load_frames(**kwargs)
 
 
+class TestCLIStabilise(CLITestCase):
+    """
+    Aligning a stack of stills before combining it.
+
+    The frames are a known image moved by known amounts, so the assertion can
+    be that the motion was undone rather than that a file appeared.
+    """
+
+    def setUp(self):
+        super().setUp()
+        rng = np.random.default_rng(19)
+        noise = cv2.GaussianBlur(
+            rng.integers(0, 255, (120, 160), dtype=np.uint8), (5, 5), 2)
+        self.clean = cv2.cvtColor(noise, cv2.COLOR_GRAY2RGB)
+        cv2.rectangle(self.clean, (30, 30), (90, 75), (255, 80, 40), -1)
+        cv2.putText(self.clean, 'AB 123', (20, 108), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6, (250, 250, 250), 2, cv2.LINE_AA)
+
+        self.stack = self.dir / 'stack'
+        self.stack.mkdir()
+        for index in range(8):
+            dx = 4 * np.sin(index * 0.6) + rng.normal(0, 0.8)
+            dy = 3 * np.cos(index * 0.5) + rng.normal(0, 0.8)
+            matrix = cv2.getRotationMatrix2D((80, 60), 1.0 * np.sin(index * 0.4), 1.0)
+            matrix[0, 2] += dx
+            matrix[1, 2] += dy
+            frame = cv2.warpAffine(self.clean, matrix, (160, 120),
+                                   borderMode=cv2.BORDER_REFLECT)
+            frame = np.clip(frame.astype(np.float32)
+                            + rng.normal(0, 14, frame.shape), 0, 255).astype(np.uint8)
+            cv2.imwrite(str(self.stack / f'f{index:02d}.png'),
+                        cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+
+    def _psnr(self, a, b):
+        error = np.mean((a.astype(np.float64) - b.astype(np.float64)) ** 2)
+        return 99.0 if error == 0 else float(10 * np.log10(255 * 255 / error))
+
+    def test_stabilising_sharpens_the_average(self):
+        naive, stabilised = self.dir / 'naive.png', self.dir / 'stab.png'
+        self.run_cli([str(self.stack), '--frames', '8', '-o', str(naive)])
+        code, _ = self.run_cli([str(self.stack), '--frames', '8',
+                                '--stabilise', '-o', str(stabilised)])
+        self.assertEqual(code, 0)
+
+        aligned = self.read(stabilised)
+        # The output is cropped to the common region; locate it in the truth
+        match = cv2.matchTemplate(self.clean, aligned, cv2.TM_SQDIFF)
+        _, _, (x, y), _ = cv2.minMaxLoc(match)
+        height, width = aligned.shape[:2]
+        truth = self.clean[y:y + height, x:x + width]
+
+        raw = self.read(naive)[y:y + height, x:x + width]
+        self.assertGreater(self._psnr(aligned, truth),
+                           self._psnr(raw, truth) + 1.0)
+
+    def test_stabilising_crops_to_the_common_region(self):
+        out = self.dir / 'cropped.png'
+        self.run_cli([str(self.stack), '--frames', '8', '--stabilise',
+                      '-o', str(out)])
+        result = self.read(out)
+        self.assertLess(result.shape[0], 120)
+        self.assertLess(result.shape[1], 160)
+
+    def test_every_motion_model_is_accepted(self):
+        for model in ('translation', 'euclidean', 'affine', 'homography'):
+            with self.subTest(model=model):
+                out = self.dir / f'{model}.png'
+                code, _ = self.run_cli([str(self.stack), '--frames', '6',
+                                        '--stabilise', model, '-o', str(out)])
+                self.assertEqual(code, 0)
+                self.assertTrue(out.exists())
+
+    def test_the_american_spelling_works_too(self):
+        out = self.dir / 'z.png'
+        code, _ = self.run_cli([str(self.stack), '--frames', '6',
+                                '--stabilize', 'euclidean', '-o', str(out)])
+        self.assertEqual(code, 0)
+
+    def test_the_report_records_the_alignment(self):
+        out, report = self.dir / 'r.png', self.dir / 'r.md'
+        code, _ = self.run_cli([str(self.stack), '--frames', '8', '--stabilise',
+                                '--report', str(report), '-o', str(out)])
+        self.assertEqual(code, 0)
+
+        text = report.read_text(encoding='utf-8')
+        self.assertIn('Frame Alignment', text)
+        self.assertIn('euclidean motion model', text)
+        self.assertIn('| Frame | Method | Confidence |', text)
+        # The raw dict must not also be dumped into the metadata list
+        self.assertNotIn("'per_frame'", text)
+
+    def test_an_unknown_model_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            self.run_cli([str(self.stack), '--frames', '8', '--stabilise',
+                          'wobble', '-o', str(self.dir / 'o.png')])
+
+
 if __name__ == '__main__':
     unittest.main()

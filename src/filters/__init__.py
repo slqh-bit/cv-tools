@@ -220,6 +220,17 @@ from .roi import (
 )
 from .sharpen import unsharp_mask, laplacian_sharpen, sharpen_grid
 from .smoothing import gaussian_blur, median_filter, bilateral_filter
+from .stabilise import (
+    DEFAULT_MIN_CONFIDENCE,
+    METHODS as STABILISE_METHODS,
+    MOTION_MODELS,
+    Alignment,
+    align_frames,
+    alignment_report,
+    common_valid_region,
+    estimate_alignment,
+    warp_frame,
+)
 from .registry import (
     FILTER_REGISTRY,
     POINT_PARAMETERS,
@@ -305,6 +316,10 @@ __all__ = [
     'estimate_h',
     # super resolution
     'upscale', 'estimate_shifts', 'super_resolve', 'super_resolve_report',
+    # stabilise
+    'Alignment', 'MOTION_MODELS', 'STABILISE_METHODS', 'DEFAULT_MIN_CONFIDENCE',
+    'align_frames', 'alignment_report', 'common_valid_region',
+    'estimate_alignment', 'warp_frame',
     # detail enhancement
     'local_contrast', 'enhance_detail', 'multiscale_detail', 'texture_boost',
     # perspective

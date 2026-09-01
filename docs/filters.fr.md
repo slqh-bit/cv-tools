@@ -712,14 +712,68 @@ donc avant la chaîne de filtres plutôt qu'à l'intérieur. Sur la CLI, c'est `
 | `integrate_frames(frames, gain, auto_scale)` | `integrate` | Accumule la lumière d'images très sombres sans amplifier le bruit comme le ferait un gain |
 | `sharpest_frames(frames, count)` | `sharpest` | Classe les images par netteté ; la CLI moyenne la meilleure moitié |
 
-Toutes supposent que les images sont **alignées**. Des images filmées à la main ou avec une
-caméra PTZ nécessitent une stabilisation préalable — une caméra en mouvement transforme le
-moyennage en flou.
+Toutes supposent que les images sont **alignées**, et aucune ne peut détecter qu'elles ne le
+sont pas — une caméra en mouvement renvoie simplement une image plus molle, sans rien dire de
+la raison.
 
 `frame_difference(a, b, amplify)` donne la différence absolue entre deux images, pour isoler
 ce qui a bougé.
 
 CLI : `--frames 24 --frame-method median --frame-step 5`
+
+## Stabilisation — `--stabilise`
+
+`stabilise.py` amène une séquence à un alignement commun, ce qui rend les méthodes ci-dessus
+utilisables sur des images qui n'ont pas été tournées sur trépied. Mesuré sur une séquence
+tremblante et bruitée de 16 images, comparée à l'original propre :
+
+| | PSNR |
+|---|---|
+| une image bruitée | 17,86 dB |
+| moyennées, sans alignement | 22,01 dB |
+| **moyennées après alignement** | **28,27 dB** |
+
+Le moyennage seul récupère 4 dB de bruit puis plafonne, car il lutte désormais contre le
+mouvement de la caméra. L'alignement préalable en récupère 6 de plus — la différence entre
+une plaque illisible et une plaque lisible.
+
+**Modèles de mouvement.** Choisir le moins de liberté que la caméra a réellement eu ; un
+modèle plus libre ajustera volontiers le bruit.
+
+| Modèle | Pour |
+|---|---|
+| `translation` | Caméra fixe sur un support qui vibre |
+| `euclidean` | Caméra à la main — tremblement et roulis (défaut) |
+| `affine` | À la main, avec un léger changement d'échelle |
+| `homography` | Panoramique ou zoom sur une scène globalement plane |
+
+**Méthodes.** `features` apparie des points ORB et supporte les grands mouvements mais exige
+de la texture ; `ecc` maximise la corrélation, est précis au sous-pixel, et constitue une
+recherche *locale* qui ne converge que pour de petits mouvements sans point de départ.
+`auto` initialise `ecc` à partir de l'estimation par points et obtient donc les deux, en se
+repliant sur celle des deux moitiés qui a réussi.
+
+Ce n'est pas le même travail que `super_resolution.estimate_shifts`, et les deux ne sont pas
+interchangeables : `estimate_shifts` mesure une translation pure à une petite fraction de
+pixel, ce dont une reconstruction a besoin avec une caméra quasi immobile. `align_frames`
+gère en plus la rotation, l'échelle et la perspective, au pixel près, ce qui rend combinables
+les images d'une caméra en mouvement. Stabiliser d'abord, reconstruire ensuite.
+
+> **Un mauvais alignement étale, et le dissimule.** Une image qui n'a pas pu être appariée est
+> pire qu'une image écartée, car le moyennage la cache — le résultat paraît simplement plus
+> mou. Chaque image revient donc avec une confiance, celles sous `--stabilise-min-confidence`
+> sont écartées plutôt que déformées au jugé, et `--report` consigne lesquelles. Attention :
+> la confiance n'est pas une échelle unique — pour `ecc` c'est le coefficient de corrélation,
+> pour `features` le taux d'inliers RANSAC. Les deux vont de 0 à 1 et plus c'est mieux, mais
+> un 0,7 de l'un n'est pas un 0,7 de l'autre.
+
+La sortie est **recadrée à la région couverte par toutes les images**. L'alignement décale et
+tourne chaque image, dont le bord opposé laisse une bande sans données ; moyenner sur cette
+bande mêle de vrais pixels à du noir et assombrit le bord, ce qui ressemble à un vignettage
+sans en être un. Ce bord est une donnée que la séquence ne possède pas.
+
+CLI : `--stabilise [MODÈLE] --stabilise-method auto|ecc|features --stabilise-reference N
+--stabilise-min-confidence C`. Les graphies `--stabilize` fonctionnent également.
 
 ---
 
