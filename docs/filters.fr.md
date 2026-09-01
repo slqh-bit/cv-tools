@@ -832,6 +832,34 @@ scène fortement périodique (carrelage, briques, une clôture) produit plusieur
 corrélation de hauteur similaire, et le décalage mesuré peut être dénué de sens plutôt que
 simplement imprécis.
 
+**Ce que cela rapporte.** Mesuré face à une vérité terrain, sur des images décalées de
+quantités connues puis sous-échantillonnées, en comparant la reconstruction ×2 à
+l'interpolation bicubique d'une seule image :
+
+| Mouvement des images | Gain sur l'interpolation |
+|---|---|
+| décalages couvrant la grille au demi-pixel | **+1,4 dB** |
+| pas entiers uniquement | +0,6 dB |
+| faible tremblement aléatoire (±0,3 px) | +1,0 dB |
+| fort tremblement aléatoire (±3 px) | −0,1 dB |
+
+Le gain vient de ce que les images échantillonnent *entre* les pixels les unes des autres :
+avoir du mouvement n'est pas avoir le bon mouvement. La dernière ligne est la mise en garde
+honnête — une séquence peut satisfaire le critère `usable` de `super_resolve_report`, qui
+demande seulement si ≥2 images portent un décalage fractionnaire, et ne pas mieux reconstruire
+qu'un simple agrandissement. Traiter `usable` comme nécessaire et non suffisant, et comparer
+à `--upscale` avant de se fier au résultat.
+
+> **`--stabilise` et `superres` se contrarient.** Aligner une pile au sous-pixel supprime
+> précisément le mouvement dont la reconstruction se nourrit. La combinaison est mesurée
+> plutôt qu'interdite : une pile stabilisée signale peu de mouvement infra-pixellaire et la
+> CLI avertit. Stabiliser pour *combiner* des images ; ne pas stabiliser pour *reconstruire* à
+> partir d'elles. Une séquence présentant à la fois un fort mouvement de caméra et du détail
+> infra-pixellaire récupérable exigerait un modèle de mouvement complet au sein de la
+> reconstruction, ce que `estimate_shifts` (translation seule) ne fournit pas.
+
+CLI : `--frames 12 --frame-method superres --sr-scale 2 --sr-sharpen 0.6 --sr-max-shift 8`
+
 **`detail_enhancement`** — `local_contrast` est un masque flou à grand rayon, ce qu'est la
 plupart des curseurs « clarté ». `enhance_detail` préserve les contours, il fait donc
 ressortir la texture sans halos. `multiscale_detail` accentue les bandes de fréquence

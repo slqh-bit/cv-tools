@@ -383,6 +383,33 @@ guess**: a misaligned frame in an average is exactly the blur stabilising exists
 and it would be invisible in the result. `--report` records the per-frame confidence and
 motion, so which frames were used is on the record.
 
+### Multi-frame super-resolution
+
+Where averaging uses several frames to cancel noise, `superres` uses their *sub-pixel*
+offsets to reconstruct detail no single frame recorded:
+
+```bash
+python -m src.cli clip.avi --frames 12 --frame-method superres --sr-scale 2 -o plate.png
+```
+
+Measured against ground truth on frames sampling the half-pixel grid, this beats bicubic
+interpolation of one frame by **about 1.4 dB**. That gain is not automatic: it depends on the
+frames actually sampling *between* each other's pixels. Where the motion is large and random
+the gain measured **near zero** — no worse than an upscale, but no better either. cv-tools
+measures the sequence and says so before reconstructing:
+
+```
+warning: these 8 frames carry little sub-pixel motion (1 of 8 within range have any),
+so the result may be no better than --upscale. Compare the two before relying on it.
+```
+
+> **`--stabilise` and `superres` work against each other.** Aligning to sub-pixel accuracy
+> removes exactly the motion reconstruction feeds on. Nothing forbids the combination — it is
+> measured rather than ruled out, and you will get the warning above. Use `--stabilise` when
+> combining frames, not when reconstructing from them. If a sequence has *both* large camera
+> motion and sub-pixel detail worth recovering, it needs registration with a full motion
+> model inside the reconstruction, which this does not yet do.
+
 ### Analysis and reporting
 
 ```bash

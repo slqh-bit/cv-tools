@@ -827,6 +827,33 @@ Phase correlation drives the alignment, and it needs broadband detail. A strongl
 scene (tiles, brickwork, a fence) produces several correlation peaks of similar height and
 the measured offset can be meaningless rather than merely imprecise.
 
+**How much it is worth.** Measured against ground truth, on frames shifted by known amounts
+and downsampled, comparing reconstruction at 2x against bicubic interpolation of one frame:
+
+| Frame motion | Gain over interpolation |
+|---|---|
+| offsets covering the half-pixel grid | **+1.4 dB** |
+| whole-pixel steps only | +0.6 dB |
+| small random jitter (±0.3 px) | +1.0 dB |
+| large random jitter (±3 px) | −0.1 dB |
+
+The gain comes from the frames sampling *between* each other's pixels, and having motion is
+not the same as having the right motion. The last row is the honest caution: a sequence can
+pass `super_resolve_report`'s `usable` check — which asks only whether ≥2 frames carry a
+fractional offset — and still reconstruct no better than an upscale. Treat `usable` as
+necessary rather than sufficient, and compare against `--upscale` before relying on the
+result.
+
+> **`--stabilise` and `superres` work against each other.** Aligning a stack to sub-pixel
+> accuracy removes precisely the motion reconstruction feeds on. The combination is measured
+> rather than forbidden: a stabilised stack reports little sub-pixel motion and the CLI warns.
+> Stabilise when *combining* frames; do not stabilise when *reconstructing* from them. A
+> sequence with both large camera motion and recoverable sub-pixel detail would need a full
+> motion model inside the reconstruction, which `estimate_shifts` (translation only) does not
+> provide.
+
+CLI: `--frames 12 --frame-method superres --sr-scale 2 --sr-sharpen 0.6 --sr-max-shift 8`
+
 **`detail_enhancement`** — `local_contrast` is a large-radius unsharp mask, which is what
 most "clarity" sliders are. `enhance_detail` is edge-preserving, so it lifts texture without
 halos. `multiscale_detail` boosts frequency bands independently.

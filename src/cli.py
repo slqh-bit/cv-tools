@@ -46,6 +46,7 @@ from .filters.stabilise import (
 )
 from .filters.histogram import dynamic_range_used, histogram_stats, render_histogram
 from .filters.registry import resolve_filter, list_filters, filter_description
+from .filters.super_resolution import super_resolve, super_resolve_report
 from .filters.roi import ROI, analyze_roi
 from .utils.compare import side_by_side
 from .utils.parsing import (
@@ -389,10 +390,20 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument('--frame-step', type=int, default=1, metavar='N',
                      help='Stride between the frames gathered by --frames (default: 1)')
     out.add_argument('--frame-method', default='mean',
-                     choices=['mean', 'median', 'integrate', 'sharpest'],
+                     choices=['mean', 'median', 'integrate', 'sharpest',
+                              'superres'],
                      help='How --frames are combined: mean denoises, median removes moving '
                           'objects, integrate brightens dark footage, sharpest averages only '
-                          'the best-focused half (default: mean)')
+                          'the best-focused half, superres reconstructs a larger image from '
+                          'their sub-pixel offsets (default: mean)')
+    out.add_argument('--sr-scale', type=float, default=2.0, metavar='FACTOR',
+                     help='Magnification for --frame-method superres (default: 2.0)')
+    out.add_argument('--sr-sharpen', type=float, default=0.6, metavar='AMOUNT',
+                     help='Unsharp amount applied after reconstruction, '
+                          '0 to disable (default: 0.6)')
+    out.add_argument('--sr-max-shift', type=float, default=8.0, metavar='PIXELS',
+                     help='Frames displaced further than this are dropped as '
+                          'mis-registered rather than smeared in (default: 8.0)')
     out.add_argument('--stabilise', '--stabilize', nargs='?',
                      const='euclidean', choices=sorted(MOTION_MODELS),
                      metavar='MODEL',
@@ -1029,9 +1040,19 @@ def stabilise_frames(
     return aligned, report
 
 
-def combine_frames(frames: List[np.ndarray], method: str) -> np.ndarray:
+def combine_frames(
+    frames: List[np.ndarray],
+    method: str,
+    args: Optional[argparse.Namespace] = None,
+) -> np.ndarray:
     """
     Reduce a sequence of video frames to one source image.
+
+    Args:
+        frames: The gathered frames
+        method: One of the --frame-method choices
+        args: The parsed arguments, for the methods that take parameters of
+            their own. Optional so the simple methods stay callable with two.
 
     Raises:
         ValueError: If the method is unknown
@@ -1047,7 +1068,46 @@ def combine_frames(frames: List[np.ndarray], method: str) -> np.ndarray:
         # when part of the sequence is motion-blurred
         best = sharpest_frames(frames, count=max(1, len(frames) // 2))
         return average_frames([frames[index] for index in best])
+    if method == 'superres':
+        scale = getattr(args, 'sr_scale', 2.0)
+        sharpen = getattr(args, 'sr_sharpen', 0.6)
+        max_shift = getattr(args, 'sr_max_shift', 8.0)
+        report_super_resolution(frames, args, max_shift)
+        return super_resolve(frames, scale=scale, sharpen=sharpen,
+                             max_shift=max_shift)
     raise ValueError(f"Unknown frame method: {method}")
+
+
+def report_super_resolution(
+    frames: List[np.ndarray],
+    args: Optional[argparse.Namespace],
+    max_shift: float,
+) -> Dict[str, Any]:
+    """
+    Say whether the sequence carries the motion reconstruction needs.
+
+    Reconstruction without sub-pixel motion quietly degrades to an interpolated
+    upscale of averaged frames - which looks like more detail without being any,
+    and is the one outcome this must not produce silently. So the measurement
+    goes to stderr either way, and a sequence that cannot support it says so.
+    """
+    report = super_resolve_report(frames, max_shift=max_shift)
+    verbose = getattr(args, 'verbose', False)
+
+    if not report['usable']:
+        print(f"warning: these {report['frames']} frames carry little sub-pixel "
+              f"motion ({report['frames_with_subpixel_motion']} of "
+              f"{report['frames_within_max_shift']} within range have any), so "
+              f"the result may be no better than --upscale. Compare the two "
+              f"before relying on it.", file=sys.stderr)
+    elif verbose:
+        print(f"  {report['frames_within_max_shift']}/{report['frames']} frames "
+              f"within {max_shift}px, "
+              f"{report['frames_with_subpixel_motion']} with sub-pixel motion, "
+              f"largest offset {report['max_shift_px']:.2f}px",
+              file=sys.stderr)
+
+    return report
 
 
 def print_analysis(
@@ -1137,7 +1197,7 @@ def _combine_stills(directory: Path,
         frames.append(frame)
 
     frames, alignment = stabilise_frames(frames, args)
-    image = combine_frames(frames, args.frame_method)
+    image = combine_frames(frames, args.frame_method, args)
     metadata['filename'] = f'{len(frames)} frames from {directory.name}'
     metadata['combined_from'] = [source.name for source in selected]
     metadata['frame_method'] = args.frame_method
@@ -1191,7 +1251,7 @@ def _load_one(path: Path,
             frames = loader.load_frames(args.frames, start=args.frame,
                                         step=args.frame_step)
             frames, alignment = stabilise_frames(frames, args)
-            image = combine_frames(frames, args.frame_method)
+            image = combine_frames(frames, args.frame_method, args)
             if args.verbose:
                 print(f"Combined {len(frames)} frames with '{args.frame_method}'",
                       file=sys.stderr)

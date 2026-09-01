@@ -1062,5 +1062,112 @@ class TestCLIStabilise(CLITestCase):
                           'wobble', '-o', str(self.dir / 'o.png')])
 
 
+class TestCLISuperResolution(CLITestCase):
+    """
+    Multi-frame reconstruction from the command line.
+
+    The frames are made the way the method assumes: one high-resolution truth,
+    shifted by known sub-pixel amounts and downsampled. That gives a real
+    answer to compare against, so the test can assert reconstruction beat
+    interpolation rather than merely that a larger file appeared.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.truth = np.zeros((160, 240), dtype=np.uint8)
+        cv2.putText(self.truth, 'AB 12', (20, 95), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.4, 255, 4, cv2.LINE_AA)
+        for x in range(0, 240, 16):
+            cv2.line(self.truth, (x, 120), (x, 150), 200, 1)
+
+        # Offsets covering the half-pixel grid, which is the sampling pattern
+        # a 2x reconstruction actually needs
+        self.stack = self.dir / 'sr'
+        self.stack.mkdir()
+        for index, (dx, dy) in enumerate([(0, 0), (1, 0), (0, 1), (1, 1)] * 3):
+            matrix = np.float32([[1, 0, dx], [0, 1, dy]])
+            moved = cv2.warpAffine(self.truth, matrix, (240, 160),
+                                   flags=cv2.INTER_CUBIC,
+                                   borderMode=cv2.BORDER_REFLECT)
+            small = cv2.resize(moved, (120, 80), interpolation=cv2.INTER_AREA)
+            cv2.imwrite(str(self.stack / f'f{index:02d}.png'), small)
+
+        self.still = self.dir / 'still'
+        self.still.mkdir()
+        rng = np.random.default_rng(23)
+        flat = cv2.resize(self.truth, (120, 80), interpolation=cv2.INTER_AREA)
+        for index in range(6):
+            noisy = np.clip(flat.astype(np.float32) + rng.normal(0, 6, flat.shape),
+                            0, 255).astype(np.uint8)
+            cv2.imwrite(str(self.still / f'f{index}.png'), noisy)
+
+    def _psnr(self, a, b):
+        error = np.mean((a.astype(np.float64) - b.astype(np.float64)) ** 2)
+        return 99.0 if error == 0 else float(10 * np.log10(255 * 255 / error))
+
+    def test_reconstruction_enlarges_by_the_scale(self):
+        out = self.dir / 'sr.png'
+        code, _ = self.run_cli([str(self.stack), '--frames', '12',
+                                '--frame-method', 'superres', '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.read(out).shape[:2], (160, 240))
+
+    def test_scale_is_configurable(self):
+        out = self.dir / 'sr3.png'
+        code, _ = self.run_cli([str(self.stack), '--frames', '12',
+                                '--frame-method', 'superres',
+                                '--sr-scale', '3', '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.read(out).shape[:2], (240, 360))
+
+    def test_reconstruction_beats_interpolating_one_frame(self):
+        """The claim the method makes, against ground truth."""
+        reconstructed, interpolated = self.dir / 'sr.png', self.dir / 'up.png'
+        self.run_cli([str(self.stack), '--frames', '12', '--frame-method',
+                      'superres', '-o', str(reconstructed)])
+        self.run_cli([str(self.stack / 'f00.png'), '--upscale', 'scale=2',
+                      '-o', str(interpolated)])
+
+        truth = cv2.cvtColor(self.truth, cv2.COLOR_GRAY2RGB)
+        self.assertGreater(self._psnr(self.read(reconstructed), truth),
+                           self._psnr(self.read(interpolated), truth) + 0.5)
+
+    def test_a_sequence_without_sub_pixel_motion_is_flagged(self):
+        """
+        Reconstruction without motion is an upscale wearing its name.
+
+        The warning goes to stderr, which run_cli does not return, so this
+        checks the run still succeeds and asserts on the report instead.
+        """
+        from src.filters import super_resolve_report
+
+        frames = [self.read(path)
+                  for path in sorted(self.still.glob('*.png'))]
+        self.assertFalse(super_resolve_report(frames)['usable'])
+
+        out = self.dir / 'flat.png'
+        code, _ = self.run_cli([str(self.still), '--frames', '6',
+                                '--frame-method', 'superres', '-o', str(out)])
+        self.assertEqual(code, 0)
+
+    def test_stabilising_first_removes_what_reconstruction_needs(self):
+        """
+        The two features work against each other, and the guard notices.
+
+        Aligning to sub-pixel accuracy is exactly the motion reconstruction
+        feeds on, so a stabilised stack reports as unusable. Nothing forbids
+        the combination - it is measured rather than ruled out.
+        """
+        from src.filters import align_frames, super_resolve_report
+
+        frames = [self.read(path) for path in sorted(self.stack.glob('*.png'))]
+        self.assertTrue(super_resolve_report(frames)['usable'])
+
+        aligned, _ = align_frames(frames, model='translation', crop=False)
+        after = super_resolve_report(aligned)
+        self.assertLess(after['frames_with_subpixel_motion'],
+                        super_resolve_report(frames)['frames_with_subpixel_motion'])
+
+
 if __name__ == '__main__':
     unittest.main()
