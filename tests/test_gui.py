@@ -75,6 +75,57 @@ class TestParameterPanel(unittest.TestCase):
         self.assertEqual(params['color_mode'], 'lab')
         panel.destroy()
 
+    def test_picked_points_reach_every_filter_that_asks_for_them(self):
+        """
+        The whole point-picking path, for each filter with a click plan.
+
+        Clicks are distributed exactly as ``app._on_picks_complete`` does it -
+        one point stays a pair, several flatten - then go through the panel's
+        own round trip and into the filter. A plan that produces a value the
+        entry cannot parse back, or that the filter rejects, fails here rather
+        than under an operator's mouse.
+        """
+        from src.filters.registry import POINT_PARAMETERS
+
+        image = sample_image(120, 160)
+        panel = self.ParameterPanel(self.root)
+
+        for name, plan in POINT_PARAMETERS.items():
+            spec = resolve_filter(name)
+            # Spread the clicks over the image, and keep them apart: a
+            # reference span of zero length is not a calibration
+            points = [(12 + index * 11, 18 + index * 7)
+                      for index in range(sum(count for _p, count, _t in plan))]
+
+            values, index = {}, 0
+            for parameter, count, _prompt in plan:
+                taken = points[index:index + count]
+                index += count
+                values[parameter] = list(taken[0]) if count == 1 else [
+                    coordinate for point in taken for coordinate in point]
+
+            # Required parameters a click plan does not cover - a reference's
+            # true length, a label's words - still have to be typed
+            typed = {parameter: value for parameter, value in
+                     {'reference_length': 520.0, 'reference_height': 1800.0,
+                      'text': 'exhibit', 'shape': 'rectangle'}.items()
+                     if parameter in inspect.signature(spec.fn).parameters}
+
+            with self.subTest(filter=name):
+                panel.build(spec)
+                filled = panel.set_values(values)
+                self.assertEqual(set(filled), set(values),
+                                 f'{name}: the form has no field for some picks')
+                panel.set_values(typed)
+
+                result = spec.fn(image, **panel.get_params())
+                # Not the input's shape: perspective rectifies to the picked
+                # quad, so it is meant to come back a different size
+                self.assertEqual(result.ndim, 3)
+                self.assertGreater(result.size, 0)
+
+        panel.destroy()
+
     def test_every_offered_choice_is_one_the_filter_accepts(self):
         """
         The panel must not offer a value the filter rejects.

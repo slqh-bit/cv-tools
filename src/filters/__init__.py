@@ -22,6 +22,7 @@ from .annotate import (
     draw_arrow,
     draw_text,
     draw_shape,
+    draw_area_measurement,
     draw_measurement,
     draw_scale_bar,
     measure_distance,
@@ -336,7 +337,8 @@ __all__ = [
     'WHITE_BALANCE_METHODS',
     # annotate
     'Scale', 'draw_arrow', 'draw_text', 'draw_shape', 'draw_measurement',
-    'draw_scale_bar', 'measure_distance', 'measure_area', 'scale_from_reference',
+    'draw_area_measurement', 'draw_scale_bar', 'measure_distance',
+    'measure_area', 'scale_from_reference',
     # measure 3d
     'VERTICAL_AT_INFINITY', 'draw_height_measurement',
     'horizon_from_lines', 'horizon_from_vanishing_points', 'line_through',

@@ -64,7 +64,31 @@ ARGUMENTS: Dict[str, Dict[str, Any]] = {
     'measure_3d': {'base': [0.55, 0.85], 'top': [0.55, 0.55],
                    'reference_base': [0.25, 0.78], 'reference_top': [0.25, 0.52],
                    'horizon': 0.30, 'reference_height': 1800.0,
-                   '_relative_points': True},
+                   '_relative_points': ('base', 'top', 'reference_base',
+                                        'reference_top'),
+                   '_relative_rows': ('horizon',)},
+    # The reference spans 0.3 of the width and is called 520mm, so the gallery's
+    # numbers are at least self-consistent even though the sample has no ruler
+    'measure': {'point_a': [0.2, 0.62], 'point_b': [0.72, 0.62],
+                'reference_a': [0.2, 0.3], 'reference_b': [0.5, 0.3],
+                'reference_length': 520.0,
+                '_relative_points': ('point_a', 'point_b',
+                                     'reference_a', 'reference_b')},
+    'measure_area': {'points': [[0.15, 0.2], [0.62, 0.2],
+                                [0.62, 0.52], [0.15, 0.52]],
+                     'reference_a': [0.15, 0.75], 'reference_b': [0.45, 0.75],
+                     'reference_length': 520.0,
+                     '_relative_points': ('reference_a', 'reference_b'),
+                     '_relative_polygons': ('points',)},
+    'scale_bar': {'reference_a': [0.2, 0.3], 'reference_b': [0.5, 0.3],
+                  'reference_length': 520.0, 'length_units': 300.0,
+                  '_relative_points': ('reference_a', 'reference_b')},
+    'arrow': {'start': [0.72, 0.24], 'end': [0.45, 0.46], 'label': 'detail',
+              '_relative_points': ('start', 'end')},
+    'text': {'text': 'Exhibit A', 'position': [0.08, 0.14],
+             '_relative_points': ('position',)},
+    'shape': {'shape': 'rectangle', 'points': [[0.2, 0.25], [0.7, 0.66]],
+              'label': 'region', '_relative_polygons': ('points',)},
     'undistort': {'calibration_path': None},   # written during the run
 }
 
@@ -91,11 +115,15 @@ def _scale_arguments(name: str, shape: Tuple[int, int]) -> Dict[str, Any]:
         spec['corners'] = [[int(x * width), int(y * height)]
                            for x, y in spec['corners']]
 
-    if spec.pop('_relative_points', False):
-        for key in ('base', 'top', 'reference_base', 'reference_top'):
-            x, y = spec[key]
-            spec[key] = [int(x * width), int(y * height)]
-        spec['horizon'] = spec['horizon'] * height
+    for key in spec.pop('_relative_points', ()):
+        x, y = spec[key]
+        spec[key] = [int(x * width), int(y * height)]
+
+    for key in spec.pop('_relative_polygons', ()):
+        spec[key] = [[int(x * width), int(y * height)] for x, y in spec[key]]
+
+    for key in spec.pop('_relative_rows', ()):
+        spec[key] = spec[key] * height
 
     return spec
 

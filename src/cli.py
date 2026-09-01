@@ -227,6 +227,53 @@ def build_parser() -> argparse.ArgumentParser:
                          metavar='STRENGTH', action=ChainAction,
                          help='Soften JPEG block edges')
 
+    # ---- Measurement and annotation ----
+    # The calibration is a modifier rather than a per-measurement parameter
+    # because a scale belongs to an image plane, not to one measurement: every
+    # measurement taken in that plane shares it, and two in the same plane
+    # disagreeing about the scale would be a defect, not a feature.
+    measure_group = parser.add_argument_group('measurement and annotation')
+    measure_group.add_argument('--scale-ref', metavar='X1,Y1,X2,Y2',
+                               help='The two ends of something of known length, '
+                                    'calibrating --measure, --measure-area and '
+                                    '--scale-bar. Correct perspective first: a '
+                                    'scale is valid only in its own plane')
+    measure_group.add_argument('--scale-length', type=float, metavar='LENGTH',
+                               help='True length of --scale-ref, e.g. 520 for an '
+                                    'EU number plate')
+    measure_group.add_argument('--scale-unit', default='mm', metavar='UNIT',
+                               help='Unit of --scale-length (default: mm)')
+    measure_group.add_argument('--measure', metavar='X1,Y1,X2,Y2',
+                               action=ChainAction,
+                               help='Measure between two points and draw the '
+                                    'dimension line. Uncalibrated, the label is '
+                                    'in pixels')
+    measure_group.add_argument('--measure-area', metavar='X1,Y1,X2,Y2,...',
+                               action=ChainAction,
+                               help='Measure the area of a polygon of three or '
+                                    'more vertices, and draw it labelled')
+    measure_group.add_argument('--scale-bar', nargs='?', type=float, const=100.0,
+                               metavar='LENGTH', action=ChainAction,
+                               help='Draw a calibrated scale bar of LENGTH units '
+                                    '(default: 100); needs --scale-ref')
+    measure_group.add_argument('--scale-bar-position', default='bottom_right',
+                               choices=['bottom_right', 'bottom_left',
+                                        'top_right', 'top_left'],
+                               help='Which corner --scale-bar sits in '
+                                    '(default: bottom_right)')
+    measure_group.add_argument('--arrow', nargs='*', metavar='KEY=VALUE',
+                               action=ChainAction,
+                               help='Draw an arrow. Params: start, end (X,Y), '
+                                    'label, thickness, tip_length')
+    measure_group.add_argument('--text', nargs='*', metavar='KEY=VALUE',
+                               action=ChainAction,
+                               help='Draw a text label. Params: text, position '
+                                    '(X,Y), font_scale, thickness, background')
+    measure_group.add_argument('--shape', nargs='*', metavar='KEY=VALUE',
+                               action=ChainAction,
+                               help='Draw a shape. Params: shape (rectangle, '
+                                    'circle, ellipse, line, polygon), points, label')
+
     # ---- Edge detection ----
     edges = parser.add_argument_group('edge detection')
     edges.add_argument('--canny', metavar='LOW,HIGH', action=ChainAction,
@@ -355,6 +402,99 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def expand_point_params(
+    params: Dict[str, Any],
+    keys: Tuple[str, ...],
+) -> Dict[str, Any]:
+    """
+    Turn ``key=X,Y`` values into coordinate lists, in place.
+
+    ``parse_value`` leaves "352,408" as text, since a comma means nothing to it.
+    Which keys hold coordinates is filter knowledge, so the caller names them.
+
+    Args:
+        params: Parsed key=value parameters
+        keys: The parameter names that hold coordinates
+
+    Returns:
+        The same dict, with those values converted
+
+    Raises:
+        ValueError: If a named value is not a list of numbers
+    """
+    for key in keys:
+        value = params.get(key)
+        if not isinstance(value, str) or ',' not in value:
+            continue
+        parts = [part.strip() for part in value.split(',')]
+        try:
+            params[key] = [float(part) for part in parts]
+        except ValueError:
+            raise ValueError(
+                f"{key} should be comma-separated numbers, got {value!r}"
+            ) from None
+    return params
+
+
+def translate_measurement(
+    dest: str,
+    value: Any,
+    scale_ref: Optional[str],
+    scale_length: Optional[float],
+    scale_unit: str,
+    scale_bar_position: str,
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Build a measurement step, attaching the shared calibration if one was given.
+
+    Raises:
+        ValueError: If the flag's coordinates are malformed, if the calibration
+            is only half given, or if a scale bar was asked for without one
+    """
+    calibration: Dict[str, Any] = {}
+    if scale_ref is not None or scale_length is not None:
+        if scale_ref is None or scale_length is None:
+            raise ValueError(
+                "a calibration needs both --scale-ref and --scale-length")
+        x1, y1, x2, y2 = parse_float_list(scale_ref, 4)
+        calibration = {
+            'reference_a': [x1, y1],
+            'reference_b': [x2, y2],
+            'reference_length': scale_length,
+            'unit_name': scale_unit,
+        }
+
+    if dest == 'measure':
+        x1, y1, x2, y2 = parse_float_list(value, 4)
+        return 'measure', {'point_a': [x1, y1], 'point_b': [x2, y2],
+                           **calibration}
+
+    if dest == 'measure_area':
+        parts = [part.strip() for part in str(value).split(',')]
+        if len(parts) < 6 or len(parts) % 2 != 0:
+            raise ValueError(
+                f"an area needs at least 3 X,Y vertices, got {len(parts)} values")
+        try:
+            flat = [float(part) for part in parts]
+        except ValueError:
+            raise ValueError(f"expected numbers in: {value!r}") from None
+        return 'measure_area', {
+            'points': [[flat[i], flat[i + 1]] for i in range(0, len(flat), 2)],
+            **calibration,
+        }
+
+    # scale_bar
+    if not calibration:
+        raise ValueError(
+            "--scale-bar needs --scale-ref and --scale-length; a bar with no "
+            "calibration would be a ruler with no units")
+    return 'scale_bar', {
+        'length_units': float(value if value is not None else 100.0),
+        'position': scale_bar_position,
+        **calibration,
+    }
+
+
 def translate_step(
     dest: str,
     value: Any,
@@ -362,6 +502,10 @@ def translate_step(
     blur_first: float = 0.0,
     perspective_ratio: Optional[str] = None,
     redact_method: str = 'fill',
+    scale_ref: Optional[str] = None,
+    scale_length: Optional[float] = None,
+    scale_unit: str = 'mm',
+    scale_bar_position: str = 'bottom_right',
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Convert one parsed command-line filter flag into (registry_name, params).
@@ -373,6 +517,10 @@ def translate_step(
         blur_first: Gaussian pre-blur sigma for the edge detectors
         perspective_ratio: Named aspect ratio applied to a perspective step
         redact_method: How a redaction step obscures its region
+        scale_ref: ``X1,Y1,X2,Y2`` spanning a reference of known length
+        scale_length: That reference's true length
+        scale_unit: Unit of scale_length
+        scale_bar_position: Which corner a scale bar sits in
 
     Raises:
         ValueError: If the flag's value is malformed
@@ -698,14 +846,37 @@ def translate_step(
 
     if dest == 'measure_3d':
         params = parse_kv(value or [])
-        # Points arrive as "352,408", which parse_value leaves as text
-        for key in ('base', 'top', 'reference_base', 'reference_top',
-                    'vertical_point', 'horizon'):
-            if isinstance(params.get(key), str):
-                parts = [p.strip() for p in str(params[key]).split(',')]
-                if len(parts) > 1:
-                    params[key] = [float(p) for p in parts]
-        return 'measure_3d', params
+        return 'measure_3d', expand_point_params(
+            params, ('base', 'top', 'reference_base', 'reference_top',
+                     'vertical_point', 'horizon'))
+
+    # ---- Measurement and annotation ----
+    if dest in ('measure', 'measure_area', 'scale_bar'):
+        return translate_measurement(
+            dest, value, scale_ref, scale_length, scale_unit,
+            scale_bar_position,
+        )
+
+    if dest == 'arrow':
+        return 'arrow', expand_point_params(parse_kv(value or []),
+                                            ('start', 'end'))
+
+    if dest == 'text':
+        params = expand_point_params(parse_kv(value or []), ('position',))
+        if 'text' not in params:
+            raise ValueError("--text needs text=<label>, e.g. text=Exhibit_A")
+        # parse_value types a numeric label as a number; the filter wants a string
+        params['text'] = str(params['text'])
+        return 'text', params
+
+    if dest == 'shape':
+        params = expand_point_params(parse_kv(value or []), ('points',))
+        if 'shape' not in params:
+            raise ValueError(
+                "--shape needs shape=<rectangle|circle|ellipse|line|polygon>")
+        if 'points' not in params:
+            raise ValueError("--shape needs points=X1,Y1,X2,Y2")
+        return 'shape', params
 
     if dest == 'blocking_map':
         return 'blocking_map', {'block_size': int(value if value is not None else 32)}
@@ -1047,6 +1218,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                 dest, value, args.interpolation, args.blur_first,
                 perspective_ratio=args.perspective_ratio,
                 redact_method=args.redact_method,
+                scale_ref=args.scale_ref,
+                scale_length=args.scale_length,
+                scale_unit=args.scale_unit,
+                scale_bar_position=args.scale_bar_position,
             ))
         except ValueError as exc:
             parser.error(f"{option_string}: {exc}")

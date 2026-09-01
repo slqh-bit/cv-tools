@@ -7,10 +7,20 @@ params are JSON-serializable, which is what ``core.pipeline.Pipeline`` records.
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from .annotate import (
+    Scale,
+    draw_area_measurement,
+    draw_arrow,
+    draw_measurement,
+    draw_scale_bar,
+    draw_shape,
+    draw_text,
+    scale_from_reference,
+)
 from .aspect_ratio import correct_pixel_aspect, fit_to_aspect
 from .clahe import apply_clahe, apply_clahe_grid
 from .contrast_brightness import adjust_contrast_brightness, auto_contrast
@@ -92,6 +102,37 @@ POINT_PARAMETERS: Dict[str, Tuple[Tuple[str, int, str], ...]] = {
     ),
     'perspective': (
         ('corners', 4, 'the four corners, clockwise from top-left'),
+    ),
+    # The reference comes last in all three: it is the same two clicks every
+    # time, so an operator who has calibrated once knows what is being asked
+    # without reading the prompt.
+    'measure': (
+        ('point_a', 1, 'one end of what you are measuring'),
+        ('point_b', 1, 'the other end'),
+        ('reference_a', 1, 'one end of something of KNOWN length'),
+        ('reference_b', 1, 'the other end of that reference'),
+    ),
+    # Four vertices, because most measured areas are quadrilaterals and a click
+    # plan needs a fixed count. A triangle or a longer polygon still works -
+    # type the vertices into the field instead.
+    'measure_area': (
+        ('points', 4, 'a corner of the area'),
+        ('reference_a', 1, 'one end of something of KNOWN length'),
+        ('reference_b', 1, 'the other end of that reference'),
+    ),
+    'scale_bar': (
+        ('reference_a', 1, 'one end of something of KNOWN length'),
+        ('reference_b', 1, 'the other end of that reference'),
+    ),
+    'arrow': (
+        ('start', 1, 'the arrow TAIL, where the label goes'),
+        ('end', 1, 'the arrow HEAD, the thing being pointed at'),
+    ),
+    'text': (
+        ('position', 1, 'where the text should sit'),
+    ),
+    'shape': (
+        ('points', 2, 'a defining point of the shape'),
     ),
 }
 
@@ -177,6 +218,138 @@ def roi_filter(
             f"{filter_name!r} needs parameters that cannot be passed through a "
             f"region. Filters usable here: {', '.join(filters_with_all_defaults())}")
     return apply_to_roi(image, ROI(x, y, width, height), spec.fn, feather=feather)
+
+
+# ---- Measurement adapters -------------------------------------------------
+# annotate.Scale is a dataclass, which the flat JSON contract cannot carry.
+# Rather than flatten it into pixels-and-units - which would make the operator
+# compute a pixel length by hand, the step most likely to go wrong - these take
+# the two ends of a reference of known length, which is what a person actually
+# has: a number plate, a door, a ruler in the scene.
+
+def _calibration(
+    reference_a: Optional[Sequence[float]],
+    reference_b: Optional[Sequence[float]],
+    reference_length: Optional[float],
+    unit_name: str,
+) -> Optional[Scale]:
+    """
+    Build a Scale from a reference span, or None to measure in pixels.
+
+    Raises:
+        ValueError: If the reference is given only in part
+    """
+    given = [reference_a is not None, reference_b is not None,
+             reference_length is not None]
+    if not any(given):
+        return None
+    if not all(given):
+        raise ValueError(
+            "A calibration needs all three of reference_a, reference_b and "
+            "reference_length; give none of them to measure in pixels")
+    return scale_from_reference(reference_a, reference_b, reference_length,
+                                unit_name)
+
+
+def measure(
+    image: np.ndarray,
+    point_a: Sequence[float],
+    point_b: Sequence[float],
+    reference_a: Optional[Sequence[float]] = None,
+    reference_b: Optional[Sequence[float]] = None,
+    reference_length: Optional[float] = None,
+    unit_name: str = 'mm',
+    color: Tuple[int, int, int] = (255, 220, 40),
+    thickness: int = 2,
+    font_scale: float = 0.5,
+    precision: int = 1,
+) -> np.ndarray:
+    """
+    Measure between two points and draw the dimension line (1D).
+
+    A scale is valid only in the plane it was measured in, so the reference
+    must lie in the same plane as the thing being measured, and perspective
+    must be corrected first. Without a reference the label is in pixels, which
+    is honest but rarely what an exhibit needs.
+
+    Args:
+        image: Source image
+        point_a, point_b: The two ends of what is being measured
+        reference_a, reference_b: The two ends of something of known length
+        reference_length: That known length, in unit_name
+        unit_name: Unit of the reference length
+        color, thickness, font_scale, precision: Drawing options
+    """
+    scale = _calibration(reference_a, reference_b, reference_length, unit_name)
+    return draw_measurement(image, point_a, point_b, scale, color=color,
+                            thickness=thickness, font_scale=font_scale,
+                            precision=precision)
+
+
+def measure_area_annotated(
+    image: np.ndarray,
+    points: Sequence[Sequence[float]],
+    reference_a: Optional[Sequence[float]] = None,
+    reference_b: Optional[Sequence[float]] = None,
+    reference_length: Optional[float] = None,
+    unit_name: str = 'mm',
+    color: Tuple[int, int, int] = (255, 220, 40),
+    thickness: int = 2,
+    font_scale: float = 0.5,
+    precision: int = 1,
+    show_perimeter: bool = False,
+) -> np.ndarray:
+    """
+    Measure a polygon's area and draw it, labelled (2D).
+
+    Area converts by the square of the linear scale, so a calibration that is
+    slightly wrong is twice as wrong here.
+
+    Args:
+        image: Source image
+        points: Three or more vertices, as pairs or a flat run of coordinates
+        reference_a, reference_b: The two ends of something of known length
+        reference_length: That known length, in unit_name
+        unit_name: Unit of the reference length
+        color, thickness, font_scale, precision: Drawing options
+        show_perimeter: Add the perimeter under the area
+    """
+    scale = _calibration(reference_a, reference_b, reference_length, unit_name)
+    return draw_area_measurement(image, points, scale, color=color,
+                                 thickness=thickness, font_scale=font_scale,
+                                 precision=precision,
+                                 show_perimeter=show_perimeter)
+
+
+def scale_bar(
+    image: np.ndarray,
+    reference_a: Sequence[float],
+    reference_b: Sequence[float],
+    reference_length: float,
+    length_units: float = 100.0,
+    unit_name: str = 'mm',
+    position: str = 'bottom_right',
+    color: Tuple[int, int, int] = (255, 255, 255),
+    margin: int = 20,
+    font_scale: float = 0.5,
+) -> np.ndarray:
+    """
+    Draw a calibrated scale bar, so a reader can judge sizes directly.
+
+    Args:
+        image: Source image
+        reference_a, reference_b: The two ends of something of known length
+        reference_length: That known length, in unit_name
+        length_units: How long the drawn bar should read
+        unit_name: Unit of both lengths
+        position: Which corner to draw in
+        color, margin, font_scale: Drawing options
+    """
+    scale = scale_from_reference(reference_a, reference_b, reference_length,
+                                 unit_name)
+    return draw_scale_bar(image, scale, length_units=length_units,
+                          position=position, color=color, margin=margin,
+                          font_scale=font_scale)
 
 
 # ---- Registry -------------------------------------------------------------
@@ -343,6 +516,21 @@ FILTER_REGISTRY: Dict[str, FilterSpec] = {
         FilterSpec('measure_3d', draw_height_measurement, 'src.filters.measure_3d',
                    'Estimate object height from one view, against a known reference',
                    'Special'),
+        FilterSpec('measure', measure, 'src.filters.annotate',
+                   'Measure between two points, against a reference of known '
+                   'length in the same plane', 'Special'),
+        FilterSpec('measure_area', measure_area_annotated, 'src.filters.annotate',
+                   'Measure the area of a polygon, against a reference of '
+                   'known length in the same plane', 'Special'),
+        FilterSpec('scale_bar', scale_bar, 'src.filters.annotate',
+                   'Draw a calibrated scale bar, so sizes can be read off '
+                   'directly', 'Special'),
+        FilterSpec('arrow', draw_arrow, 'src.filters.annotate',
+                   'Draw a labelled arrow pointing at something', 'Special'),
+        FilterSpec('text', draw_text, 'src.filters.annotate',
+                   'Draw a text label on a dark plate', 'Special'),
+        FilterSpec('shape', draw_shape, 'src.filters.annotate',
+                   'Draw a rectangle, circle, ellipse, line or polygon', 'Special'),
     ]
 }
 

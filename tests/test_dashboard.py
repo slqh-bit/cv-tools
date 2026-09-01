@@ -134,6 +134,39 @@ class TestDashboard(unittest.TestCase):
         app.selectbox(key='selected_filter').select('clahe').run()
         self.assertFalse([b for b in app.button if b.label.startswith('Pick')])
 
+    def test_measuring_from_taps_all_the_way_into_the_chain(self):
+        """
+        Pick, calibrate, apply - the path the measurement filters exist for.
+
+        The four taps are the two ends of what is measured and then the two
+        ends of the reference, which is the order the click plan asks for.
+        """
+        app = self._app()
+        app.selectbox(key='selected_filter').select('measure').run()
+
+        pick = [b for b in app.button if b.label.startswith('Pick')]
+        self.assertTrue(pick, 'no picking button offered for measure')
+        pick[0].click().run()
+
+        self.assertTrue(any('KNOWN length' in info.value for info in app.info)
+                        or any('measuring' in info.value for info in app.info))
+
+        # A 100px reference called 520mm, and a 200px span to measure by it
+        app.session_state.picks = [(100, 300), (300, 300),
+                                   (100, 100), (200, 100)]
+        app.run()
+        self.assertEqual(app.exception, [])
+        self.assertEqual(app.session_state['param_measure_point_a'], '100,300')
+        self.assertEqual(app.session_state['param_measure_reference_b'], '200,100')
+
+        app.text_input(key='param_measure_reference_length').set_value('520').run()
+        button(app, 'Apply filter').click().run()
+
+        self.assertEqual(app.exception, [])
+        chain = app.session_state.pipeline.chain
+        self.assertEqual([step.name for step in chain], ['measure'])
+        self.assertEqual(chain[0].params['reference_length'], 520.0)
+
     def test_running_an_image_report(self):
         app = self._app()
         app.selectbox(key='analysis_name').select('noise').run()

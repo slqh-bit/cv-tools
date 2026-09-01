@@ -855,14 +855,69 @@ d'origine sont détruits quoi qu'il arrive, donc connaître le bruit n'en récup
 région avec l'original et indique si le contenu a réellement disparu.
 
 **`annotate`** — flèches, formes, texte, et mesure calibrée. `Scale` convertit des pixels en
-unités ; `measure_distance` (1D), `measure_area` (2D, formule du lacet), `draw_measurement`
-et `draw_scale_bar` les présentent.
+unités ; `measure_distance` (1D), `measure_area` (2D, formule du lacet), `draw_measurement`,
+`draw_area_measurement` et `draw_scale_bar` les présentent.
 
 Une échelle n'est valide que pour le plan dans lequel elle a été mesurée. Une règle posée au
 sol calibre les distances au sol et ne dit rien d'un panneau trois mètres plus loin, qui est
 plus éloigné de la caméra et donc plus petit par pixel. Corriger d'abord la perspective. Les
 annotations sont dessinées sur une copie — conserver l'original non annoté, car une image
 annotée est une figure, pas une preuve.
+
+## Mesure — `measure`, `measure_area`, `scale_bar`
+
+Les étapes de chaîne qui enveloppent `annotate`. Un `Scale` ne peut pas transiter par un
+préréglage JSON ; ces filtres prennent donc **les deux extrémités d'un objet dont la longueur
+est connue** — une plaque d'immatriculation, une porte, une règle laissée dans la scène —
+plutôt qu'un rapport pixels/unités qu'il faudrait calculer à la main, l'étape la plus sujette
+à l'erreur.
+
+| Paramètre | Signification |
+|---|---|
+| `point_a`, `point_b` | Ce qui est mesuré (`measure`) |
+| `points` | Trois sommets ou plus (`measure_area`), par paires ou en suite de coordonnées |
+| `reference_a`, `reference_b` | Les deux extrémités de la référence de longueur connue |
+| `reference_length` | La longueur réelle de cette référence, en `unit_name` |
+| `unit_name` | Unité de la longueur de référence, `mm` par défaut |
+
+Donner les trois paramètres `reference_a`, `reference_b` et `reference_length`, ou aucun ; une
+calibration à moitié énoncée est rejetée plutôt que devinée. Sans référence, le libellé est en
+pixels — honnête, mais rarement ce qu'exige une pièce à conviction. `scale_bar` en exige une :
+une barre sans calibration est une règle sans unités.
+
+En ligne de commande, la calibration est un *modificateur* partagé par toutes les mesures de
+la chaîne, car une échelle appartient à un plan de l'image et non à une mesure isolée :
+
+```bash
+python -m src.cli plaque.jpg \
+    --scale-ref 100,200,340,200 --scale-length 520 --scale-unit mm \
+    --measure 40,300,290,300 \
+    --measure-area 40,320,290,320,290,400,40,400 \
+    --scale-bar 200 -o mesure.jpg
+```
+
+**Une aire se convertit par le carré de l'échelle linéaire** : une calibration fausse de 5 %
+rend l'aire fausse d'environ 10 %. Utiliser plutôt `measure_3d` lorsque l'objet mesuré sort du
+plan calibré — la taille d'une personne ne peut pas se déduire d'une échelle posée sur le sol
+où elle se tient.
+
+## Annotation — `arrow`, `text`, `shape`
+
+De la présentation, pas de la mesure : ces filtres désignent quelque chose au lecteur sans rien
+affirmer à son sujet. `shape` dessine un `rectangle`, `circle`, `ellipse`, `line` ou `polygon` ;
+rectangles, lignes, cercles et ellipses prennent exactement deux points, les polygones trois ou
+plus. Les points s'écrivent par paires ou en suite de coordonnées : `10,10,60,50` et
+`[(10, 10), (60, 50)]` désignent la même chose.
+
+```bash
+python -m src.cli scene.jpg \
+    --arrow start=400,300 end=280,210 label=plaque \
+    --text text=Piece_A position=20,40 \
+    --shape shape=rectangle points=260,190,340,240 -o figure.jpg
+```
+
+Étant des étapes de chaîne ordinaires, elles sont consignées dans le préréglage et dans le
+rapport de traitement, ce qui rend reproductible une pièce annotée.
 
 **`measure_3d`** — la hauteur hors du plan du sol, que l'échelle ci-dessus ne peut pas
 atteindre. Étant donné l'horizon du plan du sol, le point de fuite des verticales de la scène,

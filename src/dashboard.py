@@ -686,15 +686,18 @@ def _viewer_tab(pipeline: Pipeline) -> None:
                              horizontal=True, label_visibility='collapsed')
     show_grid = controls[1].checkbox(
         'Coordinate grid', value=False,
-        help='Read x,y off the image for crop, roi_crop, redact, perspective '
-             'and measure_3d. Overlay only - the download stays clean.')
+        help='Read x,y off the image for any filter that takes coordinates. '
+             'Overlay only - the download stays clean.')
     spacing = controls[2].selectbox('Spacing', [20, 25, 50, 100], index=2,
                                     disabled=not show_grid,
                                     label_visibility='collapsed')
+    # Named from the registry rather than listed by hand, which went stale the
+    # first time a filter with coordinates was added
+    guided = ', '.join(sorted(POINT_PARAMETERS))
     tap = controls[3].checkbox(
         'Tap to pick coordinates', value=False, disabled=not TAP_TO_PICK,
-        help='Tap the image to read off x,y for crop, roi_crop, redact, '
-             'perspective and measure_3d.' if TAP_TO_PICK else
+        help=f'Tap the image to read off x,y. Guided picking, which names each '
+             f'point as it asks for it, covers: {guided}.' if TAP_TO_PICK else
              'Needs streamlit-image-coordinates; use the grid instead.')
 
     def shown(image: np.ndarray) -> np.ndarray:

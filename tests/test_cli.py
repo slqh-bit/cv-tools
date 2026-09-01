@@ -739,6 +739,92 @@ class TestCLICatalogue(CLITestCase):
             self.assertIn(name, output)
 
 
+class TestCLIMeasurement(CLITestCase):
+    """
+    The measurement and annotation flags.
+
+    The calibration is a modifier shared by every measurement in the chain,
+    because a scale belongs to an image plane rather than to one measurement.
+    """
+
+    CALIBRATION = ['--scale-ref', '10,10,60,10', '--scale-length', '520']
+
+    def test_measure_draws_a_dimension_line(self):
+        out = self.dir / 'measured.png'
+        code, _ = self.run_cli([str(self.input), *self.CALIBRATION,
+                                '--measure', '10,30,60,30', '-o', str(out)])
+        self.assertEqual(code, 0)
+        result = self.read(out)
+        self.assertEqual(result.shape[:2], self.image.shape[:2])
+        self.assertFalse(np.array_equal(result, self.image))
+
+    def test_measure_works_without_a_calibration(self):
+        out = self.dir / 'pixels.png'
+        code, _ = self.run_cli([str(self.input), '--measure', '10,30,60,30',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_measure_area_accepts_more_than_four_vertices(self):
+        out = self.dir / 'area.png'
+        code, _ = self.run_cli([str(self.input), '--measure-area',
+                                '5,5,40,5,50,25,25,45,5,25', '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_scale_bar_needs_a_calibration(self):
+        with self.assertRaises(SystemExit):
+            self.run_cli([str(self.input), '--scale-bar', '100',
+                          '-o', str(self.dir / 'o.png')])
+
+    def test_scale_bar_draws_with_a_calibration(self):
+        out = self.dir / 'bar.png'
+        code, _ = self.run_cli([str(self.input), *self.CALIBRATION,
+                                '--scale-bar', '200',
+                                '--scale-bar-position', 'top_left',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_annotation_flags_draw(self):
+        cases = {
+            'arrow': ['--arrow', 'start=50,10', 'end=20,30', 'label=plate'],
+            'text': ['--text', 'text=Exhibit_A', 'position=5,15'],
+            'shape': ['--shape', 'shape=rectangle', 'points=5,5,40,30'],
+        }
+        for name, flags in cases.items():
+            with self.subTest(flag=name):
+                out = self.dir / f'{name}.png'
+                code, _ = self.run_cli([str(self.input), *flags, '-o', str(out)])
+                self.assertEqual(code, 0)
+                self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_one_calibration_serves_every_measurement_in_the_chain(self):
+        out = self.dir / 'both.png'
+        code, _ = self.run_cli([str(self.input), *self.CALIBRATION,
+                                '--measure', '10,30,60,30',
+                                '--measure-area', '5,40,40,40,40,55,5,55',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_malformed_measurement_flags_are_rejected(self):
+        cases = [
+            ['--measure', '10,30,60'],                    # needs 4 numbers
+            ['--measure-area', '10,30,60,40'],            # only 2 vertices
+            ['--measure-area', '10,30,60,40,50'],         # odd count
+            ['--measure', '10,30,60,30', '--scale-ref', '1,2,3,4'],  # no length
+            ['--text', 'position=5,15'],                  # no text
+            ['--shape', 'points=5,5,40,30'],              # no shape
+            ['--shape', 'shape=rectangle'],               # no points
+        ]
+        for flags in cases:
+            with self.subTest(flags=' '.join(flags)):
+                with self.assertRaises(SystemExit):
+                    self.run_cli([str(self.input)] + flags
+                                 + ['-o', str(self.dir / 'o.png')])
+
+
 class TestCLIVideo(CLITestCase):
     """Multi-frame input, which needs a real video file to exercise."""
 

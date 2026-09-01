@@ -39,6 +39,43 @@ def _prepare(image: np.ndarray) -> np.ndarray:
     return img.copy()
 
 
+def _as_points(points: Sequence[Any]) -> List[Tuple[float, float]]:
+    """
+    Normalise a point list, accepting pairs or a flat run of coordinates.
+
+    A form field or a command line hands over ``x1,y1,x2,y2`` as four numbers,
+    while library callers pass ``[(x1, y1), (x2, y2)]``. Both mean the same
+    thing, and resolving it here rather than in each caller means the two front
+    ends and the CLI do not need three copies of the same rule.
+
+    Raises:
+        ValueError: If the list is empty, has an odd number of flat
+            coordinates, or contains something that is not an (x, y) pair
+    """
+    if points is None or len(points) == 0:
+        raise ValueError("No points given")
+
+    if isinstance(points[0], (int, float, np.integer, np.floating)):
+        if len(points) % 2 != 0:
+            raise ValueError(
+                f"A flat coordinate list needs an even number of values, "
+                f"got {len(points)}"
+            )
+        return [(float(points[i]), float(points[i + 1]))
+                for i in range(0, len(points), 2)]
+
+    pairs = []
+    for index, point in enumerate(points):
+        try:
+            x, y = point
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"Point {index} is not an (x, y) pair: {point!r}"
+            ) from None
+        pairs.append((float(x), float(y)))
+    return pairs
+
+
 def _draw_label(
     image: np.ndarray,
     text: str,
@@ -175,7 +212,7 @@ def draw_shape(
         raise ValueError("Input image is empty")
 
     result = _prepare(image)
-    array = [(int(p[0]), int(p[1])) for p in points]
+    array = [(int(round(x)), int(round(y))) for x, y in _as_points(points)]
 
     if shape in ('rectangle', 'line', 'circle', 'ellipse') and len(array) != 2:
         raise ValueError(f"'{shape}' needs exactly 2 points, got {len(array)}")
@@ -303,12 +340,12 @@ def measure_area(
         >>> measure_area([(0, 0), (100, 0), (100, 50), (0, 50)])['pixel_area']
         5000.0
     """
-    if points is None or len(points) < 3:
-        raise ValueError(f"An area needs at least 3 points, got {len(points or [])}")
+    if points is None or len(points) == 0:
+        raise ValueError("An area needs at least 3 points, got 0")
 
-    array = np.asarray(points, dtype=np.float64)
-    if array.ndim != 2 or array.shape[1] != 2:
-        raise ValueError(f"Expected (x, y) points, got shape {array.shape}")
+    array = np.asarray(_as_points(points), dtype=np.float64)
+    if len(array) < 3:
+        raise ValueError(f"An area needs at least 3 points, got {len(array)}")
 
     x, y = array[:, 0], array[:, 1]
     # Shoelace formula, absolute so vertex order does not matter
@@ -396,6 +433,80 @@ def draw_measurement(
     midpoint = ((p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2)
     _draw_label(result, text, (midpoint[0] + 8, midpoint[1] - 8), color,
                 font_scale, max(1, thickness - 1))
+
+    return result
+
+
+def draw_area_measurement(
+    image: np.ndarray,
+    points: Sequence[Sequence[float]],
+    scale: Optional[Scale] = None,
+    color: Tuple[int, int, int] = (255, 220, 40),
+    thickness: int = 2,
+    font_scale: float = 0.5,
+    precision: int = 1,
+    show_perimeter: bool = False,
+) -> np.ndarray:
+    """
+    Draw a closed polygon, labelled with its area.
+
+    The 2D counterpart of ``draw_measurement``. Area converts by the *square* of
+    the linear scale, which is why a calibration that is slightly wrong is
+    twice as wrong here - read the caveats on ``Scale`` before quoting the
+    number.
+
+    Args:
+        image: Input image
+        points: Three or more (x, y) vertices, or a flat run of coordinates
+        scale: Calibration; without it the label is in square pixels
+        color: RGB colour
+        thickness: Outline thickness
+        font_scale: Label size
+        precision: Decimal places in the label
+        show_perimeter: Add the perimeter on a second line
+
+    Returns:
+        Annotated RGB copy
+
+    Example:
+        >>> marked = draw_area_measurement(flat, [(10, 10), (90, 10), (90, 60),
+        ...                                       (10, 60)], Scale(240, 520, 'mm'))
+    """
+    if image is None or image.size == 0:
+        raise ValueError("Input image is empty")
+
+    measurement = measure_area(points, scale)
+    array = _as_points(points)
+    vertices = [(int(round(x)), int(round(y))) for x, y in array]
+
+    result = _prepare(image)
+    polygon = np.array(vertices, dtype=np.int32).reshape(-1, 1, 2)
+    cv2.polylines(result, [polygon], True, color, thickness, cv2.LINE_AA)
+
+    # Mark the vertices, so a reader can see exactly which points were clicked
+    for vertex in vertices:
+        cv2.circle(result, vertex, max(2, thickness + 1), color, -1, cv2.LINE_AA)
+
+    if scale is not None:
+        text = f"{measurement['area']:.{precision}f} {measurement['area_unit']}"
+    else:
+        text = f"{measurement['pixel_area']:.{precision}f} px^2"
+
+    # Mean of the vertices, not the true centroid: both can fall outside a
+    # concave polygon, and this one does not need the area to compute it
+    centre_x = int(round(sum(x for x, _ in array) / len(array)))
+    centre_y = int(round(sum(y for _, y in array) / len(array)))
+    label_thickness = max(1, thickness - 1)
+    _draw_label(result, text, (centre_x, centre_y), color, font_scale,
+                label_thickness)
+
+    if show_perimeter:
+        if scale is not None:
+            perimeter = f"{measurement['perimeter']:.{precision}f} {measurement['unit']}"
+        else:
+            perimeter = f"{measurement['pixel_perimeter']:.{precision}f} px"
+        _draw_label(result, perimeter, (centre_x, centre_y + 18), color,
+                    font_scale, label_thickness)
 
     return result
 

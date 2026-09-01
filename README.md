@@ -208,6 +208,25 @@ Measuring needs a scale, and a scale is valid only for the plane it was measured
 Correct perspective first — a calibration taken on the ground says nothing about a sign
 further from the camera.
 
+Calibrate from the two ends of something whose length you know — an EU number plate is
+520 mm wide — and every measurement in the chain uses it:
+
+```bash
+# Distance (1D) and area (2D), both against the same reference
+python -m src.cli plate.jpg \
+    --scale-ref 100,200,340,200 --scale-length 520 --scale-unit mm \
+    --measure 40,300,290,300 \
+    --measure-area 40,320,290,320,290,400,40,400 -o measured.jpg
+
+# A calibrated scale bar, so a reader can judge sizes without a caption
+python -m src.cli plate.jpg --scale-ref 100,200,340,200 --scale-length 520 \
+    --scale-bar 200 --scale-bar-position bottom_left -o with_bar.jpg
+```
+
+Omit the calibration and the label reads in pixels. Give it in part and the command is
+rejected rather than guessed at. **Area converts by the square of the linear scale**, so a
+calibration 5% out makes an area about 10% out.
+
 ```python
 from src.filters import Scale, scale_from_reference, measure_distance, draw_measurement
 
@@ -217,6 +236,23 @@ scale = scale_from_reference((100, 200), (340, 200), 520, 'mm')   # EU plate wid
 measure_distance((100, 200), (220, 260), scale)['distance']
 marked = draw_measurement(flat, (100, 200), (220, 260), scale)
 ```
+
+### Annotation
+
+Arrows, labels and shapes point a reader at something without claiming anything about it.
+They are ordinary chain steps, so they land in the preset and the processing report —
+which is what makes an annotated exhibit reproducible.
+
+```bash
+python -m src.cli scene.jpg \
+    --arrow start=400,300 end=280,210 label=plate \
+    --text text=Exhibit_A position=20,40 \
+    --shape shape=rectangle points=260,190,340,240 -o figure.jpg
+```
+
+In both front ends these are click-driven: pick the filter, press *Pick points*, and the
+viewer names each point as it asks for it — "one end of what you are measuring", then "one
+end of something of KNOWN length".
 
 ### Measuring height (3D)
 

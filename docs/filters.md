@@ -853,14 +853,68 @@ Seeding weakens nothing: the original pixels are discarded regardless, so knowin
 recovers none of them.
 
 **`annotate`** — arrows, shapes, text, and calibrated measurement. `Scale` converts pixels
-to units; `measure_distance` (1D), `measure_area` (2D, shoelace formula), `draw_measurement`
-and `draw_scale_bar` present them.
+to units; `measure_distance` (1D), `measure_area` (2D, shoelace formula), `draw_measurement`,
+`draw_area_measurement` and `draw_scale_bar` present them.
 
 A scale is valid only for the plane it was measured in. A ruler on the ground calibrates
 distances on the ground and says nothing about a sign three metres behind it, which is
 further from the camera and smaller per pixel. Correct perspective first. Annotations are
 drawn on a copy — keep the unannotated original, since a marked-up image is a figure, not
 evidence.
+
+## Measurement — `measure`, `measure_area`, `scale_bar`
+
+The chain steps that wrap `annotate`. A `Scale` cannot travel through a JSON preset, so these
+take **the two ends of something whose length you know** — a number plate, a door, a ruler
+left in the scene — rather than a pixels-to-units number you would otherwise have to compute
+by hand, which is the step most likely to go wrong.
+
+| Parameter | Meaning |
+|---|---|
+| `point_a`, `point_b` | What is being measured (`measure`) |
+| `points` | Three or more vertices (`measure_area`), as pairs or a flat run of coordinates |
+| `reference_a`, `reference_b` | The two ends of the known-length reference |
+| `reference_length` | That reference's true length, in `unit_name` |
+| `unit_name` | Unit of the reference length, `mm` by default |
+
+Give all three of `reference_a`, `reference_b` and `reference_length` or none of them; a
+half-stated calibration is rejected rather than guessed at. Without a reference the label
+reads in pixels, which is honest but rarely what an exhibit needs. `scale_bar` requires one —
+a bar with no calibration is a ruler with no units.
+
+On the command line the calibration is a *modifier*, shared by every measurement in the
+chain, because a scale belongs to an image plane rather than to one measurement:
+
+```bash
+python -m src.cli plate.jpg \
+    --scale-ref 100,200,340,200 --scale-length 520 --scale-unit mm \
+    --measure 40,300,290,300 \
+    --measure-area 40,320,290,320,290,400,40,400 \
+    --scale-bar 200 -o measured.jpg
+```
+
+**Area converts by the square of the linear scale**, so a calibration that is 5% wrong makes
+an area about 10% wrong. Read `measure_3d` instead when the thing being measured stands *out*
+of the calibrated plane — a person's height cannot be had from a scale laid on the ground
+they are standing on.
+
+## Annotation — `arrow`, `text`, `shape`
+
+Presentation rather than measurement: these point a reader at something without claiming
+anything about it. `shape` draws a `rectangle`, `circle`, `ellipse`, `line` or `polygon`;
+rectangles, lines, circles and ellipses take exactly two defining points, polygons three or
+more. Points may be given as pairs or as a flat run of coordinates, so `10,10,60,50` and
+`[(10, 10), (60, 50)]` mean the same thing.
+
+```bash
+python -m src.cli scene.jpg \
+    --arrow start=400,300 end=280,210 label=plate \
+    --text text=Exhibit_A position=20,40 \
+    --shape shape=rectangle points=260,190,340,240 -o figure.jpg
+```
+
+Because these are ordinary chain steps they are recorded in the preset and in the processing
+report, which is what makes an annotated exhibit reproducible.
 
 **`measure_3d`** — height out of the ground plane, which the scale above cannot reach.
 Given the ground plane's horizon, the vanishing point of scene verticals, and one reference
