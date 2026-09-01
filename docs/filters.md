@@ -777,6 +777,39 @@ The border is data the sequence does not have.
 CLI: `--stabilise [MODEL] --stabilise-method auto|ecc|features --stabilise-reference N
 --stabilise-min-confidence C`. `--stabilize` spellings work too.
 
+## Video output — `--video`
+
+Everything above reduces a video to one still. `--video` applies the chain to every frame of
+a range and writes video back out. One frame is held at a time, so it works on footage longer
+than memory.
+
+Dropping frames drops the playback rate with them: `--frame-step 5` over 25 fps footage writes
+5 fps, so the result still runs in real time. `--fps` overrides.
+
+**The codec is a forensic decision, not a convenience.** This toolkit contains filters — `ela`,
+`ghost`, `compression_analysis` — whose whole job is reading compression history. Writing an
+exhibit through a lossy codec adds a generation of exactly what they read. Measured on this
+build, ten frames written and read back:
+
+| Codec | Container | Size | Round trip |
+|---|---|---|---|
+| **FFV1** | `.avi` | 178 KB | **exact** |
+| RGBA | `.avi` | 211 KB | exact (uncompressed) |
+| MJPG | `.avi` | 47 KB | lossy |
+| XVID | `.avi` | 41 KB | lossy |
+| mp4v | `.mp4` | 36 KB | lossy |
+
+So `.avi` defaults to FFV1: lossless, intra-frame, and smaller than uncompressed. `.mp4` has
+no lossless option OpenCV writes reliably, so asking for one is asking for a lossy file — and
+the CLI says so rather than letting it pass unremarked. `avc1`/`H264` are unavailable in this
+build and fail cleanly rather than silently producing nothing.
+
+A frame arriving at a different size from the first is an error, not a rescale: a chain that
+resizes some frames and not others has produced a sequence that does not mean one thing, and
+stretching them to match would conceal precisely that.
+
+CLI: `--video --video-frames N --frame START --frame-step N --fps RATE --codec FOURCC`
+
 ---
 
 # Remaining catalogue

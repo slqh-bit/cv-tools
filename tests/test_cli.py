@@ -1169,5 +1169,121 @@ class TestCLISuperResolution(CLITestCase):
                         super_resolve_report(frames)['frames_with_subpixel_motion'])
 
 
+class TestCLIVideoOutput(CLITestCase):
+    """Applying the chain across a frame range and writing video back out."""
+
+    def setUp(self):
+        super().setUp()
+        self.clip = self.dir / 'clip.avi'
+        rng = np.random.default_rng(29)
+        base = np.zeros((64, 80, 3), dtype=np.uint8)
+        base[:, :40] = (60, 90, 140)
+        base[:, 40:] = (180, 150, 90)
+
+        writer = cv2.VideoWriter(str(self.clip),
+                                 cv2.VideoWriter_fourcc(*'MJPG'), 12, (80, 64))
+        if not writer.isOpened():
+            self.skipTest('MJPG video writer unavailable in this environment')
+        try:
+            for index in range(20):
+                frame = np.clip(base.astype(np.float32)
+                                + rng.normal(0, 12, base.shape), 0, 255).astype(np.uint8)
+                cv2.rectangle(frame, (2 + index * 3, 20), (10 + index * 3, 44),
+                              (255, 255, 255), -1)
+                writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+        finally:
+            writer.release()
+
+    def frames_of(self, path):
+        capture = cv2.VideoCapture(str(path))
+        out = []
+        try:
+            while True:
+                ok, frame = capture.read()
+                if not ok:
+                    break
+                out.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        finally:
+            capture.release()
+        return out
+
+    def test_the_chain_runs_over_every_frame(self):
+        out = self.dir / 'out.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '--clahe',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.frames_of(out)), 20)
+
+    def test_a_range_can_be_selected(self):
+        out = self.dir / 'range.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '--frame', '5',
+                                '--video-frames', '6', '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.frames_of(out)), 6)
+
+    def test_a_stride_thins_the_sequence(self):
+        out = self.dir / 'strided.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '--frame-step', '4',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.frames_of(out)), 5)
+
+    def test_the_output_is_lossless_by_default(self):
+        """
+        Writing a range with no filters must return the pixels unchanged.
+
+        This is the guarantee the FFV1 default exists for: passing an exhibit
+        through the tool should not add a compression generation.
+        """
+        out = self.dir / 'copy.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '-o', str(out)])
+        self.assertEqual(code, 0)
+
+        source, written = self.frames_of(self.clip), self.frames_of(out)
+        self.assertEqual(len(source), len(written))
+        for index, (before, after) in enumerate(zip(source, written)):
+            with self.subTest(frame=index):
+                np.testing.assert_array_equal(after, before)
+
+    def test_the_chain_actually_changed_the_frames(self):
+        plain, filtered = self.dir / 'p.avi', self.dir / 'f.avi'
+        self.run_cli([str(self.clip), '--video', '-o', str(plain)])
+        self.run_cli([str(self.clip), '--video', '--invert', '-o', str(filtered)])
+        self.assertFalse(np.array_equal(self.frames_of(plain)[0],
+                                        self.frames_of(filtered)[0]))
+
+    def test_a_codec_can_be_named(self):
+        out = self.dir / 'mjpg.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '--codec', 'MJPG',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.frames_of(out)), 20)
+
+    def test_video_needs_an_output_path(self):
+        code, _ = self.run_cli([str(self.clip), '--video', '--clahe'])
+        self.assertEqual(code, 1)
+
+    def test_video_needs_a_video_input(self):
+        code, _ = self.run_cli([str(self.input), '--video', '--clahe',
+                                '-o', str(self.dir / 'x.avi')])
+        self.assertEqual(code, 1)
+
+    def test_a_start_past_the_end_is_refused(self):
+        code, _ = self.run_cli([str(self.clip), '--video', '--frame', '500',
+                                '-o', str(self.dir / 'y.avi')])
+        self.assertEqual(code, 1)
+
+    def test_the_report_describes_the_run(self):
+        out, report = self.dir / 'r.avi', self.dir / 'r.md'
+        code, _ = self.run_cli([str(self.clip), '--video', '--clahe',
+                                '--report', str(report), '-o', str(out)])
+        self.assertEqual(code, 0)
+
+        text = report.read_text(encoding='utf-8')
+        self.assertIn('frames_written', text)
+        self.assertIn('output_codec', text)
+        self.assertIn('clahe', text)
+
+
 if __name__ == '__main__':
     unittest.main()

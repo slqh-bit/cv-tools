@@ -21,6 +21,7 @@ import numpy as np
 from .core.loader import ImageLoader, save_image
 from .core.pipeline import Pipeline
 from .core.report import ReportGenerator
+from .core.video import DEFAULT_CODECS, VideoWriter
 from .filters.aspect_ratio import PIXEL_ASPECT_RATIOS
 from .filters.analysis import (
     ANALYSIS_REGISTRY,
@@ -426,6 +427,21 @@ def build_parser() -> argparse.ArgumentParser:
                      type=float, default=DEFAULT_MIN_CONFIDENCE, metavar='C',
                      help=f'Frames matching below this are left out rather than '
                           f'warped on a guess (default: {DEFAULT_MIN_CONFIDENCE})')
+    out.add_argument('--video', action='store_true',
+                     help='Apply the chain to every frame of a range and write '
+                          'video, instead of reducing the input to one still. '
+                          'Needs a video input and an output file')
+    out.add_argument('--video-frames', type=int, default=0, metavar='N',
+                     help='How many frames --video processes, from --frame '
+                          'onward (default: to the end)')
+    out.add_argument('--fps', type=float, default=0.0, metavar='RATE',
+                     help="Output frame rate for --video (default: the "
+                          "source's, divided by --frame-step)")
+    out.add_argument('--codec', metavar='FOURCC',
+                     help='Video codec, e.g. FFV1 (lossless), MJPG, mp4v. '
+                          'Default depends on the output container: '
+                          + ', '.join(f'{ext} -> {code}'
+                                      for ext, code in DEFAULT_CODECS.items()))
     out.add_argument('--batch', action='store_true',
                      help='Process every image in the input directory')
     out.add_argument('--recursive', action='store_true',
@@ -1217,6 +1233,9 @@ def run_one(
     preset: Optional[Dict[str, Any]],
 ) -> int:
     """Process a single input file. Returns a process exit code."""
+    if args.video:
+        return _process_video(path, output_path, steps, args, preset)
+
     try:
         if args.frames > 0 and path.is_dir():
             # A folder of exported stills is how CCTV evidence usually
@@ -1262,6 +1281,104 @@ def _load_one(path: Path,
         else:
             image = loader.load(args.frame if loader.is_video else None)
         return image, loader.metadata
+
+
+def _process_video(
+    path: Path,
+    output_path: Optional[Path],
+    steps: List[Tuple[str, Dict[str, Any]]],
+    args: argparse.Namespace,
+    preset: Optional[Dict[str, Any]],
+) -> int:
+    """
+    Run the chain over a range of frames and write the result as video.
+
+    One frame is held at a time rather than the whole range, so this works on
+    footage longer than memory. The chain is rebuilt per frame, which is what
+    keeps every frame's processing identical and independently described in the
+    report.
+    """
+    if output_path is None:
+        print("error: --video needs an output file, e.g. -o processed.avi",
+              file=sys.stderr)
+        return 1
+
+    try:
+        with ImageLoader(path) as loader:
+            if not loader.is_video:
+                raise ValueError(
+                    f"--video needs a video input, got: {path.name}")
+
+            total = loader.get_video_frame_count()
+            step = max(1, args.frame_step)
+            wanted = args.video_frames if args.video_frames > 0 else total
+            indices = list(range(args.frame, total, step))[:wanted]
+            if not indices:
+                raise ValueError(
+                    f"No frames selected: the video has {total} frames and "
+                    f"--frame is {args.frame}")
+
+            # Dropping frames drops the playback rate with them, so a stride of
+            # 5 over 25fps footage plays back at 5fps and keeps real time
+            source_fps = loader.get_video_fps()
+            fps = args.fps or (source_fps / step if source_fps > 0 else 25.0)
+
+            writer = VideoWriter(output_path, fps=fps, codec=args.codec)
+            if not writer.lossless:
+                # The toolkit reads compression history elsewhere; adding a
+                # generation of it to an exhibit should be a decision, not a
+                # default that happened
+                print(f"note: '{writer.codec}' is lossy, so the output carries "
+                      f"compression this input did not. Write .avi for "
+                      f"lossless FFV1 if the result is evidence.",
+                      file=sys.stderr)
+
+            pipeline = None
+            with writer:
+                for position, index in enumerate(indices):
+                    frame = loader.goto_frame(index)
+                    pipeline = process_image(
+                        frame, steps, preset=preset,
+                        verbose=args.verbose and position == 0)
+                    writer.write(pipeline.current)
+                    if args.verbose and position and position % 25 == 0:
+                        print(f"  {position}/{len(indices)} frames",
+                              file=sys.stderr)
+
+            metadata = dict(loader.metadata)
+            metadata['frames_written'] = writer.frames_written
+            metadata['frame_range'] = f'{indices[0]}..{indices[-1]} step {step}'
+            metadata['output_codec'] = writer.codec
+            metadata['output_lossless'] = writer.lossless
+            metadata['output_fps'] = round(fps, 3)
+
+    except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"Saved: {output_path} ({writer.frames_written} frames, "
+          f"{writer.codec}, {fps:.3g} fps)")
+
+    if args.report and pipeline is not None:
+        try:
+            report = ReportGenerator(pipeline.generate_report(), metadata,
+                                     describe=filter_description)
+            fmt = REPORT_FORMATS.get(Path(args.report).suffix.lower(), 'markdown')
+            report.save(args.report, format=fmt)
+            print(f"Saved report: {args.report}")
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+    if args.save_preset and pipeline is not None:
+        try:
+            pipeline.save_preset(args.save_preset)
+            print(f"Saved preset: {args.save_preset}")
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+    return 0
 
 
 def _process_source(
@@ -1410,8 +1527,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                      or any(getattr(args, spec.cli_dest)
                             for spec in ANALYSIS_REGISTRY.values()))
     # Combining frames is a transformation in its own right, so it counts as
-    # work even with no filter chain behind it
-    if not steps and not preset and not analysis_only and args.frames <= 0:
+    # work even with no filter chain behind it. So is writing video: extracting
+    # a frame range losslessly is a job, and refusing it because no filter was
+    # named would be arbitrary.
+    if (not steps and not preset and not analysis_only
+            and args.frames <= 0 and not args.video):
         parser.error("no filters specified (try --list-filters, or --info)")
 
     output_path = Path(args.output) if args.output else None

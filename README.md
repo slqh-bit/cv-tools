@@ -410,6 +410,34 @@ so the result may be no better than --upscale. Compare the two before relying on
 > motion and sub-pixel detail worth recovering, it needs registration with a full motion
 > model inside the reconstruction, which this does not yet do.
 
+### Video in, video out
+
+Everything above reduces a video to one still. `--video` is the other direction: the chain
+applied to every frame of a range, written back out as video.
+
+```bash
+# Enhance a whole clip
+python -m src.cli clip.avi --video --clahe clip=2.0 --sharpen -o enhanced.avi
+
+# Just a range, every fourth frame
+python -m src.cli clip.avi --video --frame 300 --video-frames 200 --frame-step 4 -o cut.avi
+
+# No filters: extract a range losslessly
+python -m src.cli clip.avi --video --frame 1200 --video-frames 50 -o excerpt.avi
+```
+
+One frame is held at a time, so this works on footage longer than memory. Dropping frames
+drops the playback rate with them — `--frame-step 5` over 25 fps footage writes 5 fps, so the
+result still runs in real time. Override with `--fps`.
+
+> **The codec is a forensic decision.** `.avi` defaults to **FFV1**, which is lossless: the
+> pixels that go in come back out bit for bit, verified by round trip rather than assumed.
+> That matters because this toolkit contains filters — `ela`, `ghost`, `compression_analysis`
+> — whose whole job is reading compression history, and re-encoding lossily corrupts exactly
+> what they read. Measured on this build over ten frames: FFV1 178 KB **exact**, MJPG 47 KB
+> lossy, XVID 41 KB lossy, mp4v 36 KB lossy. Ask for `.mp4` or `--codec MJPG` and you get a
+> note saying the output now carries compression the input did not.
+
 ### Analysis and reporting
 
 ```bash
@@ -663,7 +691,7 @@ To append a preset on top of the current chain instead of replacing it, use
 python -m unittest discover -s tests -t .
 ```
 
-729 tests. Run one file or one case:
+915 tests. Run one file or one case:
 
 ```bash
 python -m unittest tests.test_forensic
@@ -671,7 +699,33 @@ python -m unittest tests.test_filters.TestClahe.test_increases_contrast -v
 ```
 
 The GUI tests skip automatically where Tkinter has no display, and the dashboard tests
-where Streamlit is not installed.
+where Streamlit is not installed. CI runs the suite on Linux and Windows
+(`.github/workflows/tests.yml`).
+
+### The validation campaign
+
+Beyond the unit tests there is a separate campaign that runs every filter and report over a
+real corpus — nine CCTV frames chosen by measurement from two hundred, published reference
+images with a known property, and forgeries built here so the answer is known. It checks the
+invariants the toolkit rests on (a real uint8 image, no NaN, the same answer twice, the
+parameters actually doing something) plus what each filter specifically promises, and some
+assertions come from independent implementations so they are not this code marking its own
+homework.
+
+```bash
+python validation/regress.py          # run it, and diff against the last recorded run
+python validation/regress.py --no-run # just diff what is already on disk
+```
+
+`regress.py` exits non-zero when something got worse, so it can gate a push. It reports more
+than pass/fail: a filter that ran **fewer cases** than before, or **lost checks**, counts as a
+regression too, because a campaign that quietly stopped exercising something reads exactly
+like one where that thing is fine.
+
+This does not run in CI, and cannot: the corpus is real footage from the author's camera,
+read from outside the repository and not redistributable, so a hosted runner has no way to
+assemble the images that make the campaign worth running. It runs where the evidence is.
+See [validation/RESULTS.md](validation/RESULTS.md) for the last run.
 
 ## Trying every filter
 

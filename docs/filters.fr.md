@@ -775,6 +775,44 @@ sans en être un. Ce bord est une donnée que la séquence ne possède pas.
 CLI : `--stabilise [MODÈLE] --stabilise-method auto|ecc|features --stabilise-reference N
 --stabilise-min-confidence C`. Les graphies `--stabilize` fonctionnent également.
 
+## Sortie vidéo — `--video`
+
+Tout ce qui précède réduit une vidéo à une seule image. `--video` fait l'inverse : la chaîne
+est appliquée à chaque image d'une plage, puis réécrite en vidéo. Une seule image est
+conservée en mémoire à la fois, ce qui permet de traiter des séquences plus longues que la
+mémoire disponible.
+
+Écarter des images abaisse d'autant la cadence : `--frame-step 5` sur du 25 im/s écrit du
+5 im/s, de sorte que le résultat se déroule toujours en temps réel. `--fps` permet de forcer
+une autre valeur.
+
+**Le codec est une décision de nature légale, pas un détail pratique.** Cette boîte à outils
+contient des filtres — `ela`, `ghost`, `compression_analysis` — dont le travail est justement
+de lire l'historique de compression. Écrire une pièce à conviction dans un codec avec perte
+ajoute une génération de ce qu'ils lisent. Mesuré sur cette version, dix images écrites puis
+relues :
+
+| Codec | Conteneur | Taille | Aller-retour |
+|---|---|---|---|
+| **FFV1** | `.avi` | 178 Ko | **exact** |
+| RGBA | `.avi` | 211 Ko | exact (non compressé) |
+| MJPG | `.avi` | 47 Ko | avec perte |
+| XVID | `.avi` | 41 Ko | avec perte |
+| mp4v | `.mp4` | 36 Ko | avec perte |
+
+`.avi` utilise donc FFV1 par défaut : sans perte, intra-image, et plus compact que du non
+compressé. `.mp4` n'offre aucune option sans perte qu'OpenCV écrive de façon fiable ; le
+demander revient donc à demander un fichier avec perte — et la CLI le signale plutôt que de
+laisser passer la chose sans commentaire. `avc1`/`H264` sont indisponibles dans cette version
+et échouent proprement au lieu de produire silencieusement un fichier vide.
+
+Une image dont la taille diffère de la première est une erreur, non un redimensionnement : une
+chaîne qui redimensionne certaines images et pas d'autres a produit une séquence qui ne veut
+pas dire une seule chose, et les étirer pour les faire correspondre masquerait précisément
+cela.
+
+CLI : `--video --video-frames N --frame DÉBUT --frame-step N --fps CADENCE --codec FOURCC`
+
 ---
 
 # Catalogue restant
