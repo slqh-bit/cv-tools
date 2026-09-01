@@ -1,7 +1,7 @@
 # component - validation result
 
 **Extract one colour-space channel**  
-`src.filters.component_separation` | family: Special | 2026-08-21T12:46:50
+`src.filters.component_separation` | family: Special | 2026-09-01T16:37:18
 
 ## Verdict
 
@@ -75,32 +75,32 @@ Rejected on purpose, with the message the user would see.
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 1.0 | [362, 640] uint8 mean 170.41 | ok |
-| `cctv/brightest.jpg` | `space=hls` | 0.6 | [362, 640] uint8 mean 162.97 | ok |
+| `cctv/brightest.jpg` | `defaults` | 0.7 | [362, 640] uint8 mean 170.41 | ok |
+| `cctv/brightest.jpg` | `space=hls` | 0.9 | [362, 640] uint8 mean 162.97 | ok |
 | `cctv/brightest.jpg` | `space=hsv` | 0.0 | - | refused: ValueError: Colour space 'hsv' has no channel 'L'. Available: H, S, V |
 | `cctv/brightest.jpg` | `channel=r` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'r'. Available: L, a, b |
 | `cctv/brightest.jpg` | `channel=g` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'g'. Available: L, a, b |
-| `cctv/brightest.jpg` | `normalize=True` | 1.3 | [362, 640] uint8 mean 170.41 | ok |
-| `cctv/darkest.jpg` | `defaults` | 0.7 | [362, 640] uint8 mean 118.26 | ok |
-| `cctv/darkest.jpg` | `space=hls` | 0.6 | [362, 640] uint8 mean 110.66 | ok |
+| `cctv/brightest.jpg` | `normalize=True` | 1.8 | [362, 640] uint8 mean 170.41 | ok |
+| `cctv/darkest.jpg` | `defaults` | 0.9 | [362, 640] uint8 mean 118.26 | ok |
+| `cctv/darkest.jpg` | `space=hls` | 0.7 | [362, 640] uint8 mean 110.66 | ok |
 | `cctv/darkest.jpg` | `space=hsv` | 0.0 | - | refused: ValueError: Colour space 'hsv' has no channel 'L'. Available: H, S, V |
 | `cctv/darkest.jpg` | `channel=r` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'r'. Available: L, a, b |
 | `cctv/darkest.jpg` | `channel=g` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'g'. Available: L, a, b |
-| `cctv/darkest.jpg` | `normalize=True` | 1.1 | [362, 640] uint8 mean 118.26 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 0.6 | [362, 640] uint8 mean 134.99 | ok |
-| `cctv/event_fall.jpg` | `space=hls` | 0.6 | [362, 640] uint8 mean 123.91 | ok |
+| `cctv/darkest.jpg` | `normalize=True` | 1.3 | [362, 640] uint8 mean 118.26 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 0.7 | [362, 640] uint8 mean 134.99 | ok |
+| `cctv/event_fall.jpg` | `space=hls` | 0.5 | [362, 640] uint8 mean 123.91 | ok |
 | `cctv/event_fall.jpg` | `space=hsv` | 0.0 | - | refused: ValueError: Colour space 'hsv' has no channel 'L'. Available: H, S, V |
 | `cctv/event_fall.jpg` | `channel=r` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'r'. Available: L, a, b |
 | `cctv/event_fall.jpg` | `channel=g` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'g'. Available: L, a, b |
 | `cctv/event_fall.jpg` | `normalize=True` | 1.1 | [362, 640] uint8 mean 134.99 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 0.6 | [362, 640] uint8 mean 136.03 | ok |
-| `cctv/event_optflow.jpg` | `space=hls` | 0.6 | [362, 640] uint8 mean 123.66 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 0.9 | [362, 640] uint8 mean 136.03 | ok |
+| `cctv/event_optflow.jpg` | `space=hls` | 0.5 | [362, 640] uint8 mean 123.66 | ok |
 | `cctv/event_optflow.jpg` | `space=hsv` | 0.0 | - | refused: ValueError: Colour space 'hsv' has no channel 'L'. Available: H, S, V |
 | `cctv/event_optflow.jpg` | `channel=r` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'r'. Available: L, a, b |
 | `cctv/event_optflow.jpg` | `channel=g` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'g'. Available: L, a, b |
 | `cctv/event_optflow.jpg` | `normalize=True` | 1.1 | [362, 640] uint8 mean 136.03 | ok |
 | `cctv/event_tamper.jpg` | `defaults` | 0.7 | [362, 640] uint8 mean 167.28 | ok |
-| `cctv/event_tamper.jpg` | `space=hls` | 0.6 | [362, 640] uint8 mean 160.23 | ok |
+| `cctv/event_tamper.jpg` | `space=hls` | 0.5 | [362, 640] uint8 mean 160.23 | ok |
 | `cctv/event_tamper.jpg` | `space=hsv` | 0.0 | - | refused: ValueError: Colour space 'hsv' has no channel 'L'. Available: H, S, V |
 | `cctv/event_tamper.jpg` | `channel=r` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'r'. Available: L, a, b |
 | `cctv/event_tamper.jpg` | `channel=g` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'g'. Available: L, a, b |
@@ -110,25 +110,25 @@ Rejected on purpose, with the message the user would see.
 | `cctv/flattest.jpg` | `space=hsv` | 0.0 | - | refused: ValueError: Colour space 'hsv' has no channel 'L'. Available: H, S, V |
 | `cctv/flattest.jpg` | `channel=r` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'r'. Available: L, a, b |
 | `cctv/flattest.jpg` | `channel=g` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'g'. Available: L, a, b |
-| `cctv/flattest.jpg` | `normalize=True` | 1.1 | [362, 640] uint8 mean 131.74 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 0.9 | [362, 640] uint8 mean 145.08 | ok |
-| `cctv/most_blown.jpg` | `space=hls` | 0.6 | [362, 640] uint8 mean 137.92 | ok |
+| `cctv/flattest.jpg` | `normalize=True` | 1.5 | [362, 640] uint8 mean 131.74 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 1.0 | [362, 640] uint8 mean 145.08 | ok |
+| `cctv/most_blown.jpg` | `space=hls` | 0.7 | [362, 640] uint8 mean 137.92 | ok |
 | `cctv/most_blown.jpg` | `space=hsv` | 0.0 | - | refused: ValueError: Colour space 'hsv' has no channel 'L'. Available: H, S, V |
 | `cctv/most_blown.jpg` | `channel=r` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'r'. Available: L, a, b |
 | `cctv/most_blown.jpg` | `channel=g` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'g'. Available: L, a, b |
-| `cctv/most_blown.jpg` | `normalize=True` | 1.1 | [362, 640] uint8 mean 145.08 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 0.7 | [362, 640] uint8 mean 138.34 | ok |
-| `cctv/sharpest.jpg` | `space=hls` | 0.6 | [362, 640] uint8 mean 131.71 | ok |
+| `cctv/most_blown.jpg` | `normalize=True` | 1.3 | [362, 640] uint8 mean 145.08 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 1.1 | [362, 640] uint8 mean 138.34 | ok |
+| `cctv/sharpest.jpg` | `space=hls` | 0.5 | [362, 640] uint8 mean 131.71 | ok |
 | `cctv/sharpest.jpg` | `space=hsv` | 0.0 | - | refused: ValueError: Colour space 'hsv' has no channel 'L'. Available: H, S, V |
 | `cctv/sharpest.jpg` | `channel=r` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'r'. Available: L, a, b |
 | `cctv/sharpest.jpg` | `channel=g` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'g'. Available: L, a, b |
-| `cctv/sharpest.jpg` | `normalize=True` | 1.1 | [362, 640] uint8 mean 138.34 | ok |
-| `cctv/softest.jpg` | `defaults` | 0.6 | [362, 640] uint8 mean 133.38 | ok |
-| `cctv/softest.jpg` | `space=hls` | 0.6 | [362, 640] uint8 mean 125.01 | ok |
+| `cctv/sharpest.jpg` | `normalize=True` | 1.2 | [362, 640] uint8 mean 138.34 | ok |
+| `cctv/softest.jpg` | `defaults` | 0.7 | [362, 640] uint8 mean 133.38 | ok |
+| `cctv/softest.jpg` | `space=hls` | 1.6 | [362, 640] uint8 mean 125.01 | ok |
 | `cctv/softest.jpg` | `space=hsv` | 0.0 | - | refused: ValueError: Colour space 'hsv' has no channel 'L'. Available: H, S, V |
 | `cctv/softest.jpg` | `channel=r` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'r'. Available: L, a, b |
 | `cctv/softest.jpg` | `channel=g` | 0.0 | - | refused: ValueError: Colour space 'lab' has no channel 'g'. Available: L, a, b |
-| `cctv/softest.jpg` | `normalize=True` | 1.1 | [362, 640] uint8 mean 133.38 | ok |
+| `cctv/softest.jpg` | `normalize=True` | 1.7 | [362, 640] uint8 mean 133.38 | ok |
 
 ## Artifacts
 

@@ -1,7 +1,7 @@
 # perspective - validation result
 
 **Rectify a quadrilateral from four corners**  
-`src.filters.perspective_correction` | family: Correct | 2026-08-21T12:45:36
+`src.filters.perspective_correction` | family: Correct | 2026-09-01T16:35:51
 
 ## Verdict
 
@@ -40,39 +40,39 @@ Rejected on purpose, with the message the user would see.
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 5.0 | [362, 561, 3] uint8 mean 138.49 | ok |
+| `cctv/brightest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.9 | [362, 561, 3] uint8 mean 138.49 | ok |
 | `cctv/brightest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
 | `cctv/brightest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 138.47 | ok |
-| `cctv/darkest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.8 | [362, 561, 3] uint8 mean 92.24 | ok |
+| `cctv/darkest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.7 | [362, 561, 3] uint8 mean 92.24 | ok |
 | `cctv/darkest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
-| `cctv/darkest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.6 | [362, 561, 3] uint8 mean 92.23 | ok |
-| `cctv/event_fall.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.8 | [362, 561, 3] uint8 mean 107.84 | ok |
+| `cctv/darkest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 92.23 | ok |
+| `cctv/event_fall.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 5.2 | [362, 561, 3] uint8 mean 107.84 | ok |
 | `cctv/event_fall.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
 | `cctv/event_fall.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 107.8 | ok |
-| `cctv/event_optflow.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.9 | [362, 561, 3] uint8 mean 105.78 | ok |
+| `cctv/event_optflow.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 5.8 | [362, 561, 3] uint8 mean 105.78 | ok |
 | `cctv/event_optflow.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
-| `cctv/event_optflow.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 105.76 | ok |
+| `cctv/event_optflow.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.8 | [362, 561, 3] uint8 mean 105.76 | ok |
 | `cctv/event_tamper.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.9 | [362, 561, 3] uint8 mean 135.78 | ok |
 | `cctv/event_tamper.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
-| `cctv/event_tamper.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 135.76 | ok |
-| `cctv/flattest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.8 | [362, 561, 3] uint8 mean 102.71 | ok |
+| `cctv/event_tamper.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 1.3 | [362, 561, 3] uint8 mean 135.76 | ok |
+| `cctv/flattest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 5.1 | [362, 561, 3] uint8 mean 102.71 | ok |
 | `cctv/flattest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
 | `cctv/flattest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 102.69 | ok |
-| `cctv/most_blown.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.8 | [362, 561, 3] uint8 mean 116.1 | ok |
+| `cctv/most_blown.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 5.2 | [362, 561, 3] uint8 mean 116.1 | ok |
 | `cctv/most_blown.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
-| `cctv/most_blown.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.6 | [362, 561, 3] uint8 mean 116.06 | ok |
+| `cctv/most_blown.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 1.1 | [362, 561, 3] uint8 mean 116.06 | ok |
 | `cctv/sharpest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.8 | [362, 561, 3] uint8 mean 111.03 | ok |
 | `cctv/sharpest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
 | `cctv/sharpest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 111.0 | ok |
 | `cctv/softest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.7 | [362, 561, 3] uint8 mean 105.36 | ok |
 | `cctv/softest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
 | `cctv/softest.jpg` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 105.34 | ok |
-| `ground_truth/grid_perspective.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.8 | [362, 561, 3] uint8 mean 233.41 | ok |
+| `ground_truth/grid_perspective.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 6.3 | [362, 561, 3] uint8 mean 233.41 | ok |
 | `ground_truth/grid_perspective.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
-| `ground_truth/grid_perspective.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.6 | [362, 561, 3] uint8 mean 234.08 | ok |
-| `reference/perspective_sudoku.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 4.8 | [362, 561, 3] uint8 mean 103.82 | ok |
+| `ground_truth/grid_perspective.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 234.08 | ok |
+| `reference/perspective_sudoku.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]]` | 5.2 | [362, 561, 3] uint8 mean 103.82 | ok |
 | `reference/perspective_sudoku.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: bicubic, bilinear, |
-| `reference/perspective_sudoku.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.6 | [362, 561, 3] uint8 mean 103.81 | ok |
+| `reference/perspective_sudoku.png` | `corners=[[80, 40], [560, 90], [600, 430], [40, 400]], int...` | 0.7 | [362, 561, 3] uint8 mean 103.81 | ok |
 
 ## Artifacts
 

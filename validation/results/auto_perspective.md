@@ -1,7 +1,7 @@
 # auto_perspective - validation result
 
 **Detect and rectify a rectangular surface**  
-`src.filters.perspective_correction` | family: Correct | 2026-08-21T12:45:36
+`src.filters.perspective_correction` | family: Correct | 2026-09-01T16:35:51
 
 ## Verdict
 
@@ -29,15 +29,15 @@ Not defects: a parameter at the end of its range doing exactly what it says.
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
 | `cctv/brightest.jpg` | `defaults` | 1.6 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
-| `cctv/darkest.jpg` | `defaults` | 1.6 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
-| `cctv/event_fall.jpg` | `defaults` | 2.0 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
-| `cctv/event_optflow.jpg` | `defaults` | 2.4 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
-| `cctv/event_tamper.jpg` | `defaults` | 1.5 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
-| `cctv/flattest.jpg` | `defaults` | 1.6 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
-| `cctv/most_blown.jpg` | `defaults` | 1.7 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
-| `cctv/sharpest.jpg` | `defaults` | 2.3 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
-| `cctv/softest.jpg` | `defaults` | 1.5 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
-| `reference/perspective_sudoku.png` | `defaults` | 2.8 | [563, 558, 3] uint8 mean 101.19 | output identical to input |
+| `cctv/darkest.jpg` | `defaults` | 2.1 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
+| `cctv/event_fall.jpg` | `defaults` | 2.4 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
+| `cctv/event_optflow.jpg` | `defaults` | 2.0 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_tamper.jpg` | `defaults` | 1.6 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
+| `cctv/flattest.jpg` | `defaults` | 1.8 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
+| `cctv/most_blown.jpg` | `defaults` | 1.9 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
+| `cctv/sharpest.jpg` | `defaults` | 2.2 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
+| `cctv/softest.jpg` | `defaults` | 1.8 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
+| `reference/perspective_sudoku.png` | `defaults` | 2.7 | [563, 558, 3] uint8 mean 101.19 | output identical to input |
 
 ## Artifacts
 

@@ -1,7 +1,7 @@
 # ghost - validation result
 
 **JPEG ghost: the recompression sweep frame with the most structure, dark where the pixels match that quality**  
-`src.filters.jpeg_ghost` | family: Forensic | 2026-08-21T12:46:46
+`src.filters.jpeg_ghost` | family: Forensic | 2026-09-01T16:37:13
 
 ## Verdict
 
@@ -21,28 +21,28 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 76.6 | [352, 640] uint8 mean 187.37 | ok |
-| `cctv/brightest.jpg` | `upscale=False` | 74.9 | [22, 40] uint8 mean 187.37 | ok |
-| `cctv/darkest.jpg` | `defaults` | 75.1 | [352, 640] uint8 mean 187.06 | ok |
-| `cctv/darkest.jpg` | `upscale=False` | 74.1 | [22, 40] uint8 mean 187.06 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 77.9 | [352, 640] uint8 mean 111.09 | ok |
-| `cctv/event_fall.jpg` | `upscale=False` | 77.5 | [22, 40] uint8 mean 111.09 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 76.0 | [352, 640] uint8 mean 100.51 | ok |
-| `cctv/event_optflow.jpg` | `upscale=False` | 75.3 | [22, 40] uint8 mean 100.51 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 75.5 | [352, 640] uint8 mean 68.97 | ok |
-| `cctv/event_tamper.jpg` | `upscale=False` | 74.7 | [22, 40] uint8 mean 68.97 | ok |
-| `cctv/flattest.jpg` | `defaults` | 75.0 | [352, 640] uint8 mean 102.21 | ok |
-| `cctv/flattest.jpg` | `upscale=False` | 75.1 | [22, 40] uint8 mean 102.21 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 74.8 | [352, 640] uint8 mean 207.03 | ok |
-| `cctv/most_blown.jpg` | `upscale=False` | 75.2 | [22, 40] uint8 mean 207.03 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 77.6 | [352, 640] uint8 mean 237.36 | ok |
-| `cctv/sharpest.jpg` | `upscale=False` | 77.0 | [22, 40] uint8 mean 237.36 | ok |
-| `cctv/softest.jpg` | `defaults` | 74.3 | [352, 640] uint8 mean 140.26 | ok |
-| `cctv/softest.jpg` | `upscale=False` | 75.0 | [22, 40] uint8 mean 140.26 | ok |
-| `ground_truth/quality_splice.jpg` | `defaults` | 78.0 | [352, 640] uint8 mean 233.84 | ok |
-| `ground_truth/quality_splice.jpg` | `upscale=False` | 77.5 | [22, 40] uint8 mean 233.84 | ok |
-| `ground_truth/clean_control.jpg` | `defaults` | 78.8 | [352, 640] uint8 mean 237.94 | ok |
-| `ground_truth/clean_control.jpg` | `upscale=False` | 78.0 | [22, 40] uint8 mean 237.94 | ok |
+| `cctv/brightest.jpg` | `defaults` | 81.6 | [352, 640] uint8 mean 187.37 | ok |
+| `cctv/brightest.jpg` | `upscale=False` | 82.4 | [22, 40] uint8 mean 187.37 | ok |
+| `cctv/darkest.jpg` | `defaults` | 87.0 | [352, 640] uint8 mean 187.06 | ok |
+| `cctv/darkest.jpg` | `upscale=False` | 76.4 | [22, 40] uint8 mean 187.06 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 84.5 | [352, 640] uint8 mean 111.09 | ok |
+| `cctv/event_fall.jpg` | `upscale=False` | 79.2 | [22, 40] uint8 mean 111.09 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 82.2 | [352, 640] uint8 mean 100.51 | ok |
+| `cctv/event_optflow.jpg` | `upscale=False` | 77.4 | [22, 40] uint8 mean 100.51 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 81.9 | [352, 640] uint8 mean 68.97 | ok |
+| `cctv/event_tamper.jpg` | `upscale=False` | 80.6 | [22, 40] uint8 mean 68.97 | ok |
+| `cctv/flattest.jpg` | `defaults` | 84.5 | [352, 640] uint8 mean 102.21 | ok |
+| `cctv/flattest.jpg` | `upscale=False` | 76.1 | [22, 40] uint8 mean 102.21 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 79.6 | [352, 640] uint8 mean 207.03 | ok |
+| `cctv/most_blown.jpg` | `upscale=False` | 79.0 | [22, 40] uint8 mean 207.03 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 83.8 | [352, 640] uint8 mean 237.36 | ok |
+| `cctv/sharpest.jpg` | `upscale=False` | 78.4 | [22, 40] uint8 mean 237.36 | ok |
+| `cctv/softest.jpg` | `defaults` | 80.7 | [352, 640] uint8 mean 140.26 | ok |
+| `cctv/softest.jpg` | `upscale=False` | 76.0 | [22, 40] uint8 mean 140.26 | ok |
+| `ground_truth/quality_splice.jpg` | `defaults` | 85.1 | [352, 640] uint8 mean 233.84 | ok |
+| `ground_truth/quality_splice.jpg` | `upscale=False` | 85.1 | [22, 40] uint8 mean 233.84 | ok |
+| `ground_truth/clean_control.jpg` | `defaults` | 83.5 | [352, 640] uint8 mean 237.94 | ok |
+| `ground_truth/clean_control.jpg` | `upscale=False` | 80.0 | [22, 40] uint8 mean 237.94 | ok |
 
 ## Artifacts
 

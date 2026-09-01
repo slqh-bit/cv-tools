@@ -4,3 +4,4 @@ __pycache__/
 .tools/
 validation/artifacts/
 validation/corpus/
+validation/summary-partial.json

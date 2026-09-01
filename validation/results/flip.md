@@ -1,7 +1,7 @@
 # flip - validation result
 
 **Flip horizontally, vertically or both**  
-`src.filters.crop_resize` | family: Adjust | 2026-08-21T12:44:37
+`src.filters.crop_resize` | family: Adjust | 2026-09-01T16:34:49
 
 ## Verdict
 
@@ -25,21 +25,21 @@
 | `cctv/darkest.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 110.93 | ok |
 | `cctv/darkest.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 110.93 | ok |
 | `cctv/event_fall.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 125.51 | ok |
-| `cctv/event_fall.jpg` | `direction=vertical` | 0.2 | [362, 640, 3] uint8 mean 125.51 | ok |
+| `cctv/event_fall.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 125.51 | ok |
 | `cctv/event_fall.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 125.51 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 125.42 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 125.42 | ok |
 | `cctv/event_optflow.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 125.42 | ok |
 | `cctv/event_optflow.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 125.42 | ok |
 | `cctv/event_tamper.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 160.62 | ok |
 | `cctv/event_tamper.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 160.62 | ok |
 | `cctv/event_tamper.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 160.62 | ok |
 | `cctv/flattest.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 121.5 | ok |
-| `cctv/flattest.jpg` | `direction=vertical` | 0.2 | [362, 640, 3] uint8 mean 121.5 | ok |
-| `cctv/flattest.jpg` | `direction=both` | 0.2 | [362, 640, 3] uint8 mean 121.5 | ok |
+| `cctv/flattest.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 121.5 | ok |
+| `cctv/flattest.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 121.5 | ok |
 | `cctv/most_blown.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 138.08 | ok |
 | `cctv/most_blown.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 138.08 | ok |
 | `cctv/most_blown.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 138.08 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 131.76 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 131.76 | ok |
 | `cctv/sharpest.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 131.76 | ok |
 | `cctv/sharpest.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 131.76 | ok |
 | `cctv/softest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 125.38 | ok |

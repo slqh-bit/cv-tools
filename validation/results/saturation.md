@@ -1,7 +1,7 @@
 # saturation - validation result
 
 **Uniform saturation scaling**  
-`src.filters.saturation` | family: Adjust | 2026-08-21T12:44:40
+`src.filters.saturation` | family: Adjust | 2026-09-01T16:34:52
 
 ## Verdict
 
@@ -30,33 +30,33 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 2.3 | [362, 640, 3] uint8 mean 163.25 | ok |
-| `cctv/brightest.jpg` | `factor=0.0` | 2.0 | [362, 640, 3] uint8 mean 169.8 | ok |
-| `cctv/brightest.jpg` | `factor=3.0` | 2.0 | [362, 640, 3] uint8 mean 151.1 | ok |
-| `cctv/darkest.jpg` | `defaults` | 2.0 | [362, 640, 3] uint8 mean 110.65 | ok |
-| `cctv/darkest.jpg` | `factor=0.0` | 2.3 | [362, 640, 3] uint8 mean 115.44 | ok |
-| `cctv/darkest.jpg` | `factor=3.0` | 2.2 | [362, 640, 3] uint8 mean 102.24 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 2.0 | [362, 640, 3] uint8 mean 125.22 | ok |
-| `cctv/event_fall.jpg` | `factor=0.0` | 2.1 | [362, 640, 3] uint8 mean 137.11 | ok |
+| `cctv/brightest.jpg` | `defaults` | 2.6 | [362, 640, 3] uint8 mean 163.25 | ok |
+| `cctv/brightest.jpg` | `factor=0.0` | 2.8 | [362, 640, 3] uint8 mean 169.8 | ok |
+| `cctv/brightest.jpg` | `factor=3.0` | 2.6 | [362, 640, 3] uint8 mean 151.1 | ok |
+| `cctv/darkest.jpg` | `defaults` | 2.4 | [362, 640, 3] uint8 mean 110.65 | ok |
+| `cctv/darkest.jpg` | `factor=0.0` | 2.0 | [362, 640, 3] uint8 mean 115.44 | ok |
+| `cctv/darkest.jpg` | `factor=3.0` | 2.1 | [362, 640, 3] uint8 mean 102.24 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 1.9 | [362, 640, 3] uint8 mean 125.22 | ok |
+| `cctv/event_fall.jpg` | `factor=0.0` | 3.0 | [362, 640, 3] uint8 mean 137.11 | ok |
 | `cctv/event_fall.jpg` | `factor=3.0` | 1.8 | [362, 640, 3] uint8 mean 106.47 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 2.0 | [362, 640, 3] uint8 mean 125.11 | ok |
-| `cctv/event_optflow.jpg` | `factor=0.0` | 2.3 | [362, 640, 3] uint8 mean 138.24 | ok |
-| `cctv/event_optflow.jpg` | `factor=3.0` | 1.8 | [362, 640, 3] uint8 mean 103.85 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 2.1 | [362, 640, 3] uint8 mean 160.33 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 2.1 | [362, 640, 3] uint8 mean 125.11 | ok |
+| `cctv/event_optflow.jpg` | `factor=0.0` | 2.5 | [362, 640, 3] uint8 mean 138.24 | ok |
+| `cctv/event_optflow.jpg` | `factor=3.0` | 2.1 | [362, 640, 3] uint8 mean 103.85 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 2.3 | [362, 640, 3] uint8 mean 160.33 | ok |
 | `cctv/event_tamper.jpg` | `factor=0.0` | 2.1 | [362, 640, 3] uint8 mean 166.97 | ok |
 | `cctv/event_tamper.jpg` | `factor=3.0` | 2.0 | [362, 640, 3] uint8 mean 147.98 | ok |
-| `cctv/flattest.jpg` | `defaults` | 1.9 | [362, 640, 3] uint8 mean 121.2 | ok |
-| `cctv/flattest.jpg` | `factor=0.0` | 2.0 | [362, 640, 3] uint8 mean 133.77 | ok |
-| `cctv/flattest.jpg` | `factor=3.0` | 2.0 | [362, 640, 3] uint8 mean 100.36 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 1.9 | [362, 640, 3] uint8 mean 137.81 | ok |
-| `cctv/most_blown.jpg` | `factor=0.0` | 2.2 | [362, 640, 3] uint8 mean 142.47 | ok |
-| `cctv/most_blown.jpg` | `factor=3.0` | 1.9 | [362, 640, 3] uint8 mean 129.68 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 2.0 | [362, 640, 3] uint8 mean 131.48 | ok |
-| `cctv/sharpest.jpg` | `factor=0.0` | 2.2 | [362, 640, 3] uint8 mean 136.13 | ok |
+| `cctv/flattest.jpg` | `defaults` | 2.1 | [362, 640, 3] uint8 mean 121.2 | ok |
+| `cctv/flattest.jpg` | `factor=0.0` | 2.1 | [362, 640, 3] uint8 mean 133.77 | ok |
+| `cctv/flattest.jpg` | `factor=3.0` | 2.1 | [362, 640, 3] uint8 mean 100.36 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 2.8 | [362, 640, 3] uint8 mean 137.81 | ok |
+| `cctv/most_blown.jpg` | `factor=0.0` | 2.6 | [362, 640, 3] uint8 mean 142.47 | ok |
+| `cctv/most_blown.jpg` | `factor=3.0` | 2.2 | [362, 640, 3] uint8 mean 129.68 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 2.5 | [362, 640, 3] uint8 mean 131.48 | ok |
+| `cctv/sharpest.jpg` | `factor=0.0` | 2.1 | [362, 640, 3] uint8 mean 136.13 | ok |
 | `cctv/sharpest.jpg` | `factor=3.0` | 1.9 | [362, 640, 3] uint8 mean 123.49 | ok |
-| `cctv/softest.jpg` | `defaults` | 2.0 | [362, 640, 3] uint8 mean 125.07 | ok |
+| `cctv/softest.jpg` | `defaults` | 1.9 | [362, 640, 3] uint8 mean 125.07 | ok |
 | `cctv/softest.jpg` | `factor=0.0` | 2.0 | [362, 640, 3] uint8 mean 132.02 | ok |
-| `cctv/softest.jpg` | `factor=3.0` | 1.8 | [362, 640, 3] uint8 mean 112.46 | ok |
+| `cctv/softest.jpg` | `factor=3.0` | 2.0 | [362, 640, 3] uint8 mean 112.46 | ok |
 
 ## Artifacts
 

@@ -1,7 +1,7 @@
 # invert_luminance - validation result
 
 **Invert brightness, keeping hue**  
-`src.filters.invert` | family: Adjust | 2026-08-21T12:44:42
+`src.filters.invert` | family: Adjust | 2026-09-01T16:34:54
 
 ## Verdict
 
@@ -11,14 +11,14 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 1.4 | [362, 640, 3] uint8 mean 79.82 | ok |
+| `cctv/brightest.jpg` | `defaults` | 1.2 | [362, 640, 3] uint8 mean 79.82 | ok |
 | `cctv/darkest.jpg` | `defaults` | 1.4 | [362, 640, 3] uint8 mean 129.06 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 1.3 | [362, 640, 3] uint8 mean 110.88 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 1.5 | [362, 640, 3] uint8 mean 108.62 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 1.4 | [362, 640, 3] uint8 mean 110.88 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 1.1 | [362, 640, 3] uint8 mean 108.62 | ok |
 | `cctv/event_tamper.jpg` | `defaults` | 1.1 | [362, 640, 3] uint8 mean 83.0 | ok |
-| `cctv/flattest.jpg` | `defaults` | 1.3 | [362, 640, 3] uint8 mean 113.12 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 1.1 | [362, 640, 3] uint8 mean 103.48 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 1.1 | [362, 640, 3] uint8 mean 110.39 | ok |
+| `cctv/flattest.jpg` | `defaults` | 1.1 | [362, 640, 3] uint8 mean 113.12 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 1.7 | [362, 640, 3] uint8 mean 103.48 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 1.6 | [362, 640, 3] uint8 mean 110.39 | ok |
 | `cctv/softest.jpg` | `defaults` | 1.1 | [362, 640, 3] uint8 mean 113.94 | ok |
 
 ## Artifacts

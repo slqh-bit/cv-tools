@@ -1,7 +1,7 @@
 # auto_levels - validation result
 
 **Automatic levels stretch**  
-`src.filters.levels` | family: Adjust | 2026-08-21T12:44:36
+`src.filters.levels` | family: Adjust | 2026-09-01T16:34:47
 
 ## Verdict
 
@@ -31,24 +31,24 @@ Not defects: a parameter at the end of its range doing exactly what it says.
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 1.5 | [362, 640, 3] uint8 mean 162.56 | ok |
-| `cctv/brightest.jpg` | `per_channel=True` | 3.5 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
+| `cctv/brightest.jpg` | `defaults` | 1.6 | [362, 640, 3] uint8 mean 162.56 | ok |
+| `cctv/brightest.jpg` | `per_channel=True` | 3.6 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
 | `cctv/darkest.jpg` | `defaults` | 1.3 | [362, 640, 3] uint8 mean 110.95 | ok |
-| `cctv/darkest.jpg` | `per_channel=True` | 4.3 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
-| `cctv/event_fall.jpg` | `defaults` | 1.4 | [362, 640, 3] uint8 mean 125.49 | ok |
+| `cctv/darkest.jpg` | `per_channel=True` | 4.9 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
+| `cctv/event_fall.jpg` | `defaults` | 1.5 | [362, 640, 3] uint8 mean 125.49 | ok |
 | `cctv/event_fall.jpg` | `per_channel=True` | 3.9 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
 | `cctv/event_optflow.jpg` | `defaults` | 1.3 | [362, 640, 3] uint8 mean 124.4 | ok |
-| `cctv/event_optflow.jpg` | `per_channel=True` | 4.2 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_optflow.jpg` | `per_channel=True` | 4.0 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
 | `cctv/event_tamper.jpg` | `defaults` | 1.4 | [362, 640, 3] uint8 mean 160.61 | ok |
-| `cctv/event_tamper.jpg` | `per_channel=True` | 5.0 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
-| `cctv/flattest.jpg` | `defaults` | 1.3 | [362, 640, 3] uint8 mean 121.45 | ok |
-| `cctv/flattest.jpg` | `per_channel=True` | 4.3 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
+| `cctv/event_tamper.jpg` | `per_channel=True` | 4.4 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
+| `cctv/flattest.jpg` | `defaults` | 1.2 | [362, 640, 3] uint8 mean 121.45 | ok |
+| `cctv/flattest.jpg` | `per_channel=True` | 4.9 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
 | `cctv/most_blown.jpg` | `defaults` | 1.4 | [362, 640, 3] uint8 mean 138.09 | ok |
-| `cctv/most_blown.jpg` | `per_channel=True` | 4.2 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
-| `cctv/sharpest.jpg` | `defaults` | 1.3 | [362, 640, 3] uint8 mean 131.76 | ok |
-| `cctv/sharpest.jpg` | `per_channel=True` | 4.5 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
+| `cctv/most_blown.jpg` | `per_channel=True` | 5.1 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
+| `cctv/sharpest.jpg` | `defaults` | 1.4 | [362, 640, 3] uint8 mean 131.76 | ok |
+| `cctv/sharpest.jpg` | `per_channel=True` | 3.9 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
 | `cctv/softest.jpg` | `defaults` | 1.4 | [362, 640, 3] uint8 mean 125.39 | ok |
-| `cctv/softest.jpg` | `per_channel=True` | 3.9 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
+| `cctv/softest.jpg` | `per_channel=True` | 4.5 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
 
 ## Artifacts
 

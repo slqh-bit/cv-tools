@@ -1,0 +1,67 @@
+name: tests
+
+# The unit suite runs here. The validation campaign does not, and cannot: its
+# corpus is nine real frames from the camera on the author's desk, chosen by
+# measurement from two hundred, plus forgeries built from them so the answer is
+# known. build_corpus.py reads those from outside the repository and they are
+# not redistributable, so a hosted runner has no way to assemble the images
+# that make the campaign worth running. `python validation/regress.py` is the
+# gate for that, run where the evidence is; it diffs a fresh campaign against
+# the recorded one and exits non-zero on a regression.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: unit tests (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install OpenCV's runtime libraries
+        if: runner.os == 'Linux'
+        # opencv-python links against these; without them `import cv2` fails
+        # before a single test runs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+
+      - name: Install dependencies
+        # The dashboard extras go in too, so the Streamlit tests run rather
+        # than skipping. The Tkinter tests skip on a headless runner by design.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dashboard.txt
+
+      - name: Run the unit suite
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Smoke-test the CLI
+        # Relative output, so the same script runs on both runners without a
+        # temp-directory convention
+        shell: bash
+        run: |
+          python -m src.cli --list-filters
+          python -m src.cli --list-analyses
+          python -m src.cli samples/color_chart.png --info
+          python -m src.cli samples/color_chart.png --clahe clip=2.0 \
+            --sharpen amount=0.5 -o smoke.png
+          python -m src.cli samples/color_chart.png --scale-ref 40,40,140,40 \
+            --scale-length 520 --measure 40,80,190,80 -o measured.png
+          test -f smoke.png
+          test -f measured.png

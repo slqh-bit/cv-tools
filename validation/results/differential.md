@@ -1,7 +1,7 @@
 # differential - validation result
 
 **Checks spanning several filters**  
-`validation.checks` | family: Cross-cutting | 2026-08-21T12:46:57
+`validation.checks` | family: Cross-cutting | 2026-09-01T16:37:27
 
 ## Verdict
 

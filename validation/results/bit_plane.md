@@ -1,7 +1,7 @@
 # bit_plane - validation result
 
 **Extract one bit plane of the intensity**  
-`src.filters.component_separation` | family: Special | 2026-08-21T12:46:50
+`src.filters.component_separation` | family: Special | 2026-09-01T16:37:18
 
 ## Verdict
 
@@ -23,14 +23,14 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 2.8 | [362, 640] uint8 mean 125.65 | ok |
-| `cctv/darkest.jpg` | `defaults` | 2.9 | [362, 640] uint8 mean 126.36 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 2.8 | [362, 640] uint8 mean 128.78 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 2.9 | [362, 640] uint8 mean 127.64 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 2.8 | [362, 640] uint8 mean 129.42 | ok |
-| `cctv/flattest.jpg` | `defaults` | 2.8 | [362, 640] uint8 mean 128.84 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 2.8 | [362, 640] uint8 mean 125.36 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 2.9 | [362, 640] uint8 mean 126.97 | ok |
+| `cctv/brightest.jpg` | `defaults` | 4.5 | [362, 640] uint8 mean 125.65 | ok |
+| `cctv/darkest.jpg` | `defaults` | 4.0 | [362, 640] uint8 mean 126.36 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 3.2 | [362, 640] uint8 mean 128.78 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 4.4 | [362, 640] uint8 mean 127.64 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 2.9 | [362, 640] uint8 mean 129.42 | ok |
+| `cctv/flattest.jpg` | `defaults` | 3.1 | [362, 640] uint8 mean 128.84 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 2.9 | [362, 640] uint8 mean 125.36 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 3.2 | [362, 640] uint8 mean 126.97 | ok |
 | `cctv/softest.jpg` | `defaults` | 2.8 | [362, 640] uint8 mean 126.43 | ok |
 
 ## Artifacts

@@ -1,7 +1,7 @@
 # channel_mixer - validation result
 
 **Rebuild channels as weighted mixes**  
-`src.filters.color_balance` | family: Adjust | 2026-08-21T12:44:42
+`src.filters.color_balance` | family: Adjust | 2026-09-01T16:34:54
 
 ## Verdict
 
@@ -28,14 +28,14 @@ Not defects: a parameter at the end of its range doing exactly what it says.
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
 | `cctv/brightest.jpg` | `defaults` | 3.4 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
-| `cctv/darkest.jpg` | `defaults` | 3.3 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
+| `cctv/darkest.jpg` | `defaults` | 3.9 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
 | `cctv/event_fall.jpg` | `defaults` | 3.3 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
-| `cctv/event_optflow.jpg` | `defaults` | 3.4 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_optflow.jpg` | `defaults` | 3.5 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
 | `cctv/event_tamper.jpg` | `defaults` | 3.4 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
-| `cctv/flattest.jpg` | `defaults` | 3.3 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
-| `cctv/most_blown.jpg` | `defaults` | 3.3 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
+| `cctv/flattest.jpg` | `defaults` | 3.4 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
+| `cctv/most_blown.jpg` | `defaults` | 3.4 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
 | `cctv/sharpest.jpg` | `defaults` | 3.4 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
-| `cctv/softest.jpg` | `defaults` | 3.5 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
+| `cctv/softest.jpg` | `defaults` | 3.6 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
 
 ## Artifacts
 

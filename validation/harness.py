@@ -67,6 +67,28 @@ REQUIRED_VALUES: Dict[str, Any] = {
     # driven at all and were silently absent from every sweep
     'target_ratio': 16 / 9,
     'hue_center': 30.0,
+    # The measurement and annotation steps. Without these they recorded one
+    # 'no drivable parameter set' run each and reported PASS - an unexercised
+    # filter reading exactly like a clean one, which is the failure the
+    # campaign exists to make impossible.
+    'point_a': [180, 300], 'point_b': [420, 300],
+    'reference_a': [180, 180], 'reference_b': [380, 180],
+    'reference_length': 520.0,
+    'start': [500, 120], 'end': [340, 260],
+    'position': [60, 60],
+    'text': 'exhibit A',
+}
+
+
+# Required values that mean different things to different filters. One flat map
+# cannot serve both: 'points' is three curve control points to `curves` and a
+# pair of opposite corners to `shape`, and the curve triple makes `shape`
+# refuse. Narrowed per filter, the way the GUI's choices_for narrows CHOICES.
+REQUIRED_BY_FILTER: Dict[str, Dict[str, Any]] = {
+    'shape': {'shape': 'rectangle', 'points': [[80, 60], [420, 320]]},
+    # Vertices that are actually a region of the frame, rather than the curve
+    # control points the shared name would otherwise supply
+    'measure_area': {'points': [[120, 100], [420, 100], [420, 300], [120, 300]]},
 }
 
 
@@ -189,12 +211,15 @@ def parameter_matrix(spec, limit: int = 14) -> List[Dict[str, Any]]:
     skip = set(getattr(spec, 'skip_params', ()))
     parameters = [p for p in parameters if p.name not in skip]
 
+    required = dict(REQUIRED_VALUES)
+    required.update(REQUIRED_BY_FILTER.get(getattr(spec, 'name', ''), {}))
+
     base: Dict[str, Any] = {}
     for parameter in parameters:
         if parameter.default is inspect.Parameter.empty:
-            if parameter.name not in REQUIRED_VALUES:
+            if parameter.name not in required:
                 return []                       # cannot be driven from here
-            base[parameter.name] = REQUIRED_VALUES[parameter.name]
+            base[parameter.name] = required[parameter.name]
 
     matrix = [dict(base)]
 
@@ -595,10 +620,21 @@ def main(argv: Optional[List[str]] = None) -> int:
                   f"{len(checks) - failed_checks}/{len(checks)} checks  "
                   f"{time.time() - started:5.1f}s")
 
-    (ROOT / 'summary.json').write_text(json.dumps(
+    # A partial run must not land in summary.json. That file is the recorded
+    # baseline regress.py compares against, and a seven-filter run overwriting
+    # an eighty-four-filter record does not read as damage - it reads as
+    # seventy-seven filters having vanished, or on the next comparison, as
+    # every one of them being brand new.
+    whole = args.all and args.analyses
+    destination = ROOT / ('summary.json' if whole else 'summary-partial.json')
+    destination.write_text(json.dumps(
         {'when': datetime.now().isoformat(timespec='seconds'),
          'python': platform.python_version(), 'opencv': cv2.__version__,
+         'partial': not whole,
          'results': summary}, indent=2), encoding='utf-8')
+    if not whole and not args.quiet:
+        print(f"\nPartial run: wrote {destination.name}, leaving summary.json "
+              f"(the baseline) alone.")
     return 0
 
 

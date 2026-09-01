@@ -1,11 +1,11 @@
 # measure_3d - validation result
 
 **Estimate object height from one view, against a known reference**  
-`src.filters.measure_3d` | family: Special | 2026-08-21T12:46:51
+`src.filters.measure_3d` | family: Special | 2026-09-01T16:37:19
 
 ## Verdict
 
-**PASS** - 18 runs, no invariant broken, 4 specific checks passed.
+**PASS** - 27 runs, no invariant broken, 4 specific checks passed.
 
 ## What this filter specifically promises
 
@@ -18,24 +18,33 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
+| `cctv/brightest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 1.1 | [362, 640, 3] uint8 mean 157.85 | ok |
+| `cctv/brightest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 157.91 | ok |
 | `cctv/brightest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.8 | [362, 640, 3] uint8 mean 160.99 | ok |
-| `cctv/brightest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 161.05 | ok |
-| `cctv/darkest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 109.19 | ok |
-| `cctv/darkest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 109.16 | ok |
-| `cctv/event_fall.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 124.44 | ok |
-| `cctv/event_fall.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 124.39 | ok |
-| `cctv/event_optflow.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.7 | [362, 640, 3] uint8 mean 124.38 | ok |
-| `cctv/event_optflow.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 124.34 | ok |
-| `cctv/event_tamper.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 158.18 | ok |
-| `cctv/event_tamper.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 158.23 | ok |
-| `cctv/flattest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.7 | [362, 640, 3] uint8 mean 120.52 | ok |
-| `cctv/flattest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 120.47 | ok |
-| `cctv/most_blown.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 135.5 | ok |
-| `cctv/most_blown.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 135.51 | ok |
-| `cctv/sharpest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 129.7 | ok |
-| `cctv/sharpest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 129.7 | ok |
-| `cctv/softest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.7 | [362, 640, 3] uint8 mean 123.69 | ok |
-| `cctv/softest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.6 | [362, 640, 3] uint8 mean 123.68 | ok |
+| `cctv/darkest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 108.02 | ok |
+| `cctv/darkest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 107.99 | ok |
+| `cctv/darkest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.8 | [362, 640, 3] uint8 mean 109.19 | ok |
+| `cctv/event_fall.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 1.2 | [362, 640, 3] uint8 mean 122.18 | ok |
+| `cctv/event_fall.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 122.13 | ok |
+| `cctv/event_fall.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.8 | [362, 640, 3] uint8 mean 124.44 | ok |
+| `cctv/event_optflow.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 1.0 | [362, 640, 3] uint8 mean 122.27 | ok |
+| `cctv/event_optflow.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 122.23 | ok |
+| `cctv/event_optflow.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 124.38 | ok |
+| `cctv/event_tamper.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 1.2 | [362, 640, 3] uint8 mean 155.11 | ok |
+| `cctv/event_tamper.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 155.16 | ok |
+| `cctv/event_tamper.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.8 | [362, 640, 3] uint8 mean 158.18 | ok |
+| `cctv/flattest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 118.51 | ok |
+| `cctv/flattest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 1.2 | [362, 640, 3] uint8 mean 118.47 | ok |
+| `cctv/flattest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 120.52 | ok |
+| `cctv/most_blown.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 133.82 | ok |
+| `cctv/most_blown.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 1.6 | [362, 640, 3] uint8 mean 133.82 | ok |
+| `cctv/most_blown.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.8 | [362, 640, 3] uint8 mean 135.5 | ok |
+| `cctv/sharpest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 127.98 | ok |
+| `cctv/sharpest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 127.98 | ok |
+| `cctv/sharpest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.8 | [362, 640, 3] uint8 mean 129.7 | ok |
+| `cctv/softest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.8 | [362, 640, 3] uint8 mean 121.29 | ok |
+| `cctv/softest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.9 | [362, 640, 3] uint8 mean 121.29 | ok |
+| `cctv/softest.jpg` | `base=[320, 400], top=[320, 200], reference_base=[200, 400...` | 0.8 | [362, 640, 3] uint8 mean 123.69 | ok |
 
 ## Artifacts
 

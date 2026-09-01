@@ -1,7 +1,7 @@
 # pixel_aspect - validation result
 
 **Rescale non-square pixels to square**  
-`src.filters.aspect_ratio` | family: Correct | 2026-08-21T12:45:40
+`src.filters.aspect_ratio` | family: Correct | 2026-09-01T16:35:56
 
 ## Verdict
 
@@ -47,56 +47,56 @@ Rejected on purpose, with the message the user would see.
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
 | `cctv/brightest.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
-| `cctv/brightest.jpg` | `pixel_aspect=0.25` | 1.2 | [362, 160, 3] uint8 mean 163.79 | ok |
-| `cctv/brightest.jpg` | `pixel_aspect=4.0` | 5.2 | [362, 2560, 3] uint8 mean 163.52 | ok |
+| `cctv/brightest.jpg` | `pixel_aspect=0.25` | 1.3 | [362, 160, 3] uint8 mean 163.79 | ok |
+| `cctv/brightest.jpg` | `pixel_aspect=4.0` | 5.6 | [362, 2560, 3] uint8 mean 163.52 | ok |
 | `cctv/brightest.jpg` | `interpolation=auto` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: area, bicubic, bil |
 | `cctv/brightest.jpg` | `interpolation=nearest` | 0.4 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
-| `cctv/brightest.jpg` | `scale_axis=height` | 0.0 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
+| `cctv/brightest.jpg` | `scale_axis=height` | 0.1 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
 | `cctv/darkest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
 | `cctv/darkest.jpg` | `pixel_aspect=0.25` | 1.2 | [362, 160, 3] uint8 mean 111.13 | ok |
-| `cctv/darkest.jpg` | `pixel_aspect=4.0` | 4.5 | [362, 2560, 3] uint8 mean 110.92 | ok |
+| `cctv/darkest.jpg` | `pixel_aspect=4.0` | 5.0 | [362, 2560, 3] uint8 mean 110.92 | ok |
 | `cctv/darkest.jpg` | `interpolation=auto` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: area, bicubic, bil |
-| `cctv/darkest.jpg` | `interpolation=nearest` | 0.4 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
+| `cctv/darkest.jpg` | `interpolation=nearest` | 0.3 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
 | `cctv/darkest.jpg` | `scale_axis=height` | 0.0 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
 | `cctv/event_fall.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
 | `cctv/event_fall.jpg` | `pixel_aspect=0.25` | 1.2 | [362, 160, 3] uint8 mean 125.81 | ok |
 | `cctv/event_fall.jpg` | `pixel_aspect=4.0` | 4.7 | [362, 2560, 3] uint8 mean 125.51 | ok |
 | `cctv/event_fall.jpg` | `interpolation=auto` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: area, bicubic, bil |
 | `cctv/event_fall.jpg` | `interpolation=nearest` | 0.4 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
-| `cctv/event_fall.jpg` | `scale_axis=height` | 0.0 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
+| `cctv/event_fall.jpg` | `scale_axis=height` | 0.1 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
 | `cctv/event_optflow.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
 | `cctv/event_optflow.jpg` | `pixel_aspect=0.25` | 1.2 | [362, 160, 3] uint8 mean 125.57 | ok |
-| `cctv/event_optflow.jpg` | `pixel_aspect=4.0` | 4.7 | [362, 2560, 3] uint8 mean 125.42 | ok |
+| `cctv/event_optflow.jpg` | `pixel_aspect=4.0` | 5.2 | [362, 2560, 3] uint8 mean 125.42 | ok |
 | `cctv/event_optflow.jpg` | `interpolation=auto` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: area, bicubic, bil |
-| `cctv/event_optflow.jpg` | `interpolation=nearest` | 0.4 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
-| `cctv/event_optflow.jpg` | `scale_axis=height` | 0.0 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_optflow.jpg` | `interpolation=nearest` | 0.3 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_optflow.jpg` | `scale_axis=height` | 0.1 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
 | `cctv/event_tamper.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
-| `cctv/event_tamper.jpg` | `pixel_aspect=0.25` | 1.1 | [362, 160, 3] uint8 mean 160.87 | ok |
-| `cctv/event_tamper.jpg` | `pixel_aspect=4.0` | 5.1 | [362, 2560, 3] uint8 mean 160.61 | ok |
+| `cctv/event_tamper.jpg` | `pixel_aspect=0.25` | 1.2 | [362, 160, 3] uint8 mean 160.87 | ok |
+| `cctv/event_tamper.jpg` | `pixel_aspect=4.0` | 4.9 | [362, 2560, 3] uint8 mean 160.61 | ok |
 | `cctv/event_tamper.jpg` | `interpolation=auto` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: area, bicubic, bil |
-| `cctv/event_tamper.jpg` | `interpolation=nearest` | 0.4 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
+| `cctv/event_tamper.jpg` | `interpolation=nearest` | 0.5 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
 | `cctv/event_tamper.jpg` | `scale_axis=height` | 0.0 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
 | `cctv/flattest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
-| `cctv/flattest.jpg` | `pixel_aspect=0.25` | 1.2 | [362, 160, 3] uint8 mean 121.68 | ok |
-| `cctv/flattest.jpg` | `pixel_aspect=4.0` | 4.6 | [362, 2560, 3] uint8 mean 121.49 | ok |
+| `cctv/flattest.jpg` | `pixel_aspect=0.25` | 1.3 | [362, 160, 3] uint8 mean 121.68 | ok |
+| `cctv/flattest.jpg` | `pixel_aspect=4.0` | 5.6 | [362, 2560, 3] uint8 mean 121.49 | ok |
 | `cctv/flattest.jpg` | `interpolation=auto` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: area, bicubic, bil |
 | `cctv/flattest.jpg` | `interpolation=nearest` | 0.4 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
-| `cctv/flattest.jpg` | `scale_axis=height` | 0.0 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
+| `cctv/flattest.jpg` | `scale_axis=height` | 0.1 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
 | `cctv/most_blown.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
 | `cctv/most_blown.jpg` | `pixel_aspect=0.25` | 1.2 | [362, 160, 3] uint8 mean 138.37 | ok |
-| `cctv/most_blown.jpg` | `pixel_aspect=4.0` | 4.9 | [362, 2560, 3] uint8 mean 138.07 | ok |
+| `cctv/most_blown.jpg` | `pixel_aspect=4.0` | 4.7 | [362, 2560, 3] uint8 mean 138.07 | ok |
 | `cctv/most_blown.jpg` | `interpolation=auto` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: area, bicubic, bil |
-| `cctv/most_blown.jpg` | `interpolation=nearest` | 0.4 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
-| `cctv/most_blown.jpg` | `scale_axis=height` | 0.0 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
+| `cctv/most_blown.jpg` | `interpolation=nearest` | 0.3 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
+| `cctv/most_blown.jpg` | `scale_axis=height` | 0.1 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
 | `cctv/sharpest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
 | `cctv/sharpest.jpg` | `pixel_aspect=0.25` | 1.2 | [362, 160, 3] uint8 mean 131.98 | ok |
-| `cctv/sharpest.jpg` | `pixel_aspect=4.0` | 5.8 | [362, 2560, 3] uint8 mean 131.76 | ok |
+| `cctv/sharpest.jpg` | `pixel_aspect=4.0` | 5.7 | [362, 2560, 3] uint8 mean 131.76 | ok |
 | `cctv/sharpest.jpg` | `interpolation=auto` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: area, bicubic, bil |
-| `cctv/sharpest.jpg` | `interpolation=nearest` | 0.4 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
+| `cctv/sharpest.jpg` | `interpolation=nearest` | 0.3 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
 | `cctv/sharpest.jpg` | `scale_axis=height` | 0.0 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
 | `cctv/softest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
 | `cctv/softest.jpg` | `pixel_aspect=0.25` | 1.2 | [362, 160, 3] uint8 mean 125.66 | ok |
-| `cctv/softest.jpg` | `pixel_aspect=4.0` | 5.6 | [362, 2560, 3] uint8 mean 125.39 | ok |
+| `cctv/softest.jpg` | `pixel_aspect=4.0` | 5.2 | [362, 2560, 3] uint8 mean 125.39 | ok |
 | `cctv/softest.jpg` | `interpolation=auto` | 0.0 | - | refused: ValueError: Unknown interpolation 'auto'. Available: area, bicubic, bil |
 | `cctv/softest.jpg` | `interpolation=nearest` | 0.4 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
 | `cctv/softest.jpg` | `scale_axis=height` | 0.0 | [362, 640, 3] uint8 mean 125.38 | output identical to input |

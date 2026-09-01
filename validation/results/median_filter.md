@@ -1,7 +1,7 @@
 # median_filter - validation result
 
 **Median filter for salt-and-pepper noise**  
-`src.filters.smoothing` | family: Enhance | 2026-08-21T12:44:49
+`src.filters.smoothing` | family: Enhance | 2026-09-01T16:35:02
 
 ## Verdict
 
@@ -12,8 +12,8 @@
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
 | `cctv/brightest.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 163.82 | ok |
-| `cctv/darkest.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 111.13 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 125.66 | ok |
+| `cctv/darkest.jpg` | `defaults` | 0.3 | [362, 640, 3] uint8 mean 111.13 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 0.3 | [362, 640, 3] uint8 mean 125.66 | ok |
 | `cctv/event_optflow.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 125.54 | ok |
 | `cctv/event_tamper.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 160.9 | ok |
 | `cctv/flattest.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 121.59 | ok |

@@ -1,7 +1,7 @@
 # clone - validation result
 
 **Duplicated regions and the shifts that relate them**  
-`src.filters.clone_detection` | family: Analysis | 2026-08-21T12:46:51
+`src.filters.clone_detection` | family: Analysis | 2026-09-01T16:37:21
 
 ## Verdict
 
@@ -11,14 +11,14 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 525.1 | None None mean None | ok |
-| `cctv/darkest.jpg` | `defaults` | 456.8 | None None mean None | ok |
-| `cctv/event_fall.jpg` | `defaults` | 616.9 | None None mean None | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 517.9 | None None mean None | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 552.6 | None None mean None | ok |
-| `cctv/flattest.jpg` | `defaults` | 465.7 | None None mean None | ok |
-| `cctv/most_blown.jpg` | `defaults` | 474.9 | None None mean None | ok |
-| `cctv/sharpest.jpg` | `defaults` | 598.0 | None None mean None | ok |
+| `cctv/brightest.jpg` | `defaults` | 579.4 | None None mean None | ok |
+| `cctv/darkest.jpg` | `defaults` | 485.9 | None None mean None | ok |
+| `cctv/event_fall.jpg` | `defaults` | 648.7 | None None mean None | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 506.4 | None None mean None | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 555.2 | None None mean None | ok |
+| `cctv/flattest.jpg` | `defaults` | 488.7 | None None mean None | ok |
+| `cctv/most_blown.jpg` | `defaults` | 513.6 | None None mean None | ok |
+| `cctv/sharpest.jpg` | `defaults` | 654.9 | None None mean None | ok |
 
 ## Reports
 

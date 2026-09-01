@@ -1,7 +1,7 @@
 # temperature - validation result
 
 **Manual colour temperature and tint**  
-`src.filters.white_balance` | family: Adjust | 2026-08-21T12:44:39
+`src.filters.white_balance` | family: Adjust | 2026-09-01T16:34:51
 
 ## Verdict
 
@@ -33,51 +33,51 @@ Not defects: a parameter at the end of its range doing exactly what it says.
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 2.6 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
-| `cctv/brightest.jpg` | `temperature=-100.0` | 2.7 | [362, 640, 3] uint8 mean 159.08 | ok |
+| `cctv/brightest.jpg` | `defaults` | 2.8 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
+| `cctv/brightest.jpg` | `temperature=-100.0` | 2.6 | [362, 640, 3] uint8 mean 159.08 | ok |
 | `cctv/brightest.jpg` | `temperature=100.0` | 2.4 | [362, 640, 3] uint8 mean 159.53 | ok |
-| `cctv/brightest.jpg` | `tint=-100.0` | 2.7 | [362, 640, 3] uint8 mean 161.14 | ok |
-| `cctv/brightest.jpg` | `tint=100.0` | 2.4 | [362, 640, 3] uint8 mean 162.67 | ok |
-| `cctv/darkest.jpg` | `defaults` | 2.8 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
+| `cctv/brightest.jpg` | `tint=-100.0` | 2.6 | [362, 640, 3] uint8 mean 161.14 | ok |
+| `cctv/brightest.jpg` | `tint=100.0` | 2.7 | [362, 640, 3] uint8 mean 162.67 | ok |
+| `cctv/darkest.jpg` | `defaults` | 2.5 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
 | `cctv/darkest.jpg` | `temperature=-100.0` | 2.6 | [362, 640, 3] uint8 mean 110.53 | ok |
-| `cctv/darkest.jpg` | `temperature=100.0` | 2.4 | [362, 640, 3] uint8 mean 110.76 | ok |
+| `cctv/darkest.jpg` | `temperature=100.0` | 2.6 | [362, 640, 3] uint8 mean 110.76 | ok |
 | `cctv/darkest.jpg` | `tint=-100.0` | 2.4 | [362, 640, 3] uint8 mean 110.27 | ok |
-| `cctv/darkest.jpg` | `tint=100.0` | 2.4 | [362, 640, 3] uint8 mean 110.61 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 2.5 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
+| `cctv/darkest.jpg` | `tint=100.0` | 2.5 | [362, 640, 3] uint8 mean 110.61 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 2.4 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
 | `cctv/event_fall.jpg` | `temperature=-100.0` | 2.7 | [362, 640, 3] uint8 mean 125.45 | ok |
 | `cctv/event_fall.jpg` | `temperature=100.0` | 2.5 | [362, 640, 3] uint8 mean 125.88 | ok |
-| `cctv/event_fall.jpg` | `tint=-100.0` | 2.4 | [362, 640, 3] uint8 mean 125.16 | ok |
-| `cctv/event_fall.jpg` | `tint=100.0` | 2.5 | [362, 640, 3] uint8 mean 125.53 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 2.4 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_fall.jpg` | `tint=-100.0` | 2.5 | [362, 640, 3] uint8 mean 125.16 | ok |
+| `cctv/event_fall.jpg` | `tint=100.0` | 2.4 | [362, 640, 3] uint8 mean 125.53 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 2.5 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
 | `cctv/event_optflow.jpg` | `temperature=-100.0` | 2.7 | [362, 640, 3] uint8 mean 125.31 | ok |
-| `cctv/event_optflow.jpg` | `temperature=100.0` | 2.4 | [362, 640, 3] uint8 mean 125.53 | ok |
-| `cctv/event_optflow.jpg` | `tint=-100.0` | 2.6 | [362, 640, 3] uint8 mean 125.08 | ok |
-| `cctv/event_optflow.jpg` | `tint=100.0` | 2.4 | [362, 640, 3] uint8 mean 125.25 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 3.0 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
+| `cctv/event_optflow.jpg` | `temperature=100.0` | 2.9 | [362, 640, 3] uint8 mean 125.53 | ok |
+| `cctv/event_optflow.jpg` | `tint=-100.0` | 3.1 | [362, 640, 3] uint8 mean 125.08 | ok |
+| `cctv/event_optflow.jpg` | `tint=100.0` | 3.6 | [362, 640, 3] uint8 mean 125.25 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 3.4 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
 | `cctv/event_tamper.jpg` | `temperature=-100.0` | 2.6 | [362, 640, 3] uint8 mean 156.54 | ok |
-| `cctv/event_tamper.jpg` | `temperature=100.0` | 2.4 | [362, 640, 3] uint8 mean 157.29 | ok |
+| `cctv/event_tamper.jpg` | `temperature=100.0` | 2.5 | [362, 640, 3] uint8 mean 157.29 | ok |
 | `cctv/event_tamper.jpg` | `tint=-100.0` | 2.4 | [362, 640, 3] uint8 mean 158.71 | ok |
-| `cctv/event_tamper.jpg` | `tint=100.0` | 2.5 | [362, 640, 3] uint8 mean 159.94 | ok |
-| `cctv/flattest.jpg` | `defaults` | 2.4 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
-| `cctv/flattest.jpg` | `temperature=-100.0` | 2.8 | [362, 640, 3] uint8 mean 121.51 | ok |
+| `cctv/event_tamper.jpg` | `tint=100.0` | 3.0 | [362, 640, 3] uint8 mean 159.94 | ok |
+| `cctv/flattest.jpg` | `defaults` | 3.2 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
+| `cctv/flattest.jpg` | `temperature=-100.0` | 2.9 | [362, 640, 3] uint8 mean 121.51 | ok |
 | `cctv/flattest.jpg` | `temperature=100.0` | 2.5 | [362, 640, 3] uint8 mean 121.71 | ok |
-| `cctv/flattest.jpg` | `tint=-100.0` | 2.6 | [362, 640, 3] uint8 mean 121.18 | ok |
-| `cctv/flattest.jpg` | `tint=100.0` | 2.4 | [362, 640, 3] uint8 mean 121.36 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 2.4 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
-| `cctv/most_blown.jpg` | `temperature=-100.0` | 2.8 | [362, 640, 3] uint8 mean 135.91 | ok |
-| `cctv/most_blown.jpg` | `temperature=100.0` | 2.4 | [362, 640, 3] uint8 mean 136.26 | ok |
-| `cctv/most_blown.jpg` | `tint=-100.0` | 2.6 | [362, 640, 3] uint8 mean 136.6 | ok |
-| `cctv/most_blown.jpg` | `tint=100.0` | 2.5 | [362, 640, 3] uint8 mean 136.89 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 2.5 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
-| `cctv/sharpest.jpg` | `temperature=-100.0` | 2.6 | [362, 640, 3] uint8 mean 130.86 | ok |
-| `cctv/sharpest.jpg` | `temperature=100.0` | 2.8 | [362, 640, 3] uint8 mean 130.88 | ok |
-| `cctv/sharpest.jpg` | `tint=-100.0` | 2.4 | [362, 640, 3] uint8 mean 130.77 | ok |
-| `cctv/sharpest.jpg` | `tint=100.0` | 2.8 | [362, 640, 3] uint8 mean 131.28 | ok |
-| `cctv/softest.jpg` | `defaults` | 2.4 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
-| `cctv/softest.jpg` | `temperature=-100.0` | 2.8 | [362, 640, 3] uint8 mean 125.34 | ok |
-| `cctv/softest.jpg` | `temperature=100.0` | 2.4 | [362, 640, 3] uint8 mean 125.73 | ok |
-| `cctv/softest.jpg` | `tint=-100.0` | 2.5 | [362, 640, 3] uint8 mean 125.37 | ok |
-| `cctv/softest.jpg` | `tint=100.0` | 2.4 | [362, 640, 3] uint8 mean 125.54 | ok |
+| `cctv/flattest.jpg` | `tint=-100.0` | 2.9 | [362, 640, 3] uint8 mean 121.18 | ok |
+| `cctv/flattest.jpg` | `tint=100.0` | 2.5 | [362, 640, 3] uint8 mean 121.36 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 2.7 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
+| `cctv/most_blown.jpg` | `temperature=-100.0` | 2.6 | [362, 640, 3] uint8 mean 135.91 | ok |
+| `cctv/most_blown.jpg` | `temperature=100.0` | 3.8 | [362, 640, 3] uint8 mean 136.26 | ok |
+| `cctv/most_blown.jpg` | `tint=-100.0` | 2.5 | [362, 640, 3] uint8 mean 136.6 | ok |
+| `cctv/most_blown.jpg` | `tint=100.0` | 2.6 | [362, 640, 3] uint8 mean 136.89 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 2.4 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
+| `cctv/sharpest.jpg` | `temperature=-100.0` | 3.0 | [362, 640, 3] uint8 mean 130.86 | ok |
+| `cctv/sharpest.jpg` | `temperature=100.0` | 2.7 | [362, 640, 3] uint8 mean 130.88 | ok |
+| `cctv/sharpest.jpg` | `tint=-100.0` | 2.6 | [362, 640, 3] uint8 mean 130.77 | ok |
+| `cctv/sharpest.jpg` | `tint=100.0` | 3.7 | [362, 640, 3] uint8 mean 131.28 | ok |
+| `cctv/softest.jpg` | `defaults` | 2.5 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
+| `cctv/softest.jpg` | `temperature=-100.0` | 4.4 | [362, 640, 3] uint8 mean 125.34 | ok |
+| `cctv/softest.jpg` | `temperature=100.0` | 2.9 | [362, 640, 3] uint8 mean 125.73 | ok |
+| `cctv/softest.jpg` | `tint=-100.0` | 3.0 | [362, 640, 3] uint8 mean 125.37 | ok |
+| `cctv/softest.jpg` | `tint=100.0` | 3.2 | [362, 640, 3] uint8 mean 125.54 | ok |
 
 ## Artifacts
 

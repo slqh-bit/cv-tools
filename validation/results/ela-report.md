@@ -1,7 +1,7 @@
 # ela - validation result
 
 **Block-level recompression error and its outliers**  
-`src.filters.ela` | family: Analysis | 2026-08-21T12:46:51
+`src.filters.ela` | family: Analysis | 2026-09-01T16:37:20
 
 ## Verdict
 
@@ -17,14 +17,14 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 10.4 | None None mean None | ok |
-| `cctv/darkest.jpg` | `defaults` | 10.4 | None None mean None | ok |
-| `cctv/event_fall.jpg` | `defaults` | 10.3 | None None mean None | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 10.9 | None None mean None | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 10.5 | None None mean None | ok |
-| `cctv/flattest.jpg` | `defaults` | 11.5 | None None mean None | ok |
-| `cctv/most_blown.jpg` | `defaults` | 11.1 | None None mean None | ok |
-| `cctv/sharpest.jpg` | `defaults` | 11.2 | None None mean None | ok |
+| `cctv/brightest.jpg` | `defaults` | 11.6 | None None mean None | ok |
+| `cctv/darkest.jpg` | `defaults` | 10.3 | None None mean None | ok |
+| `cctv/event_fall.jpg` | `defaults` | 11.0 | None None mean None | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 10.5 | None None mean None | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 13.7 | None None mean None | ok |
+| `cctv/flattest.jpg` | `defaults` | 10.6 | None None mean None | ok |
+| `cctv/most_blown.jpg` | `defaults` | 11.3 | None None mean None | ok |
+| `cctv/sharpest.jpg` | `defaults` | 10.6 | None None mean None | ok |
 
 ## Reports
 

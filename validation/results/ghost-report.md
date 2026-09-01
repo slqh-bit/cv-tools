@@ -1,7 +1,7 @@
 # ghost - validation result
 
 **Per-block prior JPEG quality, and blocks that disagree**  
-`src.filters.jpeg_ghost` | family: Analysis | 2026-08-21T12:46:56
+`src.filters.jpeg_ghost` | family: Analysis | 2026-09-01T16:37:25
 
 ## Verdict
 
@@ -21,14 +21,14 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 76.9 | None None mean None | ok |
-| `cctv/darkest.jpg` | `defaults` | 77.0 | None None mean None | ok |
-| `cctv/event_fall.jpg` | `defaults` | 78.9 | None None mean None | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 76.9 | None None mean None | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 75.0 | None None mean None | ok |
-| `cctv/flattest.jpg` | `defaults` | 81.1 | None None mean None | ok |
-| `cctv/most_blown.jpg` | `defaults` | 77.2 | None None mean None | ok |
-| `cctv/sharpest.jpg` | `defaults` | 76.3 | None None mean None | ok |
+| `cctv/brightest.jpg` | `defaults` | 86.0 | None None mean None | ok |
+| `cctv/darkest.jpg` | `defaults` | 80.9 | None None mean None | ok |
+| `cctv/event_fall.jpg` | `defaults` | 86.2 | None None mean None | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 89.8 | None None mean None | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 83.1 | None None mean None | ok |
+| `cctv/flattest.jpg` | `defaults` | 86.3 | None None mean None | ok |
+| `cctv/most_blown.jpg` | `defaults` | 83.5 | None None mean None | ok |
+| `cctv/sharpest.jpg` | `defaults` | 82.7 | None None mean None | ok |
 
 ## Reports
 

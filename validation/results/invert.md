@@ -1,7 +1,7 @@
 # invert - validation result
 
 **Invert all colour channels**  
-`src.filters.invert` | family: Adjust | 2026-08-21T12:44:42
+`src.filters.invert` | family: Adjust | 2026-09-01T16:34:54
 
 ## Verdict
 
@@ -16,7 +16,7 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 0.4 | [362, 640, 3] uint8 mean 91.47 | ok |
+| `cctv/brightest.jpg` | `defaults` | 0.3 | [362, 640, 3] uint8 mean 91.47 | ok |
 | `cctv/darkest.jpg` | `defaults` | 0.3 | [362, 640, 3] uint8 mean 144.07 | ok |
 | `cctv/event_fall.jpg` | `defaults` | 0.3 | [362, 640, 3] uint8 mean 129.49 | ok |
 | `cctv/event_optflow.jpg` | `defaults` | 0.3 | [362, 640, 3] uint8 mean 129.58 | ok |

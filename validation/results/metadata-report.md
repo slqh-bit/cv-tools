@@ -1,7 +1,7 @@
 # metadata - validation result
 
 **EXIF tags, JPEG segments and the contradictions between them**  
-`src.filters.metadata_forensics` | family: Analysis | 2026-08-21T12:46:57
+`src.filters.metadata_forensics` | family: Analysis | 2026-09-01T16:37:27
 
 ## Verdict
 
@@ -21,9 +21,9 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 0.6 | None None mean None | ok |
+| `cctv/brightest.jpg` | `defaults` | 0.7 | None None mean None | ok |
 | `cctv/darkest.jpg` | `defaults` | 0.6 | None None mean None | ok |
-| `cctv/event_fall.jpg` | `defaults` | 0.6 | None None mean None | ok |
+| `cctv/event_fall.jpg` | `defaults` | 0.5 | None None mean None | ok |
 | `cctv/event_optflow.jpg` | `defaults` | 0.5 | None None mean None | ok |
 | `cctv/event_tamper.jpg` | `defaults` | 0.5 | None None mean None | ok |
 | `cctv/flattest.jpg` | `defaults` | 0.5 | None None mean None | ok |

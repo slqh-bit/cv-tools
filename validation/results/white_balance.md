@@ -1,7 +1,7 @@
 # white_balance - validation result
 
 **Automatic colour cast removal**  
-`src.filters.white_balance` | family: Adjust | 2026-08-21T12:44:38
+`src.filters.white_balance` | family: Adjust | 2026-09-01T16:34:50
 
 ## Verdict
 
@@ -45,51 +45,51 @@ Rejected on purpose, with the message the user would see.
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 10.9 | [362, 640, 3] uint8 mean 164.82 | ok |
+| `cctv/brightest.jpg` | `defaults` | 11.2 | [362, 640, 3] uint8 mean 164.82 | ok |
 | `cctv/brightest.jpg` | `method=fill` | 0.0 | - | refused: ValueError: Unknown method 'fill'. Available: gray_world, white_patch,  |
 | `cctv/brightest.jpg` | `method=noise` | 0.0 | - | refused: ValueError: Unknown method 'noise'. Available: gray_world, white_patch, |
-| `cctv/brightest.jpg` | `percentile=50.0` | 11.1 | [362, 640, 3] uint8 mean 164.82 | ok |
-| `cctv/brightest.jpg` | `percentile=100.0` | 11.3 | [362, 640, 3] uint8 mean 164.82 | ok |
-| `cctv/darkest.jpg` | `defaults` | 11.3 | [362, 640, 3] uint8 mean 111.19 | ok |
+| `cctv/brightest.jpg` | `percentile=50.0` | 11.3 | [362, 640, 3] uint8 mean 164.82 | ok |
+| `cctv/brightest.jpg` | `percentile=100.0` | 11.5 | [362, 640, 3] uint8 mean 164.82 | ok |
+| `cctv/darkest.jpg` | `defaults` | 11.6 | [362, 640, 3] uint8 mean 111.19 | ok |
 | `cctv/darkest.jpg` | `method=fill` | 0.0 | - | refused: ValueError: Unknown method 'fill'. Available: gray_world, white_patch,  |
 | `cctv/darkest.jpg` | `method=noise` | 0.0 | - | refused: ValueError: Unknown method 'noise'. Available: gray_world, white_patch, |
-| `cctv/darkest.jpg` | `percentile=50.0` | 11.0 | [362, 640, 3] uint8 mean 111.19 | ok |
-| `cctv/darkest.jpg` | `percentile=100.0` | 10.9 | [362, 640, 3] uint8 mean 111.19 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 10.9 | [362, 640, 3] uint8 mean 125.49 | ok |
+| `cctv/darkest.jpg` | `percentile=50.0` | 11.3 | [362, 640, 3] uint8 mean 111.19 | ok |
+| `cctv/darkest.jpg` | `percentile=100.0` | 11.3 | [362, 640, 3] uint8 mean 111.19 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 11.0 | [362, 640, 3] uint8 mean 125.49 | ok |
 | `cctv/event_fall.jpg` | `method=fill` | 0.0 | - | refused: ValueError: Unknown method 'fill'. Available: gray_world, white_patch,  |
 | `cctv/event_fall.jpg` | `method=noise` | 0.0 | - | refused: ValueError: Unknown method 'noise'. Available: gray_world, white_patch, |
 | `cctv/event_fall.jpg` | `percentile=50.0` | 11.1 | [362, 640, 3] uint8 mean 125.49 | ok |
-| `cctv/event_fall.jpg` | `percentile=100.0` | 11.1 | [362, 640, 3] uint8 mean 125.49 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 11.2 | [362, 640, 3] uint8 mean 125.66 | ok |
+| `cctv/event_fall.jpg` | `percentile=100.0` | 10.9 | [362, 640, 3] uint8 mean 125.49 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 10.7 | [362, 640, 3] uint8 mean 125.66 | ok |
 | `cctv/event_optflow.jpg` | `method=fill` | 0.0 | - | refused: ValueError: Unknown method 'fill'. Available: gray_world, white_patch,  |
 | `cctv/event_optflow.jpg` | `method=noise` | 0.0 | - | refused: ValueError: Unknown method 'noise'. Available: gray_world, white_patch, |
-| `cctv/event_optflow.jpg` | `percentile=50.0` | 11.1 | [362, 640, 3] uint8 mean 125.66 | ok |
-| `cctv/event_optflow.jpg` | `percentile=100.0` | 10.9 | [362, 640, 3] uint8 mean 125.66 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 10.9 | [362, 640, 3] uint8 mean 161.72 | ok |
+| `cctv/event_optflow.jpg` | `percentile=50.0` | 11.7 | [362, 640, 3] uint8 mean 125.66 | ok |
+| `cctv/event_optflow.jpg` | `percentile=100.0` | 11.5 | [362, 640, 3] uint8 mean 125.66 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 11.5 | [362, 640, 3] uint8 mean 161.72 | ok |
 | `cctv/event_tamper.jpg` | `method=fill` | 0.0 | - | refused: ValueError: Unknown method 'fill'. Available: gray_world, white_patch,  |
 | `cctv/event_tamper.jpg` | `method=noise` | 0.0 | - | refused: ValueError: Unknown method 'noise'. Available: gray_world, white_patch, |
-| `cctv/event_tamper.jpg` | `percentile=50.0` | 10.9 | [362, 640, 3] uint8 mean 161.72 | ok |
-| `cctv/event_tamper.jpg` | `percentile=100.0` | 10.7 | [362, 640, 3] uint8 mean 161.72 | ok |
-| `cctv/flattest.jpg` | `defaults` | 10.7 | [362, 640, 3] uint8 mean 121.9 | ok |
+| `cctv/event_tamper.jpg` | `percentile=50.0` | 11.7 | [362, 640, 3] uint8 mean 161.72 | ok |
+| `cctv/event_tamper.jpg` | `percentile=100.0` | 11.1 | [362, 640, 3] uint8 mean 161.72 | ok |
+| `cctv/flattest.jpg` | `defaults` | 11.3 | [362, 640, 3] uint8 mean 121.9 | ok |
 | `cctv/flattest.jpg` | `method=fill` | 0.0 | - | refused: ValueError: Unknown method 'fill'. Available: gray_world, white_patch,  |
 | `cctv/flattest.jpg` | `method=noise` | 0.0 | - | refused: ValueError: Unknown method 'noise'. Available: gray_world, white_patch, |
-| `cctv/flattest.jpg` | `percentile=50.0` | 11.1 | [362, 640, 3] uint8 mean 121.9 | ok |
-| `cctv/flattest.jpg` | `percentile=100.0` | 10.9 | [362, 640, 3] uint8 mean 121.9 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 10.9 | [362, 640, 3] uint8 mean 138.24 | ok |
+| `cctv/flattest.jpg` | `percentile=50.0` | 11.2 | [362, 640, 3] uint8 mean 121.9 | ok |
+| `cctv/flattest.jpg` | `percentile=100.0` | 11.3 | [362, 640, 3] uint8 mean 121.9 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 11.1 | [362, 640, 3] uint8 mean 138.24 | ok |
 | `cctv/most_blown.jpg` | `method=fill` | 0.0 | - | refused: ValueError: Unknown method 'fill'. Available: gray_world, white_patch,  |
 | `cctv/most_blown.jpg` | `method=noise` | 0.0 | - | refused: ValueError: Unknown method 'noise'. Available: gray_world, white_patch, |
-| `cctv/most_blown.jpg` | `percentile=50.0` | 11.0 | [362, 640, 3] uint8 mean 138.24 | ok |
-| `cctv/most_blown.jpg` | `percentile=100.0` | 10.7 | [362, 640, 3] uint8 mean 138.24 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 10.7 | [362, 640, 3] uint8 mean 131.46 | ok |
+| `cctv/most_blown.jpg` | `percentile=50.0` | 11.4 | [362, 640, 3] uint8 mean 138.24 | ok |
+| `cctv/most_blown.jpg` | `percentile=100.0` | 11.2 | [362, 640, 3] uint8 mean 138.24 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 12.0 | [362, 640, 3] uint8 mean 131.46 | ok |
 | `cctv/sharpest.jpg` | `method=fill` | 0.0 | - | refused: ValueError: Unknown method 'fill'. Available: gray_world, white_patch,  |
 | `cctv/sharpest.jpg` | `method=noise` | 0.0 | - | refused: ValueError: Unknown method 'noise'. Available: gray_world, white_patch, |
-| `cctv/sharpest.jpg` | `percentile=50.0` | 11.1 | [362, 640, 3] uint8 mean 131.46 | ok |
-| `cctv/sharpest.jpg` | `percentile=100.0` | 10.9 | [362, 640, 3] uint8 mean 131.46 | ok |
-| `cctv/softest.jpg` | `defaults` | 11.0 | [362, 640, 3] uint8 mean 125.87 | ok |
+| `cctv/sharpest.jpg` | `percentile=50.0` | 13.0 | [362, 640, 3] uint8 mean 131.46 | ok |
+| `cctv/sharpest.jpg` | `percentile=100.0` | 11.8 | [362, 640, 3] uint8 mean 131.46 | ok |
+| `cctv/softest.jpg` | `defaults` | 11.4 | [362, 640, 3] uint8 mean 125.87 | ok |
 | `cctv/softest.jpg` | `method=fill` | 0.0 | - | refused: ValueError: Unknown method 'fill'. Available: gray_world, white_patch,  |
 | `cctv/softest.jpg` | `method=noise` | 0.0 | - | refused: ValueError: Unknown method 'noise'. Available: gray_world, white_patch, |
-| `cctv/softest.jpg` | `percentile=50.0` | 11.1 | [362, 640, 3] uint8 mean 125.87 | ok |
-| `cctv/softest.jpg` | `percentile=100.0` | 11.1 | [362, 640, 3] uint8 mean 125.87 | ok |
+| `cctv/softest.jpg` | `percentile=50.0` | 11.3 | [362, 640, 3] uint8 mean 125.87 | ok |
+| `cctv/softest.jpg` | `percentile=100.0` | 12.5 | [362, 640, 3] uint8 mean 125.87 | ok |
 
 ## Artifacts
 

@@ -17,6 +17,13 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+# Anchored to this file, not to the working directory. Two checks used to reach
+# the corpus through the relative path 'validation/corpus', which quietly found
+# nothing whenever the harness was run from anywhere but the repository root -
+# and a check that finds no images reports that it could not run, which is easy
+# to read as the corpus being incomplete rather than the path being wrong.
+CORPUS = Path(__file__).resolve().parent / 'corpus'
+
 from src.filters import (
     CLAHE_COLOR_MODES,
     adjust_temperature,
@@ -846,7 +853,7 @@ def check_undistort(corpus) -> List[Tuple[str, bool, str]]:
     import glob
     out = []
 
-    paths = sorted(glob.glob('validation/corpus/calibration/*.jpg'))
+    paths = sorted(glob.glob(str(CORPUS / 'calibration' / '*.jpg')))
     images = [cv2.imread(path) for path in paths]
     images = [image for image in images if image is not None]
     if len(images) < 8:
@@ -1074,7 +1081,7 @@ def check_compression(corpus) -> List[Tuple[str, bool, str]]:
 def check_metadata(corpus) -> List[Tuple[str, bool, str]]:
     """Metadata forensics against files whose history is known."""
     out = []
-    root = Path('validation/corpus')
+    root = CORPUS
 
     # A real camera file that really was edited, from outside this project
     nikon = root / 'reference' / 'exif_camera.jpg'

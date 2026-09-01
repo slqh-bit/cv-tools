@@ -1,7 +1,7 @@
 # bilateral_filter - validation result
 
 **Edge-preserving noise reduction**  
-`src.filters.smoothing` | family: Enhance | 2026-08-21T12:44:49
+`src.filters.smoothing` | family: Enhance | 2026-09-01T16:35:02
 
 ## Verdict
 
@@ -19,51 +19,51 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 5.0 | [362, 640, 3] uint8 mean 163.64 | ok |
-| `cctv/brightest.jpg` | `sigma_color=1.0` | 4.4 | [362, 640, 3] uint8 mean 163.53 | ok |
-| `cctv/brightest.jpg` | `sigma_color=200.0` | 4.7 | [362, 640, 3] uint8 mean 163.7 | ok |
-| `cctv/brightest.jpg` | `sigma_space=1.0` | 5.1 | [362, 640, 3] uint8 mean 163.57 | ok |
-| `cctv/brightest.jpg` | `sigma_space=200.0` | 5.0 | [362, 640, 3] uint8 mean 163.64 | ok |
-| `cctv/darkest.jpg` | `defaults` | 4.6 | [362, 640, 3] uint8 mean 111.01 | ok |
-| `cctv/darkest.jpg` | `sigma_color=1.0` | 4.6 | [362, 640, 3] uint8 mean 110.93 | ok |
-| `cctv/darkest.jpg` | `sigma_color=200.0` | 4.7 | [362, 640, 3] uint8 mean 111.12 | ok |
-| `cctv/darkest.jpg` | `sigma_space=1.0` | 4.5 | [362, 640, 3] uint8 mean 110.95 | ok |
-| `cctv/darkest.jpg` | `sigma_space=200.0` | 5.0 | [362, 640, 3] uint8 mean 111.01 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 4.5 | [362, 640, 3] uint8 mean 125.57 | ok |
-| `cctv/event_fall.jpg` | `sigma_color=1.0` | 4.5 | [362, 640, 3] uint8 mean 125.51 | ok |
-| `cctv/event_fall.jpg` | `sigma_color=200.0` | 5.9 | [362, 640, 3] uint8 mean 125.79 | ok |
-| `cctv/event_fall.jpg` | `sigma_space=1.0` | 4.6 | [362, 640, 3] uint8 mean 125.53 | ok |
-| `cctv/event_fall.jpg` | `sigma_space=200.0` | 4.5 | [362, 640, 3] uint8 mean 125.57 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 4.8 | [362, 640, 3] uint8 mean 125.48 | ok |
-| `cctv/event_optflow.jpg` | `sigma_color=1.0` | 6.1 | [362, 640, 3] uint8 mean 125.42 | ok |
-| `cctv/event_optflow.jpg` | `sigma_color=200.0` | 5.7 | [362, 640, 3] uint8 mean 125.65 | ok |
-| `cctv/event_optflow.jpg` | `sigma_space=1.0` | 5.6 | [362, 640, 3] uint8 mean 125.44 | ok |
-| `cctv/event_optflow.jpg` | `sigma_space=200.0` | 5.2 | [362, 640, 3] uint8 mean 125.48 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 5.4 | [362, 640, 3] uint8 mean 160.72 | ok |
-| `cctv/event_tamper.jpg` | `sigma_color=1.0` | 4.6 | [362, 640, 3] uint8 mean 160.62 | ok |
-| `cctv/event_tamper.jpg` | `sigma_color=200.0` | 4.5 | [362, 640, 3] uint8 mean 160.78 | ok |
+| `cctv/brightest.jpg` | `defaults` | 5.9 | [362, 640, 3] uint8 mean 163.64 | ok |
+| `cctv/brightest.jpg` | `sigma_color=1.0` | 4.6 | [362, 640, 3] uint8 mean 163.53 | ok |
+| `cctv/brightest.jpg` | `sigma_color=200.0` | 4.9 | [362, 640, 3] uint8 mean 163.7 | ok |
+| `cctv/brightest.jpg` | `sigma_space=1.0` | 5.4 | [362, 640, 3] uint8 mean 163.57 | ok |
+| `cctv/brightest.jpg` | `sigma_space=200.0` | 8.8 | [362, 640, 3] uint8 mean 163.64 | ok |
+| `cctv/darkest.jpg` | `defaults` | 5.8 | [362, 640, 3] uint8 mean 111.01 | ok |
+| `cctv/darkest.jpg` | `sigma_color=1.0` | 6.8 | [362, 640, 3] uint8 mean 110.93 | ok |
+| `cctv/darkest.jpg` | `sigma_color=200.0` | 6.5 | [362, 640, 3] uint8 mean 111.12 | ok |
+| `cctv/darkest.jpg` | `sigma_space=1.0` | 6.7 | [362, 640, 3] uint8 mean 110.95 | ok |
+| `cctv/darkest.jpg` | `sigma_space=200.0` | 5.9 | [362, 640, 3] uint8 mean 111.01 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 6.5 | [362, 640, 3] uint8 mean 125.57 | ok |
+| `cctv/event_fall.jpg` | `sigma_color=1.0` | 6.8 | [362, 640, 3] uint8 mean 125.51 | ok |
+| `cctv/event_fall.jpg` | `sigma_color=200.0` | 6.8 | [362, 640, 3] uint8 mean 125.79 | ok |
+| `cctv/event_fall.jpg` | `sigma_space=1.0` | 6.6 | [362, 640, 3] uint8 mean 125.53 | ok |
+| `cctv/event_fall.jpg` | `sigma_space=200.0` | 6.0 | [362, 640, 3] uint8 mean 125.57 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 7.3 | [362, 640, 3] uint8 mean 125.48 | ok |
+| `cctv/event_optflow.jpg` | `sigma_color=1.0` | 5.5 | [362, 640, 3] uint8 mean 125.42 | ok |
+| `cctv/event_optflow.jpg` | `sigma_color=200.0` | 4.7 | [362, 640, 3] uint8 mean 125.65 | ok |
+| `cctv/event_optflow.jpg` | `sigma_space=1.0` | 5.2 | [362, 640, 3] uint8 mean 125.44 | ok |
+| `cctv/event_optflow.jpg` | `sigma_space=200.0` | 4.5 | [362, 640, 3] uint8 mean 125.48 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 4.9 | [362, 640, 3] uint8 mean 160.72 | ok |
+| `cctv/event_tamper.jpg` | `sigma_color=1.0` | 6.8 | [362, 640, 3] uint8 mean 160.62 | ok |
+| `cctv/event_tamper.jpg` | `sigma_color=200.0` | 5.6 | [362, 640, 3] uint8 mean 160.78 | ok |
 | `cctv/event_tamper.jpg` | `sigma_space=1.0` | 4.7 | [362, 640, 3] uint8 mean 160.65 | ok |
-| `cctv/event_tamper.jpg` | `sigma_space=200.0` | 4.5 | [362, 640, 3] uint8 mean 160.72 | ok |
-| `cctv/flattest.jpg` | `defaults` | 4.5 | [362, 640, 3] uint8 mean 121.55 | ok |
-| `cctv/flattest.jpg` | `sigma_color=1.0` | 4.6 | [362, 640, 3] uint8 mean 121.5 | ok |
-| `cctv/flattest.jpg` | `sigma_color=200.0` | 4.6 | [362, 640, 3] uint8 mean 121.71 | ok |
-| `cctv/flattest.jpg` | `sigma_space=1.0` | 4.5 | [362, 640, 3] uint8 mean 121.52 | ok |
-| `cctv/flattest.jpg` | `sigma_space=200.0` | 5.4 | [362, 640, 3] uint8 mean 121.55 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 4.5 | [362, 640, 3] uint8 mean 138.17 | ok |
-| `cctv/most_blown.jpg` | `sigma_color=1.0` | 4.7 | [362, 640, 3] uint8 mean 138.08 | ok |
-| `cctv/most_blown.jpg` | `sigma_color=200.0` | 4.4 | [362, 640, 3] uint8 mean 138.31 | ok |
-| `cctv/most_blown.jpg` | `sigma_space=1.0` | 4.5 | [362, 640, 3] uint8 mean 138.1 | ok |
-| `cctv/most_blown.jpg` | `sigma_space=200.0` | 5.3 | [362, 640, 3] uint8 mean 138.17 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 4.5 | [362, 640, 3] uint8 mean 131.79 | ok |
-| `cctv/sharpest.jpg` | `sigma_color=1.0` | 4.5 | [362, 640, 3] uint8 mean 131.76 | ok |
-| `cctv/sharpest.jpg` | `sigma_color=200.0` | 4.5 | [362, 640, 3] uint8 mean 131.96 | ok |
-| `cctv/sharpest.jpg` | `sigma_space=1.0` | 5.5 | [362, 640, 3] uint8 mean 131.75 | ok |
-| `cctv/sharpest.jpg` | `sigma_space=200.0` | 4.4 | [362, 640, 3] uint8 mean 131.79 | ok |
-| `cctv/softest.jpg` | `defaults` | 4.4 | [362, 640, 3] uint8 mean 125.44 | ok |
-| `cctv/softest.jpg` | `sigma_color=1.0` | 4.5 | [362, 640, 3] uint8 mean 125.38 | ok |
-| `cctv/softest.jpg` | `sigma_color=200.0` | 4.9 | [362, 640, 3] uint8 mean 125.53 | ok |
-| `cctv/softest.jpg` | `sigma_space=1.0` | 6.3 | [362, 640, 3] uint8 mean 125.4 | ok |
-| `cctv/softest.jpg` | `sigma_space=200.0` | 4.5 | [362, 640, 3] uint8 mean 125.44 | ok |
+| `cctv/event_tamper.jpg` | `sigma_space=200.0` | 4.8 | [362, 640, 3] uint8 mean 160.72 | ok |
+| `cctv/flattest.jpg` | `defaults` | 4.7 | [362, 640, 3] uint8 mean 121.55 | ok |
+| `cctv/flattest.jpg` | `sigma_color=1.0` | 4.9 | [362, 640, 3] uint8 mean 121.5 | ok |
+| `cctv/flattest.jpg` | `sigma_color=200.0` | 6.8 | [362, 640, 3] uint8 mean 121.71 | ok |
+| `cctv/flattest.jpg` | `sigma_space=1.0` | 5.7 | [362, 640, 3] uint8 mean 121.52 | ok |
+| `cctv/flattest.jpg` | `sigma_space=200.0` | 5.7 | [362, 640, 3] uint8 mean 121.55 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 6.1 | [362, 640, 3] uint8 mean 138.17 | ok |
+| `cctv/most_blown.jpg` | `sigma_color=1.0` | 6.3 | [362, 640, 3] uint8 mean 138.08 | ok |
+| `cctv/most_blown.jpg` | `sigma_color=200.0` | 4.8 | [362, 640, 3] uint8 mean 138.31 | ok |
+| `cctv/most_blown.jpg` | `sigma_space=1.0` | 5.7 | [362, 640, 3] uint8 mean 138.1 | ok |
+| `cctv/most_blown.jpg` | `sigma_space=200.0` | 5.4 | [362, 640, 3] uint8 mean 138.17 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 5.0 | [362, 640, 3] uint8 mean 131.79 | ok |
+| `cctv/sharpest.jpg` | `sigma_color=1.0` | 5.6 | [362, 640, 3] uint8 mean 131.76 | ok |
+| `cctv/sharpest.jpg` | `sigma_color=200.0` | 4.6 | [362, 640, 3] uint8 mean 131.96 | ok |
+| `cctv/sharpest.jpg` | `sigma_space=1.0` | 6.0 | [362, 640, 3] uint8 mean 131.75 | ok |
+| `cctv/sharpest.jpg` | `sigma_space=200.0` | 5.0 | [362, 640, 3] uint8 mean 131.79 | ok |
+| `cctv/softest.jpg` | `defaults` | 6.9 | [362, 640, 3] uint8 mean 125.44 | ok |
+| `cctv/softest.jpg` | `sigma_color=1.0` | 5.6 | [362, 640, 3] uint8 mean 125.38 | ok |
+| `cctv/softest.jpg` | `sigma_color=200.0` | 5.6 | [362, 640, 3] uint8 mean 125.53 | ok |
+| `cctv/softest.jpg` | `sigma_space=1.0` | 5.3 | [362, 640, 3] uint8 mean 125.4 | ok |
+| `cctv/softest.jpg` | `sigma_space=200.0` | 5.5 | [362, 640, 3] uint8 mean 125.44 | ok |
 
 ## Artifacts
 

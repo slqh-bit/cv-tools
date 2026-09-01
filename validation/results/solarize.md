@@ -1,7 +1,7 @@
 # solarize - validation result
 
 **Invert only values above a threshold**  
-`src.filters.invert` | family: Adjust | 2026-08-21T12:44:42
+`src.filters.invert` | family: Adjust | 2026-09-01T16:34:55
 
 ## Verdict
 
@@ -31,12 +31,12 @@ Not defects: a parameter at the end of its range doing exactly what it says.
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 1.0 | [362, 640, 3] uint8 mean 65.75 | ok |
-| `cctv/brightest.jpg` | `threshold=0` | 1.0 | [362, 640, 3] uint8 mean 91.44 | ok |
+| `cctv/brightest.jpg` | `defaults` | 0.9 | [362, 640, 3] uint8 mean 65.75 | ok |
+| `cctv/brightest.jpg` | `threshold=0` | 1.1 | [362, 640, 3] uint8 mean 91.44 | ok |
 | `cctv/brightest.jpg` | `threshold=255` | 0.8 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
 | `cctv/darkest.jpg` | `defaults` | 0.9 | [362, 640, 3] uint8 mean 85.99 | ok |
-| `cctv/darkest.jpg` | `threshold=0` | 0.8 | [362, 640, 3] uint8 mean 144.06 | ok |
-| `cctv/darkest.jpg` | `threshold=255` | 0.8 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
+| `cctv/darkest.jpg` | `threshold=0` | 0.9 | [362, 640, 3] uint8 mean 144.06 | ok |
+| `cctv/darkest.jpg` | `threshold=255` | 0.9 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
 | `cctv/event_fall.jpg` | `defaults` | 0.9 | [362, 640, 3] uint8 mean 80.52 | ok |
 | `cctv/event_fall.jpg` | `threshold=0` | 0.9 | [362, 640, 3] uint8 mean 127.39 | ok |
 | `cctv/event_fall.jpg` | `threshold=255` | 0.8 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
@@ -50,14 +50,14 @@ Not defects: a parameter at the end of its range doing exactly what it says.
 | `cctv/flattest.jpg` | `threshold=0` | 0.9 | [362, 640, 3] uint8 mean 133.43 | ok |
 | `cctv/flattest.jpg` | `threshold=255` | 0.8 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
 | `cctv/most_blown.jpg` | `defaults` | 0.9 | [362, 640, 3] uint8 mean 81.54 | ok |
-| `cctv/most_blown.jpg` | `threshold=0` | 0.9 | [362, 640, 3] uint8 mean 116.9 | ok |
+| `cctv/most_blown.jpg` | `threshold=0` | 1.2 | [362, 640, 3] uint8 mean 116.9 | ok |
 | `cctv/most_blown.jpg` | `threshold=255` | 0.8 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
 | `cctv/sharpest.jpg` | `defaults` | 0.9 | [362, 640, 3] uint8 mean 81.19 | ok |
 | `cctv/sharpest.jpg` | `threshold=0` | 0.9 | [362, 640, 3] uint8 mean 121.36 | ok |
-| `cctv/sharpest.jpg` | `threshold=255` | 0.8 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
+| `cctv/sharpest.jpg` | `threshold=255` | 0.9 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
 | `cctv/softest.jpg` | `defaults` | 0.9 | [362, 640, 3] uint8 mean 84.72 | ok |
 | `cctv/softest.jpg` | `threshold=0` | 0.9 | [362, 640, 3] uint8 mean 129.58 | ok |
-| `cctv/softest.jpg` | `threshold=255` | 0.8 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
+| `cctv/softest.jpg` | `threshold=255` | 1.0 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
 
 ## Artifacts
 
