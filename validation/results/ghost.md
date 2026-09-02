@@ -1,7 +1,7 @@
 # ghost - validation result
 
 **JPEG ghost: the recompression sweep frame with the most structure, dark where the pixels match that quality**  
-`src.filters.jpeg_ghost` | family: Forensic | 2026-09-01T16:37:13
+`cv_tools.filters.jpeg_ghost` | family: Forensic | 2026-09-01T16:37:13
 
 ## Verdict
 

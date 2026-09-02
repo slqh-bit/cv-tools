@@ -116,7 +116,7 @@ def patch_registry(make_broken: Callable[[Callable], Callable]) -> Callable[[], 
     """
     from dataclasses import replace
 
-    from src.filters.registry import FILTER_REGISTRY
+    from cv_tools.filters.registry import FILTER_REGISTRY
 
     originals = dict(FILTER_REGISTRY)
     for name, spec in originals.items():
@@ -135,7 +135,7 @@ def image_returning_names() -> List[str]:
     for name, value in vars(checks_module).items():
         if not callable(value) or name.startswith('_'):
             continue
-        if getattr(value, '__module__', '').startswith('src.filters'):
+        if getattr(value, '__module__', '').startswith('cv_tools.filters'):
             names.append(name)
     return names
 

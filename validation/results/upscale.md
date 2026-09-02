@@ -1,7 +1,7 @@
 # upscale - validation result
 
 **Single-frame interpolated enlargement**  
-`src.filters.super_resolution` | family: Enhance | 2026-09-01T16:35:35
+`cv_tools.filters.super_resolution` | family: Enhance | 2026-09-01T16:35:35
 
 ## Verdict
 

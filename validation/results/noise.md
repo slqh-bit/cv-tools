@@ -1,7 +1,7 @@
 # noise - validation result
 
 **Global and per-block noise level, and how evenly it is spread**  
-`src.filters.noise_analysis` | family: Analysis | 2026-08-20T00:27:52
+`cv_tools.filters.noise_analysis` | family: Analysis | 2026-08-20T00:27:52
 
 ## Verdict
 

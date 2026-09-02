@@ -1,7 +1,7 @@
 # auto_perspective - validation result
 
 **Detect and rectify a rectangular surface**  
-`src.filters.perspective_correction` | family: Correct | 2026-09-01T16:35:51
+`cv_tools.filters.perspective_correction` | family: Correct | 2026-09-01T16:35:51
 
 ## Verdict
 

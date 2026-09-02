@@ -18,8 +18,8 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.core import ImageLoader                                # noqa: E402
-from src.filters import invert_channel                          # noqa: E402
+from cv_tools.core import ImageLoader                                # noqa: E402
+from cv_tools.filters import invert_channel                          # noqa: E402
 
 
 def primaries() -> np.ndarray:
@@ -32,7 +32,7 @@ def primaries() -> np.ndarray:
 
 def main() -> int:
     import tkinter as tk
-    from src.gui.widgets import ImageCanvas, to_display
+    from cv_tools.gui.widgets import ImageCanvas, to_display
 
     root = tk.Tk()
     root.withdraw()

@@ -1,7 +1,7 @@
 # clahe - validation result
 
 **Contrast Limited Adaptive Histogram Equalization**  
-`src.filters.clahe` | family: Adjust | 2026-09-01T16:38:42
+`cv_tools.filters.clahe` | family: Adjust | 2026-09-01T16:38:42
 
 ## Verdict
 

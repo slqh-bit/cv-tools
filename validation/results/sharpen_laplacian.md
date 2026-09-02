@@ -1,7 +1,7 @@
 # sharpen_laplacian - validation result
 
 **Laplacian sharpening**  
-`src.filters.sharpen` | family: Enhance | 2026-09-01T16:34:58
+`cv_tools.filters.sharpen` | family: Enhance | 2026-09-01T16:34:58
 
 ## Verdict
 

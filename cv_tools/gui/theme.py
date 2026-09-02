@@ -18,49 +18,19 @@ from typing import Dict, Tuple
 
 # Widget fonts. Sizes are in points, so they follow the DPI scaling that
 # ``app.enable_dpi_awareness`` asks the OS for.
-FONT = ('Segoe UI', 9)
-FONT_BOLD = ('Segoe UI', 9, 'bold')
-FONT_HEADING = ('Segoe UI', 10, 'bold')
-FONT_MONO = ('Consolas', 9)
-
-DARK: Dict[str, str] = {
-    'window': '#17171a',        # behind the panes
-    'panel': '#1e1e22',         # panel surfaces
-    'field': '#26262b',         # entries, lists, buttons
-    'hover': '#32323a',
-    'text': '#e6e6ea',
-    'muted': '#9a9aa4',
-    'accent': '#f0a500',        # matches the split-view divider
-    'accent_text': '#17171a',
-    'flag': '#ff7a6b',          # a finding worth investigating
-    'ok': '#7ecb8f',
-    'canvas': '#101012',        # image viewer surround
-    'border': '#34343c',
-    'select': '#3a3a46',
-}
-
-LIGHT: Dict[str, str] = {
-    'window': '#ececed',
-    'panel': '#f7f7f9',
-    'field': '#ffffff',
-    'hover': '#e2e2e8',
-    'text': '#1c1c22',
-    'muted': '#5f5f6b',
-    'accent': '#1f6feb',
-    'accent_text': '#ffffff',
-    'flag': '#c62828',
-    'ok': '#1b7f3b',
-    'canvas': '#d4d4d9',
-    'border': '#c9c9d2',
-    'select': '#cfe0fb',
-}
-
-PALETTES: Dict[str, Dict[str, str]] = {'dark': DARK, 'light': LIGHT}
-
-# The histogram chart keeps its dark plate in both themes: its curves are drawn
-# in fixed channel colours, and the luminance curve is a light grey that would
-# disappear on a white background.
-HISTOGRAM_BACKGROUND: Tuple[int, int, int] = (18, 18, 20)
+# The palette itself lives in utils, importable without tkinter, because the
+# Streamlit dashboard draws from it too and is served from headless boxes.
+# Re-exported here so existing ``from .theme import DARK`` callers still work.
+from ..utils.palette import (          # noqa: F401
+    DARK,
+    FONT,
+    FONT_BOLD,
+    FONT_HEADING,
+    FONT_MONO,
+    HISTOGRAM_BACKGROUND,
+    LIGHT,
+    PALETTES,
+)
 
 
 def apply_theme(root: tk.Misc, name: str = 'dark') -> Dict[str, str]:

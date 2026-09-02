@@ -1,7 +1,7 @@
 # color_balance - validation result
 
 **Per-tonal-range RGB shifts**  
-`src.filters.color_balance` | family: Adjust | 2026-09-01T16:34:53
+`cv_tools.filters.color_balance` | family: Adjust | 2026-09-01T16:34:53
 
 ## Verdict
 

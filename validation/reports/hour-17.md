@@ -22,7 +22,7 @@ did not exist until now.
 
 ## The checks were still converting to greyscale the wrong way
 
-`_gray` used `COLOR_BGR2GRAY` while every `_to_gray` in `src/filters` uses
+`_gray` used `COLOR_BGR2GRAY` while every `_to_gray` in `cv_tools/filters` uses
 `COLOR_RGB2GRAY`. On RGB data that weights the channels 0.114/0.587/0.299
 instead of 0.299/0.587/0.114 - a different greyscale, and a different number
 out of every luminance measurement in the file. Same for the HSV conversions

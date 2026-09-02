@@ -1,7 +1,7 @@
 # nl_means - validation result
 
 **Non-local means denoising**  
-`src.filters.nl_means_denoise` | family: Enhance | 2026-09-01T16:35:03
+`cv_tools.filters.nl_means_denoise` | family: Enhance | 2026-09-01T16:35:03
 
 ## Verdict
 

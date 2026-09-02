@@ -1,7 +1,7 @@
 # fft_filter - validation result
 
 **Frequency domain low/high/bandpass filter**  
-`src.filters.fft_analysis` | family: Forensic | 2026-09-01T16:36:02
+`cv_tools.filters.fft_analysis` | family: Forensic | 2026-09-01T16:36:02
 
 ## Verdict
 

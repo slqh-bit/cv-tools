@@ -1,7 +1,7 @@
 # temperature - validation result
 
 **Manual colour temperature and tint**  
-`src.filters.white_balance` | family: Adjust | 2026-09-01T16:34:51
+`cv_tools.filters.white_balance` | family: Adjust | 2026-09-01T16:34:51
 
 ## Verdict
 

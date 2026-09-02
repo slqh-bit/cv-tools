@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from src.filters import (
+from cv_tools.filters import (
     check_thumbnail_mismatch,
     check_timestamps,
     detect_editing_software,
@@ -19,7 +19,7 @@ from src.filters import (
     parse_exif_datetime,
     read_exif,
 )
-from src.filters import (
+from cv_tools.filters import (
     apply_psf,
     average_frames,
     deblur_defocus,

@@ -29,7 +29,7 @@ if not exist "%PY%" (
 )
 
 REM %* passes through anything dropped on the icon or typed after the name
-"%PY%" -m src.gui %*
+"%PY%" -m cv_tools.gui %*
 
 REM Only pause on a failure, so a normal close does not leave a window behind
 if errorlevel 1 (

@@ -1,7 +1,7 @@
 # s_curve - validation result
 
 **Symmetric S-curve contrast**  
-`src.filters.curves` | family: Adjust | 2026-09-01T16:34:50
+`cv_tools.filters.curves` | family: Adjust | 2026-09-01T16:34:50
 
 ## Verdict
 

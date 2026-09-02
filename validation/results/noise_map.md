@@ -1,7 +1,7 @@
 # noise_map - validation result
 
 **Per-block noise level map**  
-`src.filters.noise_analysis` | family: Forensic | 2026-09-01T16:36:19
+`cv_tools.filters.noise_analysis` | family: Forensic | 2026-09-01T16:36:19
 
 ## Verdict
 

@@ -4,7 +4,7 @@ registry and analysis registry the CLI and Tkinter GUI use.
 
 Run with:
 
-    streamlit run src/dashboard.py --server.address=0.0.0.0
+    streamlit run cv_tools/dashboard.py --server.address=0.0.0.0
 
 Nothing here reimplements a filter or a measurement: it drives
 ``core.pipeline.Pipeline`` through ``filters.registry`` exactly like the CLI
@@ -36,8 +36,8 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
-from src.core import FilterStep, Pipeline, ReportGenerator
-from src.filters import (
+from cv_tools.core import FilterStep, Pipeline, ReportGenerator
+from cv_tools.filters import (
     ANALYSIS_REGISTRY,
     CATEGORY_ORDER,
     POINT_PARAMETERS,
@@ -52,10 +52,10 @@ from src.filters import (
     resolve_filter,
     run_analysis,
 )
-from src.gui.theme import DARK, HISTOGRAM_BACKGROUND
-from src.gui.widgets import SLIDER_RANGES, choices_for, to_display
-from src.utils.compare import difference_map
-from src.utils.parsing import parse_value
+from cv_tools.utils.palette import DARK, HISTOGRAM_BACKGROUND
+from cv_tools.utils.params import SLIDER_RANGES, choices_for, to_display
+from cv_tools.utils.compare import difference_map
+from cv_tools.utils.parsing import parse_value
 
 # streamlit-image-coordinates 0.4.0 (the latest) imports UseColumnWith, a type
 # alias Streamlit removed. It appears only in an annotation, never in logic, so

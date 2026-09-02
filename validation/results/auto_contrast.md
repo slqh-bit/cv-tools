@@ -1,7 +1,7 @@
 # auto_contrast - validation result
 
 **Automatic histogram stretch on luminance**  
-`src.filters.contrast_brightness` | family: Adjust | 2026-09-01T16:34:45
+`cv_tools.filters.contrast_brightness` | family: Adjust | 2026-09-01T16:34:45
 
 ## Verdict
 

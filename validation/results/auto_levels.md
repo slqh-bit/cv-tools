@@ -1,7 +1,7 @@
 # auto_levels - validation result
 
 **Automatic levels stretch**  
-`src.filters.levels` | family: Adjust | 2026-09-01T16:34:47
+`cv_tools.filters.levels` | family: Adjust | 2026-09-01T16:34:47
 
 ## Verdict
 

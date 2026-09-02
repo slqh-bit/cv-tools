@@ -26,7 +26,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.filters import FILTER_REGISTRY                         # noqa: E402
+from cv_tools.filters import FILTER_REGISTRY                         # noqa: E402
 from harness import REQUIRED_VALUES, load_corpus, parameter_matrix  # noqa: E402
 
 

@@ -1,7 +1,7 @@
 # stain - validation result
 
 **Extract one colorant by colour deconvolution**  
-`src.filters.color_deconvolution` | family: Special | 2026-09-01T16:37:17
+`cv_tools.filters.color_deconvolution` | family: Special | 2026-09-01T16:37:17
 
 ## Verdict
 

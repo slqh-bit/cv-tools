@@ -1,7 +1,7 @@
 # metadata - validation result
 
 **EXIF tags, JPEG segments and the contradictions between them**  
-`src.filters.metadata_forensics` | family: Analysis | 2026-09-01T16:37:27
+`cv_tools.filters.metadata_forensics` | family: Analysis | 2026-09-01T16:37:27
 
 ## Verdict
 

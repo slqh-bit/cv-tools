@@ -1,7 +1,7 @@
 # shape - validation result
 
 **Draw a rectangle, circle, ellipse, line or polygon**  
-`src.filters.annotate` | family: Special | 2026-09-01T16:37:20
+`cv_tools.filters.annotate` | family: Special | 2026-09-01T16:37:20
 
 ## Verdict
 

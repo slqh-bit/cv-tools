@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import checks as checks_module                                  # noqa: E402
-from src.filters import ANALYSIS_REGISTRY, FILTER_REGISTRY      # noqa: E402
+from cv_tools.filters import ANALYSIS_REGISTRY, FILTER_REGISTRY      # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 

@@ -1,7 +1,7 @@
 # solarize - validation result
 
 **Invert only values above a threshold**  
-`src.filters.invert` | family: Adjust | 2026-09-01T16:34:55
+`cv_tools.filters.invert` | family: Adjust | 2026-09-01T16:34:55
 
 ## Verdict
 

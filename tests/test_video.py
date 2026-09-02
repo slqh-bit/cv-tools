@@ -13,7 +13,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from src.core import (
+from cv_tools.core import (
     DEFAULT_CODECS,
     LOSSLESS_CODECS,
     VideoWriter,

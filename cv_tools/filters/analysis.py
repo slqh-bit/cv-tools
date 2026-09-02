@@ -257,34 +257,34 @@ ANALYSIS_REGISTRY: Dict[str, AnalysisSpec] = {
     spec.name: spec
     for spec in [
         AnalysisSpec(
-            'noise', noise_report, 'src.filters.noise_analysis',
+            'noise', noise_report, 'cv_tools.filters.noise_analysis',
             'Noise', 'Global and per-block noise level, and how evenly it is spread',
             _noise_header, _noise_rows,
             caveat='uneven noise can also come from content: flat sky against '
                    'detailed foreground reads as non-uniform',
         ),
         AnalysisSpec(
-            'ela', ela_stats, 'src.filters.ela',
+            'ela', ela_stats, 'cv_tools.filters.ela',
             'Error Level Analysis', 'Block-level recompression error and its outliers',
             _ela_header, _ela_rows,
             caveat='only meaningful on JPEG originals; texture raises error levels too',
             cli_value='quality',
         ),
         AnalysisSpec(
-            'clone', detect_copy_move, 'src.filters.clone_detection',
+            'clone', detect_copy_move, 'cv_tools.filters.clone_detection',
             'Copy-move', 'Duplicated regions and the shifts that relate them',
             _clone_header, _clone_rows,
             caveat='genuine repetition (tiles, windows, text) also matches',
         ),
         AnalysisSpec(
-            'compression', compression_report, 'src.filters.compression_analysis',
+            'compression', compression_report, 'cv_tools.filters.compression_analysis',
             'Compression', 'Blocking measures, plus the quality read from the file',
             _compression_header, _compression_rows,
             caveat='blocking indicates compression strength, not manipulation',
             needs_path=True, skip_params=('path',),
         ),
         AnalysisSpec(
-            'ghost', ghost_report, 'src.filters.jpeg_ghost',
+            'ghost', ghost_report, 'cv_tools.filters.jpeg_ghost',
             'JPEG ghost', 'Per-block prior JPEG quality, and blocks that disagree',
             _ghost_header, _ghost_rows,
             caveat='only meaningful on a single-JPEG composite; any re-save erases '
@@ -294,7 +294,7 @@ ANALYSIS_REGISTRY: Dict[str, AnalysisSpec] = {
                    'positive. A pointer to inspect, never a finding',
         ),
         AnalysisSpec(
-            'metadata', metadata_report, 'src.filters.metadata_forensics',
+            'metadata', metadata_report, 'cv_tools.filters.metadata_forensics',
             'Metadata', 'EXIF tags, JPEG segments and the contradictions between them',
             _metadata_header, _metadata_rows,
             caveat='metadata is trivially edited or stripped; a clean header proves '

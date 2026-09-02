@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from src.filters import (
+from cv_tools.filters import (
     ROI,
     adjust_contrast_brightness,
     adjust_levels,
@@ -177,7 +177,7 @@ class TestCLAHEGrid(unittest.TestCase):
             apply_clahe_grid(low_contrast_image(), clip_limits=[], tile_grid_sizes=[8])
 
     def test_registered_so_a_front_end_can_reach_it(self):
-        from src.filters import FILTER_REGISTRY
+        from cv_tools.filters import FILTER_REGISTRY
         self.assertIn('clahe_grid', FILTER_REGISTRY)
 
 
@@ -421,14 +421,14 @@ class TestROI(unittest.TestCase):
         self.assertEqual(mask.shape, (6, 6))
 
     def test_a_filter_that_resizes_the_region_is_refused(self):
-        from src.filters import resize
+        from cv_tools.filters import resize
         image = low_contrast_image(80, 120)
         with self.assertRaises(ValueError) as ctx:
             apply_to_roi(image, ROI(30, 20, 50, 40), resize, scale=0.5)
         self.assertIn('same region', str(ctx.exception))
 
     def test_roi_filter_is_registered_and_runs(self):
-        from src.filters import FILTER_REGISTRY
+        from cv_tools.filters import FILTER_REGISTRY
         self.assertIn('roi_filter', FILTER_REGISTRY)
 
         image = low_contrast_image(80, 120)

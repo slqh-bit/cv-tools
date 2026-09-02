@@ -1,7 +1,7 @@
 # blocking_map - validation result
 
 **Per-region JPEG blocking map**  
-`src.filters.compression_analysis` | family: Analyze | 2026-09-01T16:35:58
+`cv_tools.filters.compression_analysis` | family: Analyze | 2026-09-01T16:35:58
 
 ## Verdict
 

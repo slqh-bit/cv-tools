@@ -1,7 +1,7 @@
 # arrow - validation result
 
 **Draw a labelled arrow pointing at something**  
-`src.filters.annotate` | family: Special | 2026-09-01T16:37:20
+`cv_tools.filters.annotate` | family: Special | 2026-09-01T16:37:20
 
 ## Verdict
 

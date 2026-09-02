@@ -1,7 +1,7 @@
 """Prototype: CLAHE dirigee par l'histogramme local de chaque tuile."""
 import numpy as np, cv2
-from src.filters.noise_analysis import estimate_noise
-from src.filters.clahe import apply_clahe
+from cv_tools.filters.noise_analysis import estimate_noise
+from cv_tools.filters.clahe import apply_clahe
 
 
 def tile_demand_map(image, grid=8):

@@ -1,7 +1,7 @@
 # ela - validation result
 
 **Block-level recompression error and its outliers**  
-`src.filters.ela` | family: Analysis | 2026-09-01T16:37:20
+`cv_tools.filters.ela` | family: Analysis | 2026-09-01T16:37:20
 
 ## Verdict
 

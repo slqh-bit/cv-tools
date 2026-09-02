@@ -1,7 +1,7 @@
 # fft_spectrum - validation result
 
 **FFT magnitude spectrum**  
-`src.filters.fft_analysis` | family: Forensic | 2026-09-01T16:36:01
+`cv_tools.filters.fft_analysis` | family: Forensic | 2026-09-01T16:36:01
 
 ## Verdict
 

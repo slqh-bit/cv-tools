@@ -1,7 +1,7 @@
 # redact - validation result
 
 **Obscure a region (fill/noise destroy, blur/pixelate do not)**  
-`src.filters.redaction` | family: Special | 2026-09-01T16:37:18
+`cv_tools.filters.redaction` | family: Special | 2026-09-01T16:37:18
 
 ## Verdict
 

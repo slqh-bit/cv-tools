@@ -1,7 +1,7 @@
 # deblock - validation result
 
 **Soften JPEG block edges**  
-`src.filters.compression_analysis` | family: Analyze | 2026-09-01T16:35:59
+`cv_tools.filters.compression_analysis` | family: Analyze | 2026-09-01T16:35:59
 
 ## Verdict
 

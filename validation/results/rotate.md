@@ -1,7 +1,7 @@
 # rotate - validation result
 
 **Rotate by an arbitrary angle**  
-`src.filters.crop_resize` | family: Adjust | 2026-09-01T16:34:49
+`cv_tools.filters.crop_resize` | family: Adjust | 2026-09-01T16:34:49
 
 ## Verdict
 

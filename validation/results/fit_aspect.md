@@ -1,7 +1,7 @@
 # fit_aspect - validation result
 
 **Pad, crop or stretch to a display aspect ratio**  
-`src.filters.aspect_ratio` | family: Correct | 2026-09-01T16:35:56
+`cv_tools.filters.aspect_ratio` | family: Correct | 2026-09-01T16:35:56
 
 ## Verdict
 

@@ -1,7 +1,7 @@
 # vibrance - validation result
 
 **Saturation weighted towards muted colours**  
-`src.filters.saturation` | family: Adjust | 2026-09-01T16:34:52
+`cv_tools.filters.saturation` | family: Adjust | 2026-09-01T16:34:52
 
 ## Verdict
 

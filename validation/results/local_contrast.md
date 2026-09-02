@@ -1,7 +1,7 @@
 # local_contrast - validation result
 
 **Large-radius local contrast (clarity)**  
-`src.filters.detail_enhancement` | family: Enhance | 2026-09-01T16:35:41
+`cv_tools.filters.detail_enhancement` | family: Enhance | 2026-09-01T16:35:41
 
 ## Verdict
 

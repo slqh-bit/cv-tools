@@ -1,7 +1,7 @@
 # measure_3d - validation result
 
 **Estimate object height from one view, against a known reference**  
-`src.filters.measure_3d` | family: Special | 2026-09-01T16:37:19
+`cv_tools.filters.measure_3d` | family: Special | 2026-09-01T16:37:19
 
 ## Verdict
 

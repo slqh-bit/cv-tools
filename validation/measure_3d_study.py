@@ -14,7 +14,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.filters.measure_3d import (          # noqa: E402
+from cv_tools.filters.measure_3d import (          # noqa: E402
     horizon_from_lines,
     measure_height,
     resolve_horizon,

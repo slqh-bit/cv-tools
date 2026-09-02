@@ -16,54 +16,54 @@ regroupées à part, sous [Rapports d'analyse](#rapports-danalyse-pas-des-étape
 
 | Nom dans le registre | Fonction | Module | Sprint |
 |---|---|---|---|
-| `clahe` | `apply_clahe` | `src.filters.clahe` | 1 |
-| `contrast_brightness` | `adjust_contrast_brightness` | `src.filters.contrast_brightness` | 1 |
-| `auto_contrast` | `auto_contrast` | `src.filters.contrast_brightness` | 1 |
-| `levels` | `adjust_levels` | `src.filters.levels` | 1 |
-| `auto_levels` | `auto_levels` | `src.filters.levels` | 1 |
-| `histeq` | `histogram_equalization` | `src.filters.histogram_equalization` | 1 |
-| `roi_crop` | `roi_crop` | `src.filters.roi` | 1 |
-| `roi_filter` | `roi_filter` | `src.filters.roi` | — |
-| `roi_draw` | `roi_draw` | `src.filters.roi` | 1 |
-| `crop` | `crop` | `src.filters.crop_resize` | 1 |
-| `resize` | `resize` | `src.filters.crop_resize` | 1 |
-| `rotate` | `rotate` | `src.filters.crop_resize` | 1 |
-| `flip` | `flip` | `src.filters.crop_resize` | 1 |
-| `sharpen` | `unsharp_mask` | `src.filters.sharpen` | 2 |
-| `sharpen_laplacian` | `laplacian_sharpen` | `src.filters.sharpen` | 2 |
-| `gaussian_blur` | `gaussian_blur` | `src.filters.smoothing` | 2 |
-| `median_filter` | `median_filter` | `src.filters.smoothing` | 2 |
-| `bilateral_filter` | `bilateral_filter` | `src.filters.smoothing` | 2 |
-| `canny` | `canny_edges` | `src.filters.edge_detection` | 2 |
-| `auto_canny` | `auto_canny` | `src.filters.edge_detection` | 2 |
-| `sobel` | `sobel_edges` | `src.filters.edge_detection` | 2 |
-| `laplacian` | `laplacian_edges` | `src.filters.edge_detection` | 2 |
-| `ela` | `error_level_analysis` | `src.filters.ela` | 3 |
-| `fft_spectrum` | `fft_magnitude_spectrum` | `src.filters.fft_analysis` | 3 |
-| `fft_filter` | `fft_filter` | `src.filters.fft_analysis` | 3 |
-| `remove_periodic` | `remove_periodic_noise` | `src.filters.fft_analysis` | 3 |
-| `noise_map` | `noise_map` | `src.filters.noise_analysis` | 3 |
-| `clone_detect` | `highlight_clones` | `src.filters.clone_detection` | 3 |
-| `ghost` | `ghost_map` | `src.filters.jpeg_ghost` | 3 |
-| `deblur_motion` | `deblur_motion` | `src.filters.motion_deblur` | 3 |
-| `deblur_defocus` | `deblur_defocus` | `src.filters.motion_deblur` | 3 |
-| `curves` / `s_curve` | `apply_curve` / `s_curve` | `src.filters.curves` | — |
-| `white_balance` / `white_balance_patch` / `temperature` | `auto_white_balance` / `white_balance_from_patch` / `adjust_temperature` | `src.filters.white_balance` | — |
-| `saturation` / `vibrance` / `desaturate` / `selective_saturation` | voir le module | `src.filters.saturation` | — |
-| `color_balance` / `cmyk` / `channel_mixer` | voir le module | `src.filters.color_balance` | — |
-| `invert` / `invert_channel` / `invert_luminance` / `solarize` | voir le module | `src.filters.invert` | — |
-| `nl_means` / `nl_means_auto` | `nl_means_denoise` | `src.filters.nl_means_denoise` | — |
-| `upscale` | `upscale` | `src.filters.super_resolution` | — |
-| `local_contrast` / `detail_enhance` / `multiscale_detail` / `texture_boost` | voir le module | `src.filters.detail_enhancement` | — |
-| `perspective` / `auto_perspective` | `correct_perspective` | `src.filters.perspective_correction` | — |
-| `barrel` / `fisheye` | `correct_barrel_distortion` / `correct_fisheye` | `src.filters.fisheye_correction` | — |
-| `pixel_aspect` / `fit_aspect` | `correct_pixel_aspect` / `fit_to_aspect` | `src.filters.aspect_ratio` | — |
-| `undistort` | `undistort_with_file` | `src.filters.undistort` | — |
-| `clahe_grid` | `apply_clahe_grid` | `src.filters.clahe` | — |
-| `blocking_map` / `deblock` | voir le module | `src.filters.compression_analysis` | — |
-| `stain` | `extract_stain` | `src.filters.color_deconvolution` | — |
-| `component` / `bit_plane` | `extract_component` / `extract_bit_plane` | `src.filters.component_separation` | — |
-| `redact` | `redact_region` | `src.filters.redaction` | — |
+| `clahe` | `apply_clahe` | `cv_tools.filters.clahe` | 1 |
+| `contrast_brightness` | `adjust_contrast_brightness` | `cv_tools.filters.contrast_brightness` | 1 |
+| `auto_contrast` | `auto_contrast` | `cv_tools.filters.contrast_brightness` | 1 |
+| `levels` | `adjust_levels` | `cv_tools.filters.levels` | 1 |
+| `auto_levels` | `auto_levels` | `cv_tools.filters.levels` | 1 |
+| `histeq` | `histogram_equalization` | `cv_tools.filters.histogram_equalization` | 1 |
+| `roi_crop` | `roi_crop` | `cv_tools.filters.roi` | 1 |
+| `roi_filter` | `roi_filter` | `cv_tools.filters.roi` | — |
+| `roi_draw` | `roi_draw` | `cv_tools.filters.roi` | 1 |
+| `crop` | `crop` | `cv_tools.filters.crop_resize` | 1 |
+| `resize` | `resize` | `cv_tools.filters.crop_resize` | 1 |
+| `rotate` | `rotate` | `cv_tools.filters.crop_resize` | 1 |
+| `flip` | `flip` | `cv_tools.filters.crop_resize` | 1 |
+| `sharpen` | `unsharp_mask` | `cv_tools.filters.sharpen` | 2 |
+| `sharpen_laplacian` | `laplacian_sharpen` | `cv_tools.filters.sharpen` | 2 |
+| `gaussian_blur` | `gaussian_blur` | `cv_tools.filters.smoothing` | 2 |
+| `median_filter` | `median_filter` | `cv_tools.filters.smoothing` | 2 |
+| `bilateral_filter` | `bilateral_filter` | `cv_tools.filters.smoothing` | 2 |
+| `canny` | `canny_edges` | `cv_tools.filters.edge_detection` | 2 |
+| `auto_canny` | `auto_canny` | `cv_tools.filters.edge_detection` | 2 |
+| `sobel` | `sobel_edges` | `cv_tools.filters.edge_detection` | 2 |
+| `laplacian` | `laplacian_edges` | `cv_tools.filters.edge_detection` | 2 |
+| `ela` | `error_level_analysis` | `cv_tools.filters.ela` | 3 |
+| `fft_spectrum` | `fft_magnitude_spectrum` | `cv_tools.filters.fft_analysis` | 3 |
+| `fft_filter` | `fft_filter` | `cv_tools.filters.fft_analysis` | 3 |
+| `remove_periodic` | `remove_periodic_noise` | `cv_tools.filters.fft_analysis` | 3 |
+| `noise_map` | `noise_map` | `cv_tools.filters.noise_analysis` | 3 |
+| `clone_detect` | `highlight_clones` | `cv_tools.filters.clone_detection` | 3 |
+| `ghost` | `ghost_map` | `cv_tools.filters.jpeg_ghost` | 3 |
+| `deblur_motion` | `deblur_motion` | `cv_tools.filters.motion_deblur` | 3 |
+| `deblur_defocus` | `deblur_defocus` | `cv_tools.filters.motion_deblur` | 3 |
+| `curves` / `s_curve` | `apply_curve` / `s_curve` | `cv_tools.filters.curves` | — |
+| `white_balance` / `white_balance_patch` / `temperature` | `auto_white_balance` / `white_balance_from_patch` / `adjust_temperature` | `cv_tools.filters.white_balance` | — |
+| `saturation` / `vibrance` / `desaturate` / `selective_saturation` | voir le module | `cv_tools.filters.saturation` | — |
+| `color_balance` / `cmyk` / `channel_mixer` | voir le module | `cv_tools.filters.color_balance` | — |
+| `invert` / `invert_channel` / `invert_luminance` / `solarize` | voir le module | `cv_tools.filters.invert` | — |
+| `nl_means` / `nl_means_auto` | `nl_means_denoise` | `cv_tools.filters.nl_means_denoise` | — |
+| `upscale` | `upscale` | `cv_tools.filters.super_resolution` | — |
+| `local_contrast` / `detail_enhance` / `multiscale_detail` / `texture_boost` | voir le module | `cv_tools.filters.detail_enhancement` | — |
+| `perspective` / `auto_perspective` | `correct_perspective` | `cv_tools.filters.perspective_correction` | — |
+| `barrel` / `fisheye` | `correct_barrel_distortion` / `correct_fisheye` | `cv_tools.filters.fisheye_correction` | — |
+| `pixel_aspect` / `fit_aspect` | `correct_pixel_aspect` / `fit_to_aspect` | `cv_tools.filters.aspect_ratio` | — |
+| `undistort` | `undistort_with_file` | `cv_tools.filters.undistort` | — |
+| `clahe_grid` | `apply_clahe_grid` | `cv_tools.filters.clahe` | — |
+| `blocking_map` / `deblock` | voir le module | `cv_tools.filters.compression_analysis` | — |
+| `stain` | `extract_stain` | `cv_tools.filters.color_deconvolution` | — |
+| `component` / `bit_plane` | `extract_component` / `extract_bit_plane` | `cv_tools.filters.component_separation` | — |
+| `redact` | `redact_region` | `cv_tools.filters.redaction` | — |
 
 ---
 
@@ -1009,7 +1009,7 @@ En ligne de commande, la calibration est un *modificateur* partagé par toutes l
 la chaîne, car une échelle appartient à un plan de l'image et non à une mesure isolée :
 
 ```bash
-python -m src.cli plaque.jpg \
+cv-tools plaque.jpg \
     --scale-ref 100,200,340,200 --scale-length 520 --scale-unit mm \
     --measure 40,300,290,300 \
     --measure-area 40,320,290,320,290,400,40,400 \
@@ -1030,7 +1030,7 @@ plus. Les points s'écrivent par paires ou en suite de coordonnées : `10,10,60,
 `[(10, 10), (60, 50)]` désignent la même chose.
 
 ```bash
-python -m src.cli scene.jpg \
+cv-tools scene.jpg \
     --arrow start=400,300 end=280,210 label=plaque \
     --text text=Piece_A position=20,40 \
     --shape shape=rectangle points=260,190,340,240 -o figure.jpg
@@ -1110,12 +1110,12 @@ le pipeline intact.
 
 | Nom dans le registre | Fonction | Module | Lit | CLI |
 |---|---|---|---|---|
-| `noise` | `noise_report` | `src.filters.noise_analysis` | les pixels | `--noise-stats` |
-| `ela` | `ela_stats` | `src.filters.ela` | les pixels | `--ela-stats [QUALITÉ]` |
-| `clone` | `detect_copy_move` | `src.filters.clone_detection` | les pixels | `--clone-stats` |
-| `compression` | `compression_report` | `src.filters.compression_analysis` | pixels + fichier | `--compression-stats` |
-| `ghost` | `ghost_report` | `src.filters.jpeg_ghost` | les pixels | `--ghost-stats` |
-| `metadata` | `metadata_report` | `src.filters.metadata_forensics` | le fichier | `--metadata-stats` |
+| `noise` | `noise_report` | `cv_tools.filters.noise_analysis` | les pixels | `--noise-stats` |
+| `ela` | `ela_stats` | `cv_tools.filters.ela` | les pixels | `--ela-stats [QUALITÉ]` |
+| `clone` | `detect_copy_move` | `cv_tools.filters.clone_detection` | les pixels | `--clone-stats` |
+| `compression` | `compression_report` | `cv_tools.filters.compression_analysis` | pixels + fichier | `--compression-stats` |
+| `ghost` | `ghost_report` | `cv_tools.filters.jpeg_ghost` | les pixels | `--ghost-stats` |
+| `metadata` | `metadata_report` | `cv_tools.filters.metadata_forensics` | le fichier | `--metadata-stats` |
 
 Chaque entrée porte la présentation de son propre rapport — une ligne d'en-tête, ses lignes
 de contenu et la mise en garde qui le referme — si bien que la CLI affiche exactement ce que
@@ -1148,7 +1148,7 @@ dire, et ces notes sont la forme courte des mises en garde détaillées sous cha
 ci-dessus.
 
 ```python
-from src.filters import report_lines, resolve_analysis, run_analysis
+from cv_tools.filters import report_lines, resolve_analysis, run_analysis
 
 spec = resolve_analysis('ghost')
 report = run_analysis(spec, image=pipeline.current, params={'block_size': 8})

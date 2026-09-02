@@ -1,7 +1,7 @@
 # barrel - validation result
 
 **Polynomial radial distortion correction**  
-`src.filters.fisheye_correction` | family: Correct | 2026-09-01T16:35:51
+`cv_tools.filters.fisheye_correction` | family: Correct | 2026-09-01T16:35:51
 
 ## Verdict
 

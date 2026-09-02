@@ -1,7 +1,7 @@
 # measure_area - validation result
 
 **Measure the area of a polygon, against a reference of known length in the same plane**  
-`src.filters.annotate` | family: Special | 2026-09-01T16:37:19
+`cv_tools.filters.annotate` | family: Special | 2026-09-01T16:37:19
 
 ## Verdict
 

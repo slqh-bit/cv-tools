@@ -13,8 +13,8 @@ from pathlib import Path
 
 import numpy as np
 
-from src.core import save_image
-from src.filters import (
+from cv_tools.core import save_image
+from cv_tools.filters import (
     ANALYSIS_REGISTRY,
     Row,
     list_analyses,
@@ -47,7 +47,7 @@ class TestRegistry(unittest.TestCase):
                 # The caveat is the point of a forensic report: no measure here
                 # concludes anything on its own
                 self.assertTrue(spec.caveat)
-                self.assertTrue(spec.module.startswith('src.filters.'))
+                self.assertTrue(spec.module.startswith('cv_tools.filters.'))
 
     def test_list_analyses_pairs_names_with_descriptions(self):
         pairs = dict(list_analyses())

@@ -1,7 +1,7 @@
 # cmyk - validation result
 
 **Subtractive CMYK adjustment**  
-`src.filters.color_balance` | family: Adjust | 2026-09-01T16:34:54
+`cv_tools.filters.color_balance` | family: Adjust | 2026-09-01T16:34:54
 
 ## Verdict
 

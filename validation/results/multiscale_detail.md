@@ -1,7 +1,7 @@
 # multiscale_detail - validation result
 
 **Per-frequency-band detail boost**  
-`src.filters.detail_enhancement` | family: Enhance | 2026-09-01T16:35:48
+`cv_tools.filters.detail_enhancement` | family: Enhance | 2026-09-01T16:35:48
 
 ## Verdict
 

@@ -1,7 +1,7 @@
 # bilateral_filter - validation result
 
 **Edge-preserving noise reduction**  
-`src.filters.smoothing` | family: Enhance | 2026-09-01T16:35:02
+`cv_tools.filters.smoothing` | family: Enhance | 2026-09-01T16:35:02
 
 ## Verdict
 

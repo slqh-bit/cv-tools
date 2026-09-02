@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from src.cli import main
+from cv_tools.cli import main
 
 
 def bands(height: int = 48, width: int = 96) -> np.ndarray:
@@ -177,7 +177,7 @@ class TestStillSequence(unittest.TestCase):
             Image.fromarray(frame).save(self.source / f'{index:03d}.png')
 
     def test_averaging_stills_reduces_noise(self):
-        from src.filters import estimate_noise
+        from cv_tools.filters import estimate_noise
 
         self.write_noisy(16)
         out = self.root / 'averaged.png'

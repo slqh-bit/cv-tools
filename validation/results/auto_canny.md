@@ -1,7 +1,7 @@
 # auto_canny - validation result
 
 **Canny with thresholds derived from image median**  
-`src.filters.edge_detection` | family: Analyze | 2026-09-01T16:35:57
+`cv_tools.filters.edge_detection` | family: Analyze | 2026-09-01T16:35:57
 
 ## Verdict
 

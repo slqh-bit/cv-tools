@@ -25,8 +25,8 @@ except Exception as exc:            # pragma: no cover - environment dependent
     TK_AVAILABLE = False
     TK_ERROR = str(exc)
 
-from src.core import FilterStep, Pipeline
-from src.filters import (
+from cv_tools.core import FilterStep, Pipeline
+from cv_tools.filters import (
     ANALYSIS_REGISTRY,
     CATEGORY_ORDER,
     FILTER_REGISTRY,
@@ -48,7 +48,7 @@ class TestParameterPanel(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from src.gui.widgets import ParameterPanel
+        from cv_tools.gui.widgets import ParameterPanel
         cls.ParameterPanel = ParameterPanel
         cls.root = tk.Tk()
         cls.root.withdraw()
@@ -85,7 +85,7 @@ class TestParameterPanel(unittest.TestCase):
         entry cannot parse back, or that the filter rejects, fails here rather
         than under an operator's mouse.
         """
-        from src.filters.registry import POINT_PARAMETERS
+        from cv_tools.filters.registry import POINT_PARAMETERS
 
         image = sample_image(120, 160)
         panel = self.ParameterPanel(self.root)
@@ -137,7 +137,7 @@ class TestParameterPanel(unittest.TestCase):
         but the dashboard's selectbox offers only what it lists - there it is
         a dead end. choices_for narrows per filter; this holds it to that.
         """
-        from src.gui.widgets import choices_for
+        from cv_tools.gui.widgets import choices_for
 
         image = sample_image(32, 40)
         for name, spec in FILTER_REGISTRY.items():
@@ -235,13 +235,13 @@ class TestParameterPanel(unittest.TestCase):
         panel.destroy()
 
     def test_comma_text_parses_to_a_list(self):
-        from src.gui.widgets import _parse_text
+        from cv_tools.gui.widgets import _parse_text
         self.assertEqual(_parse_text('1,2,3'), [1, 2, 3])
         self.assertEqual(_parse_text('8x8'), (8, 8))
         self.assertEqual(_parse_text('lab'), 'lab')
 
     def test_eight_numbers_become_corner_pairs(self):
-        from src.gui.widgets import _parse_text
+        from cv_tools.gui.widgets import _parse_text
         self.assertEqual(_parse_text('1,2,3,4,5,6,7,8'),
                          [[1, 2], [3, 4], [5, 6], [7, 8]])
 
@@ -258,7 +258,7 @@ class TestImageCanvas(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from src.gui.widgets import ImageCanvas
+        from cv_tools.gui.widgets import ImageCanvas
         cls.ImageCanvas = ImageCanvas
         cls.root = tk.Tk()
         cls.root.withdraw()
@@ -313,7 +313,7 @@ class TestImageCanvas(unittest.TestCase):
                 self.assertIsNotNone(self.canvas._compose())
 
     def test_grayscale_output_is_displayable(self):
-        from src.filters import canny_edges
+        from cv_tools.filters import canny_edges
         edges = canny_edges(self.original, 50, 150)
         self.canvas.set_images(self.original, edges)
         composite = self.canvas._compose()
@@ -453,14 +453,14 @@ class TestApp(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from src.gui.app import CVToolsApp
+        from cv_tools.gui.app import CVToolsApp
         cls.CVToolsApp = CVToolsApp
 
     def setUp(self):
         # Modal dialogs block forever without a user to dismiss them, so they
         # are intercepted; the mock also lets a test assert one was raised
-        self.messagebox = mock.patch('src.gui.app.messagebox').start()
-        self.filedialog = mock.patch('src.gui.app.filedialog').start()
+        self.messagebox = mock.patch('cv_tools.gui.app.messagebox').start()
+        self.filedialog = mock.patch('cv_tools.gui.app.filedialog').start()
         self.addCleanup(mock.patch.stopall)
 
         self.app = self.CVToolsApp()
@@ -755,7 +755,7 @@ class TestApp(unittest.TestCase):
 
         # Eight numbers reach the form as four pairs, which resolve_horizon
         # flattens; either shape has to give the same line
-        from src.filters.measure_3d import resolve_horizon
+        from cv_tools.filters.measure_3d import resolve_horizon
         line = resolve_horizon(params['horizon'])
         self.assertAlmostEqual(-line[2] / line[1], 26.0, places=6)
         self.assertAlmostEqual(line[0], 0.0, places=9)
@@ -815,7 +815,7 @@ class TestApp(unittest.TestCase):
         self.assertEqual(self.app.viewer._picked, [(width - 1, height - 1)])
 
     def test_theme_switch_recolours_every_kind_of_widget(self):
-        from src.gui.theme import LIGHT
+        from cv_tools.gui.theme import LIGHT
 
         self.app.set_theme('light')
         self.assertEqual(self.app.palette, LIGHT)
@@ -843,7 +843,7 @@ class TestApp(unittest.TestCase):
             self.assertEqual(preset['filters'][0]['name'], 'clahe')
 
             # Replay it through the plain pipeline, as the CLI would
-            from src.filters import filter_function
+            from cv_tools.filters import filter_function
             replayed = Pipeline(self.image)
             steps = [FilterStep.from_dict(s) for s in preset['filters']]
             replayed.replace_chain(steps, filter_function)
@@ -854,7 +854,7 @@ class TestApp(unittest.TestCase):
         self._select('clahe')
         self.app.apply_filter()
 
-        from src.core import ReportGenerator
+        from cv_tools.core import ReportGenerator
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'report.md'
             ReportGenerator(self.app.pipeline.generate_report(),
@@ -862,7 +862,7 @@ class TestApp(unittest.TestCase):
             self.assertIn('clahe', path.read_text(encoding='utf-8'))
 
     def test_view_modes_switch(self):
-        from src.gui.widgets import VIEW_MODES
+        from cv_tools.gui.widgets import VIEW_MODES
 
         for mode in VIEW_MODES:
             with self.subTest(mode=mode):

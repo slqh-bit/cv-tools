@@ -24,7 +24,7 @@ import numpy as np
 # to read as the corpus being incomplete rather than the path being wrong.
 CORPUS = Path(__file__).resolve().parent / 'corpus'
 
-from src.filters import (
+from cv_tools.filters import (
     CLAHE_COLOR_MODES,
     adjust_temperature,
     auto_canny,
@@ -105,7 +105,7 @@ Check = Callable[[Dict[str, np.ndarray]], Tuple[bool, str]]
 
 
 def _gray(image: np.ndarray) -> np.ndarray:
-    # RGB2GRAY, matching every _to_gray in src/filters. The corpus goes
+    # RGB2GRAY, matching every _to_gray in cv_tools/filters. The corpus goes
     # through ImageLoader, so these arrays are RGB; BGR2GRAY would weight the
     # channels backwards and quietly change every luminance number here.
     return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY) if image.ndim == 3 else image
@@ -1204,7 +1204,7 @@ def _marker_frame() -> np.ndarray:
 
 def check_invariants(name: str, params: Dict[str, Any]) -> List[Tuple[str, bool, str]]:
     """Geometry, channel order and coverage for one tone or detail filter."""
-    from src.filters import resolve_filter
+    from cv_tools.filters import resolve_filter
 
     frame = _marker_frame()
     result = resolve_filter(name).fn(frame, **params)
@@ -1487,8 +1487,8 @@ MONOTONE_OVER_RANGE = [
 def check_over_range(filter_name: str, parameter: str, measure, direction: str,
                      corpus) -> List[Tuple[str, bool, str]]:
     """Sample a parameter across its whole slider range and hold it to shape."""
-    from src.gui.widgets import SLIDER_RANGES
-    from src.filters import resolve_filter
+    from cv_tools.gui.widgets import SLIDER_RANGES
+    from cv_tools.filters import resolve_filter
 
     low, high = SLIDER_RANGES[parameter]
     points = [low + (high - low) * i / 5.0 for i in range(6)]
@@ -1843,7 +1843,7 @@ def check_per_channel(corpus) -> List[Tuple[str, bool, str]]:
     The image is RGB, because that is what `ImageLoader` produces and what
     every filter here expects.
     """
-    from src.filters import resolve_filter
+    from cv_tools.filters import resolve_filter
 
     # A frame where the three channels are unmistakably different, so a
     # filter acting on the wrong one cannot look like acting on the right one
@@ -1929,7 +1929,7 @@ def check_canny(corpus) -> List[Tuple[str, bool, str]]:
 
 def check_roi_crop(corpus) -> List[Tuple[str, bool, str]]:
     """roi_crop clips where crop raises - the documented difference."""
-    from src.filters import resolve_filter
+    from cv_tools.filters import resolve_filter
 
     # roi_crop is a registry adapter around extract_roi, not a module export
     roi_crop = resolve_filter('roi_crop').fn

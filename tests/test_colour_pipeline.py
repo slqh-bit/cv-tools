@@ -19,8 +19,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from src.core import FilterStep, ImageLoader, Pipeline, save_image
-from src.filters import filter_function, invert_channel, resolve_filter
+from cv_tools.core import FilterStep, ImageLoader, Pipeline, save_image
+from cv_tools.filters import filter_function, invert_channel, resolve_filter
 
 # Unambiguous primaries, written as a real file would carry them
 RED = (255, 0, 0)
@@ -157,7 +157,7 @@ class TestViewerColour(unittest.TestCase):
 
     def test_the_viewer_composes_the_colours_it_was_given(self):
         import tkinter as tk
-        from src.gui.widgets import ImageCanvas, to_display
+        from cv_tools.gui.widgets import ImageCanvas, to_display
 
         root = tk.Tk()
         root.withdraw()
@@ -189,7 +189,7 @@ class TestDashboardColour(unittest.TestCase):
     """The web front end has to agree with the desktop one."""
 
     def test_the_dashboard_load_path_keeps_rgb(self):
-        # Mirrors src/dashboard.py's _load_image: PIL decode, no conversion
+        # Mirrors cv_tools/dashboard.py's _load_image: PIL decode, no conversion
         frame = np.zeros((8, 24, 3), np.uint8)
         frame[:, :8] = RED
         buffer = io.BytesIO()

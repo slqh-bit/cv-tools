@@ -8,7 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from src.filters import (
+from cv_tools.filters import (
     COLOR_SPACES,
     STAIN_PRESETS,
     Scale,
@@ -675,7 +675,7 @@ class MeasurementAdapterTests(unittest.TestCase):
         self.image = detailed(200, 300)
 
     def test_calibration_from_a_reference_span(self):
-        from src.filters.registry import _calibration
+        from cv_tools.filters.registry import _calibration
 
         scale = _calibration([100, 200], [200, 200], 520.0, 'mm')
         self.assertAlmostEqual(scale.pixels, 100.0)
@@ -683,12 +683,12 @@ class MeasurementAdapterTests(unittest.TestCase):
         self.assertEqual(scale.unit_name, 'mm')
 
     def test_no_reference_means_no_calibration(self):
-        from src.filters.registry import _calibration
+        from cv_tools.filters.registry import _calibration
 
         self.assertIsNone(_calibration(None, None, None, 'mm'))
 
     def test_half_a_calibration_raises(self):
-        from src.filters.registry import _calibration
+        from cv_tools.filters.registry import _calibration
 
         with self.assertRaises(ValueError):
             _calibration([0, 0], [10, 0], None, 'mm')
@@ -696,7 +696,7 @@ class MeasurementAdapterTests(unittest.TestCase):
             _calibration([0, 0], None, 520.0, 'mm')
 
     def test_measure_matches_the_underlying_dimension_line(self):
-        from src.filters.registry import measure
+        from cv_tools.filters.registry import measure
 
         adapted = measure(self.image, [20, 60], [120, 60],
                           reference_a=[20, 30], reference_b=[70, 30],
@@ -706,14 +706,14 @@ class MeasurementAdapterTests(unittest.TestCase):
         np.testing.assert_array_equal(adapted, direct)
 
     def test_measure_without_a_reference_falls_back_to_pixels(self):
-        from src.filters.registry import measure
+        from cv_tools.filters.registry import measure
 
         adapted = measure(self.image, [20, 60], [120, 60])
         direct = draw_measurement(self.image, [20, 60], [120, 60])
         np.testing.assert_array_equal(adapted, direct)
 
     def test_measure_area_adapter_accepts_flat_coordinates(self):
-        from src.filters.registry import measure_area_annotated
+        from cv_tools.filters.registry import measure_area_annotated
 
         flat = measure_area_annotated(self.image, [10, 10, 90, 10, 90, 60, 10, 60])
         pairs = measure_area_annotated(
@@ -721,7 +721,7 @@ class MeasurementAdapterTests(unittest.TestCase):
         np.testing.assert_array_equal(flat, pairs)
 
     def test_scale_bar_adapter_matches_a_hand_built_scale(self):
-        from src.filters.registry import scale_bar
+        from cv_tools.filters.registry import scale_bar
 
         adapted = scale_bar(self.image, [20, 30], [120, 30], 520.0,
                             length_units=260.0)
@@ -731,7 +731,7 @@ class MeasurementAdapterTests(unittest.TestCase):
         np.testing.assert_array_equal(adapted, direct)
 
     def test_registered_under_the_expected_names(self):
-        from src.filters.registry import FILTER_REGISTRY
+        from cv_tools.filters.registry import FILTER_REGISTRY
 
         for name in ('measure', 'measure_area', 'scale_bar', 'arrow', 'text',
                      'shape'):
@@ -740,7 +740,7 @@ class MeasurementAdapterTests(unittest.TestCase):
                 self.assertEqual(FILTER_REGISTRY[name].category, 'Special')
 
     def test_every_measurement_filter_has_a_click_plan(self):
-        from src.filters.registry import POINT_PARAMETERS
+        from cv_tools.filters.registry import POINT_PARAMETERS
 
         for name in ('measure', 'measure_area', 'scale_bar', 'arrow', 'text',
                      'shape'):
@@ -751,7 +751,7 @@ class MeasurementAdapterTests(unittest.TestCase):
         """A plan that names a parameter the filter lacks fills nothing."""
         import inspect
 
-        from src.filters.registry import FILTER_REGISTRY, POINT_PARAMETERS
+        from cv_tools.filters.registry import FILTER_REGISTRY, POINT_PARAMETERS
 
         for name, plan in POINT_PARAMETERS.items():
             spec = FILTER_REGISTRY[name]

@@ -181,7 +181,7 @@ class Pipeline:
         cannot be rebuilt never replaces one that works.
 
         Example:
-            >>> from src.filters import filter_function
+            >>> from cv_tools.filters import filter_function
             >>> preset = pipeline.load_preset('plate.json')
             >>> steps = [FilterStep.from_dict(s) for s in preset['filters']]
             >>> pipeline.replace_chain(steps, filter_function)

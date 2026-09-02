@@ -1,7 +1,7 @@
 # bit_plane - validation result
 
 **Extract one bit plane of the intensity**  
-`src.filters.component_separation` | family: Special | 2026-09-01T16:37:18
+`cv_tools.filters.component_separation` | family: Special | 2026-09-01T16:37:18
 
 ## Verdict
 

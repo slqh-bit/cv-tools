@@ -1,7 +1,7 @@
 # gaussian_blur - validation result
 
 **Gaussian smoothing**  
-`src.filters.smoothing` | family: Enhance | 2026-09-01T16:34:59
+`cv_tools.filters.smoothing` | family: Enhance | 2026-09-01T16:34:59
 
 ## Verdict
 

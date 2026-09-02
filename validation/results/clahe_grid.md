@@ -1,7 +1,7 @@
 # clahe_grid - validation result
 
 **Contact sheet of CLAHE settings, for choosing one you can justify**  
-`src.filters.clahe` | family: Analyze | 2026-09-01T16:35:58
+`cv_tools.filters.clahe` | family: Analyze | 2026-09-01T16:35:58
 
 ## Verdict
 

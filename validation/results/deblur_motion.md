@@ -1,7 +1,7 @@
 # deblur_motion - validation result
 
 **Wiener deconvolution of linear motion blur**  
-`src.filters.motion_deblur` | family: Forensic | 2026-09-01T16:36:51
+`cv_tools.filters.motion_deblur` | family: Forensic | 2026-09-01T16:36:51
 
 ## Verdict
 

@@ -1,5 +1,5 @@
 """
-Tests for src/utils/compare.py - the original-vs-processed renderings.
+Tests for cv_tools/utils/compare.py - the original-vs-processed renderings.
 
 Kept out of test_gui.py because these belong to both front ends and the CLI,
 and test_gui skips entirely when tkinter is unavailable.
@@ -9,7 +9,7 @@ import unittest
 
 import numpy as np
 
-from src.utils.compare import difference_map, side_by_side
+from cv_tools.utils.compare import difference_map, side_by_side
 
 
 class TestSideBySide(unittest.TestCase):
@@ -119,7 +119,7 @@ class TestDifferenceMap(unittest.TestCase):
         about. The map has to make that obvious without being told where to
         look.
         """
-        from src.filters.clahe import apply_clahe
+        from cv_tools.filters.clahe import apply_clahe
 
         frame = np.full((80, 120, 3), 12, dtype=np.uint8)     # dark ground
         frame[:30, :] = 60                                    # brighter sky band

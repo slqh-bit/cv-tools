@@ -1,7 +1,7 @@
 # perspective - validation result
 
 **Rectify a quadrilateral from four corners**  
-`src.filters.perspective_correction` | family: Correct | 2026-09-01T16:35:51
+`cv_tools.filters.perspective_correction` | family: Correct | 2026-09-01T16:35:51
 
 ## Verdict
 

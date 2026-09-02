@@ -1,7 +1,7 @@
 # compression - validation result
 
 **Blocking measures, plus the quality read from the file**  
-`src.filters.compression_analysis` | family: Analysis | 2026-08-20T00:27:56
+`cv_tools.filters.compression_analysis` | family: Analysis | 2026-08-20T00:27:56
 
 ## Verdict
 

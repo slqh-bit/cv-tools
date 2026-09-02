@@ -1,7 +1,7 @@
 import numpy as np, cv2
-from src.core.loader import ImageLoader
-from src.filters.clahe import apply_clahe
-from src.filters.noise_analysis import estimate_noise
+from cv_tools.core.loader import ImageLoader
+from cv_tools.filters.clahe import apply_clahe
+from cv_tools.filters.noise_analysis import estimate_noise
 from guided_clahe import tile_demand_map
 from clahe_lut import clahe_guided
 

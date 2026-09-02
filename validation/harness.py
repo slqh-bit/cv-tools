@@ -29,8 +29,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.core import Pipeline                                       # noqa: E402
-from src.filters import (                                           # noqa: E402
+from cv_tools.core import Pipeline                                       # noqa: E402
+from cv_tools.filters import (                                           # noqa: E402
     ANALYSIS_REGISTRY,
     FILTER_REGISTRY,
     dynamic_range_used,
@@ -40,7 +40,7 @@ from src.filters import (                                           # noqa: E402
     resolve_filter,
     run_analysis,
 )
-from src.gui.widgets import SLIDER_RANGES                           # noqa: E402
+from cv_tools.gui.widgets import SLIDER_RANGES                           # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 CORPUS = ROOT / 'corpus'
@@ -150,7 +150,7 @@ def load_corpus() -> Dict[str, np.ndarray]:
     A harness that does not load images the way the product does is not
     testing the product.
     """
-    from src.core import ImageLoader
+    from cv_tools.core import ImageLoader
 
     images = {}
     for path in sorted(CORPUS.rglob('*')):
@@ -237,7 +237,7 @@ def parameter_matrix(spec, limit: int = 14) -> List[Dict[str, Any]]:
             cast = int if isinstance(default, int) else float
             values = [cast(low), cast(high)]
         elif isinstance(default, str) and default:
-            from src.gui.widgets import CHOICES, _dynamic_choices
+            from cv_tools.gui.widgets import CHOICES, _dynamic_choices
             options = dict(CHOICES)
             options.update(_dynamic_choices())
             values = [v for v in options.get(name, []) if v and v != default][:2]

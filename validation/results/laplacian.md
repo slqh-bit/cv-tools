@@ -1,7 +1,7 @@
 # laplacian - validation result
 
 **Laplacian edge map**  
-`src.filters.edge_detection` | family: Analyze | 2026-09-01T16:35:58
+`cv_tools.filters.edge_detection` | family: Analyze | 2026-09-01T16:35:58
 
 ## Verdict
 

@@ -35,9 +35,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.core import ImageLoader, save_image                      # noqa: E402
-from src.filters import FILTER_REGISTRY, CameraCalibration        # noqa: E402
-from src.filters import save_calibration                          # noqa: E402
+from cv_tools.core import ImageLoader, save_image                      # noqa: E402
+from cv_tools.filters import FILTER_REGISTRY, CameraCalibration        # noqa: E402
+from cv_tools.filters import save_calibration                          # noqa: E402
 
 # Parameters that have no usable default. Scaled to the sample at run time
 # where they are fractions of the image.
@@ -45,6 +45,9 @@ ARGUMENTS: Dict[str, Dict[str, Any]] = {
     'crop': {'x': 0.15, 'y': 0.25, 'width': 0.5, 'height': 0.4, '_relative': True},
     'roi_crop': {'x': 0.15, 'y': 0.25, 'width': 0.5, 'height': 0.4, '_relative': True},
     'roi_draw': {'x': 0.15, 'y': 0.25, 'width': 0.5, 'height': 0.4, '_relative': True},
+    # Runs another filter inside the region, so it needs one named as well
+    'roi_filter': {'x': 0.15, 'y': 0.25, 'width': 0.5, 'height': 0.4,
+                   'filter_name': 'clahe', '_relative': True},
     'redact': {'x': 0.15, 'y': 0.25, 'width': 0.5, 'height': 0.4, '_relative': True},
     'white_balance_patch': {'x': 0.4, 'y': 0.4, 'width': 0.15, 'height': 0.15,
                             '_relative': True},

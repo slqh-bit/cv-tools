@@ -1,7 +1,7 @@
 # detail_enhance - validation result
 
 **Edge-preserving texture enhancement**  
-`src.filters.detail_enhancement` | family: Enhance | 2026-09-01T16:35:46
+`cv_tools.filters.detail_enhancement` | family: Enhance | 2026-09-01T16:35:46
 
 ## Verdict
 

@@ -1,7 +1,7 @@
 # remove_periodic - validation result
 
 **Notch out periodic pattern noise**  
-`src.filters.fft_analysis` | family: Forensic | 2026-09-01T16:36:05
+`cv_tools.filters.fft_analysis` | family: Forensic | 2026-09-01T16:36:05
 
 ## Verdict
 

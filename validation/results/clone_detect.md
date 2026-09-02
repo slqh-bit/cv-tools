@@ -1,7 +1,7 @@
 # clone_detect - validation result
 
 **Highlight copy-move duplicated regions**  
-`src.filters.clone_detection` | family: Forensic | 2026-09-01T16:36:19
+`cv_tools.filters.clone_detection` | family: Forensic | 2026-09-01T16:36:19
 
 ## Verdict
 

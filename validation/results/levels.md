@@ -1,7 +1,7 @@
 # levels - validation result
 
 **Black point / gamma / white point adjustment**  
-`src.filters.levels` | family: Adjust | 2026-09-01T16:34:46
+`cv_tools.filters.levels` | family: Adjust | 2026-09-01T16:34:46
 
 ## Verdict
 

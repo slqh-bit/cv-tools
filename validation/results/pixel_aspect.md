@@ -1,7 +1,7 @@
 # pixel_aspect - validation result
 
 **Rescale non-square pixels to square**  
-`src.filters.aspect_ratio` | family: Correct | 2026-09-01T16:35:56
+`cv_tools.filters.aspect_ratio` | family: Correct | 2026-09-01T16:35:56
 
 ## Verdict
 

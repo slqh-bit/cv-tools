@@ -1,7 +1,7 @@
 # component - validation result
 
 **Extract one colour-space channel**  
-`src.filters.component_separation` | family: Special | 2026-09-01T16:37:18
+`cv_tools.filters.component_separation` | family: Special | 2026-09-01T16:37:18
 
 ## Verdict
 

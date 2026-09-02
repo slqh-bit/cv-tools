@@ -1,7 +1,7 @@
 # text - validation result
 
 **Draw a text label on a dark plate**  
-`src.filters.annotate` | family: Special | 2026-09-01T16:37:20
+`cv_tools.filters.annotate` | family: Special | 2026-09-01T16:37:20
 
 ## Verdict
 

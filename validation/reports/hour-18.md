@@ -15,7 +15,7 @@ A pure red PNG, and the instruction "invert the red channel":
 | desktop app | R=0 G=0 B=0 - **red inverted** |
 | dashboard | R=255 G=0 B=255 - **blue inverted, red untouched** |
 
-`src/dashboard.py` converted every upload to BGR on load:
+`cv_tools/dashboard.py` converted every upload to BGR on load:
 
     image = image[:, :, ::-1].copy()  # RGB -> BGR, filters are OpenCV-shaped
 

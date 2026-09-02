@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from src.filters import (
+from cv_tools.filters import (
     auto_canny,
     bilateral_filter,
     canny_edges,

@@ -1,7 +1,7 @@
 # texture_boost - validation result
 
 **Texture contrast with edge protection**  
-`src.filters.detail_enhancement` | family: Enhance | 2026-09-01T16:35:50
+`cv_tools.filters.detail_enhancement` | family: Enhance | 2026-09-01T16:35:50
 
 ## Verdict
 

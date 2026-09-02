@@ -1,7 +1,7 @@
 # ghost - validation result
 
 **Per-block prior JPEG quality, and blocks that disagree**  
-`src.filters.jpeg_ghost` | family: Analysis | 2026-09-01T16:37:25
+`cv_tools.filters.jpeg_ghost` | family: Analysis | 2026-09-01T16:37:25
 
 ## Verdict
 

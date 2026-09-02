@@ -1,7 +1,7 @@
 # sharpen - validation result
 
 **Unsharp mask sharpening**  
-`src.filters.sharpen` | family: Enhance | 2026-09-01T16:34:55
+`cv_tools.filters.sharpen` | family: Enhance | 2026-09-01T16:34:55
 
 ## Verdict
 

@@ -10,8 +10,8 @@ from unittest import mock
 import cv2
 import numpy as np
 
-from src.core import FilterStep, ImageLoader, Pipeline, ReportGenerator, hash_image, save_image
-from src.filters import (
+from cv_tools.core import FilterStep, ImageLoader, Pipeline, ReportGenerator, hash_image, save_image
+from cv_tools.filters import (
     adjust_contrast_brightness,
     apply_clahe,
     apply_preset,
@@ -238,19 +238,19 @@ class TestPipeline(unittest.TestCase):
         np.testing.assert_array_equal(self.pipeline.original, self.image)
 
     def test_apply_records_step(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 3.0})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 3.0})
         self.assertEqual(len(self.pipeline), 1)
         self.assertEqual(self.pipeline.chain[0].name, 'clahe')
         self.assertEqual(self.pipeline.chain[0].params, {'clip_limit': 3.0})
 
     def test_undo_restores_previous_state(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {})
         self.pipeline.undo()
         self.assertEqual(len(self.pipeline), 0)
         np.testing.assert_array_equal(self.pipeline.current, self.image)
 
     def test_redo_reapplies(self):
-        after = self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {})
+        after = self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {})
         self.pipeline.undo()
         redone = self.pipeline.redo()
         np.testing.assert_array_equal(redone, after)
@@ -260,10 +260,10 @@ class TestPipeline(unittest.TestCase):
         self.assertIsNone(self.pipeline.undo())
 
     def test_redo_stack_cleared_by_new_action(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {})
         self.pipeline.undo()
         self.pipeline.apply(adjust_contrast_brightness, 'contrast_brightness',
-                            'src.filters.contrast_brightness', {'brightness': 10})
+                            'cv_tools.filters.contrast_brightness', {'brightness': 10})
         self.assertIsNone(self.pipeline.redo())
 
     def test_failed_filter_rolls_back(self):
@@ -281,7 +281,7 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(len(self.pipeline), 0)
 
     def test_reset_clears_everything(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {})
         self.pipeline.reset()
         self.assertEqual(len(self.pipeline), 0)
         self.assertIsNone(self.pipeline.undo())
@@ -290,26 +290,26 @@ class TestPipeline(unittest.TestCase):
     def test_order_matters(self):
         first = Pipeline(self.image)
         first.apply(adjust_contrast_brightness, 'contrast_brightness',
-                    'src.filters.contrast_brightness', {'brightness': 60})
-        first.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 4.0})
+                    'cv_tools.filters.contrast_brightness', {'brightness': 60})
+        first.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 4.0})
 
         second = Pipeline(self.image)
-        second.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 4.0})
+        second.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 4.0})
         second.apply(adjust_contrast_brightness, 'contrast_brightness',
-                     'src.filters.contrast_brightness', {'brightness': 60})
+                     'cv_tools.filters.contrast_brightness', {'brightness': 60})
 
         self.assertFalse(np.array_equal(first.current, second.current))
 
     def test_compare_returns_original_and_current(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {})
         original, current = self.pipeline.compare()
         np.testing.assert_array_equal(original, self.image)
         self.assertFalse(np.array_equal(original, current))
 
     def test_preset_roundtrip_reproduces_result(self):
         self.pipeline.apply(adjust_contrast_brightness, 'contrast_brightness',
-                            'src.filters.contrast_brightness', {'brightness': 25})
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 3.0})
+                            'cv_tools.filters.contrast_brightness', {'brightness': 25})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 3.0})
         expected = self.pipeline.current
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -326,8 +326,8 @@ class TestPipeline(unittest.TestCase):
     def test_replace_chain_actually_applies_the_filters(self):
         expected = Pipeline(self.image)
         expected.apply(adjust_contrast_brightness, 'contrast_brightness',
-                       'src.filters.contrast_brightness', {'brightness': 25})
-        expected.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 3.0})
+                       'cv_tools.filters.contrast_brightness', {'brightness': 25})
+        expected.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 3.0})
 
         replaced = Pipeline(self.image)
         result = replaced.replace_chain(expected.chain, filter_function)
@@ -337,16 +337,16 @@ class TestPipeline(unittest.TestCase):
 
     def test_replace_chain_discards_the_previous_chain(self):
         self.pipeline.apply(adjust_contrast_brightness, 'contrast_brightness',
-                            'src.filters.contrast_brightness', {'brightness': 90})
+                            'cv_tools.filters.contrast_brightness', {'brightness': 90})
 
-        new_chain = [FilterStep('clahe', 'src.filters.clahe', {'clip_limit': 2.0})]
+        new_chain = [FilterStep('clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0})]
         self.pipeline.replace_chain(new_chain, filter_function)
 
         self.assertEqual([step.name for step in self.pipeline.chain], ['clahe'])
 
         # The result must come from the original, not from the brightened state
         reference = Pipeline(self.image)
-        reference.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 2.0})
+        reference.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0})
         np.testing.assert_array_equal(self.pipeline.current, reference.current)
 
     def test_replace_chain_report_matches_the_applied_image(self):
@@ -354,9 +354,9 @@ class TestPipeline(unittest.TestCase):
         # were never applied, so the report described processing that did not
         # happen while the image sat untouched.
         chain = [
-            FilterStep('levels', 'src.filters.levels',
+            FilterStep('levels', 'cv_tools.filters.levels',
                        {'black_point': 20, 'gamma': 1.0, 'white_point': 220}),
-            FilterStep('clahe', 'src.filters.clahe', {'clip_limit': 2.5}),
+            FilterStep('clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.5}),
         ]
         self.pipeline.replace_chain(chain, filter_function)
 
@@ -365,7 +365,7 @@ class TestPipeline(unittest.TestCase):
         self.assertFalse(np.array_equal(self.pipeline.current, self.image))
 
     def test_replace_chain_with_empty_chain_restores_original(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {})
         result = self.pipeline.replace_chain([], filter_function)
 
         np.testing.assert_array_equal(result, self.image)
@@ -373,8 +373,8 @@ class TestPipeline(unittest.TestCase):
 
     def test_replace_chain_supports_reordering(self):
         self.pipeline.apply(adjust_contrast_brightness, 'contrast_brightness',
-                            'src.filters.contrast_brightness', {'brightness': 60})
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 4.0})
+                            'cv_tools.filters.contrast_brightness', {'brightness': 60})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 4.0})
         original_order = self.pipeline.current
 
         reversed_chain = list(reversed(self.pipeline.chain))
@@ -385,12 +385,12 @@ class TestPipeline(unittest.TestCase):
                          ['clahe', 'contrast_brightness'])
 
     def test_replace_chain_rolls_back_on_unknown_filter(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 2.0})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0})
         before_image = self.pipeline.current
         before_chain = self.pipeline.chain
 
         bad_chain = [
-            FilterStep('levels', 'src.filters.levels', {'black_point': 10}),
+            FilterStep('levels', 'cv_tools.filters.levels', {'black_point': 10}),
             FilterStep('no_such_filter', 'nowhere', {}),
         ]
         with self.assertRaises(KeyError):
@@ -401,11 +401,11 @@ class TestPipeline(unittest.TestCase):
                          [s.name for s in before_chain])
 
     def test_replace_chain_rolls_back_on_bad_parameters(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 2.0})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0})
         before_image = self.pipeline.current
 
         # black_point above white_point is rejected by the levels filter
-        bad_chain = [FilterStep('levels', 'src.filters.levels',
+        bad_chain = [FilterStep('levels', 'cv_tools.filters.levels',
                                 {'black_point': 200, 'white_point': 100})]
         with self.assertRaises(RuntimeError):
             self.pipeline.replace_chain(bad_chain, filter_function)
@@ -414,7 +414,7 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(len(self.pipeline), 1)
 
     def test_replace_chain_leaves_undo_usable_after_rollback(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 2.0})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0})
 
         with self.assertRaises(KeyError):
             self.pipeline.replace_chain(
@@ -426,9 +426,9 @@ class TestPipeline(unittest.TestCase):
 
     def test_replace_chain_history_allows_undo_of_replayed_steps(self):
         chain = [
-            FilterStep('contrast_brightness', 'src.filters.contrast_brightness',
+            FilterStep('contrast_brightness', 'cv_tools.filters.contrast_brightness',
                        {'brightness': 30}),
-            FilterStep('clahe', 'src.filters.clahe', {'clip_limit': 2.0}),
+            FilterStep('clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0}),
         ]
         self.pipeline.replace_chain(chain, filter_function)
 
@@ -450,8 +450,8 @@ class TestPipeline(unittest.TestCase):
 
     def test_replace_chain_round_trips_a_saved_preset(self):
         self.pipeline.apply(adjust_contrast_brightness, 'contrast_brightness',
-                            'src.filters.contrast_brightness', {'brightness': 25})
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 3.0})
+                            'cv_tools.filters.contrast_brightness', {'brightness': 25})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 3.0})
         expected = self.pipeline.current
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -466,7 +466,7 @@ class TestPipeline(unittest.TestCase):
         np.testing.assert_array_equal(result, expected)
 
     def test_generate_report_counts_filters(self):
-        self.pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {})
+        self.pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {})
         report = self.pipeline.generate_report()
         self.assertEqual(report['filter_count'], 1)
         self.assertEqual(len(report['filters']), 1)
@@ -489,7 +489,7 @@ class TestReport(unittest.TestCase):
 
     def setUp(self):
         pipeline = Pipeline(sample_rgb())
-        pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 2.0})
+        pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0})
         self.report = ReportGenerator(pipeline.generate_report(), {'filename': 'test.png'})
 
     def test_markdown_contains_chain_details(self):
@@ -514,10 +514,10 @@ class TestReport(unittest.TestCase):
         A report is read by someone who is not an image analyst, so a name and
         a parameter list do not tell them what was done.
         """
-        from src.filters import filter_description
+        from cv_tools.filters import filter_description
 
         pipeline = Pipeline(sample_rgb())
-        pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 2.0})
+        pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0})
         markdown = ReportGenerator(pipeline.generate_report(), {'filename': 'test.png'},
                                    describe=filter_description).to_markdown()
 
@@ -532,7 +532,7 @@ class TestReport(unittest.TestCase):
         A report is written after the fact, sometimes about a chain built by
         hand. An unrecognised step should cost its description, not the report.
         """
-        from src.filters import filter_description
+        from cv_tools.filters import filter_description
 
         pipeline = Pipeline(sample_rgb())
         pipeline.apply(apply_clahe, 'not_in_the_registry', 'somewhere', {})
@@ -575,7 +575,7 @@ class TestReport(unittest.TestCase):
         # Enough steps to overflow one page, which exercises the page break
         pipeline = Pipeline(sample_rgb())
         for _ in range(40):
-            pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 2.0})
+            pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0})
         report = ReportGenerator(pipeline.generate_report(), {'filename': 'long.png'})
 
         with tempfile.TemporaryDirectory() as tmp:

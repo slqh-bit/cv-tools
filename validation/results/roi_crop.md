@@ -1,7 +1,7 @@
 # roi_crop - validation result
 
 **Crop to a region of interest**  
-`src.filters.roi` | family: Adjust | 2026-09-01T16:34:48
+`cv_tools.filters.roi` | family: Adjust | 2026-09-01T16:34:48
 
 ## Verdict
 

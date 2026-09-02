@@ -1,7 +1,7 @@
 # sobel - validation result
 
 **Sobel gradient magnitude**  
-`src.filters.edge_detection` | family: Analyze | 2026-09-01T16:38:43
+`cv_tools.filters.edge_detection` | family: Analyze | 2026-09-01T16:38:43
 
 ## Verdict
 

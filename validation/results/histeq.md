@@ -1,7 +1,7 @@
 # histeq - validation result
 
 **Global histogram equalization**  
-`src.filters.histogram_equalization` | family: Adjust | 2026-09-01T16:34:48
+`cv_tools.filters.histogram_equalization` | family: Adjust | 2026-09-01T16:34:48
 
 ## Verdict
 

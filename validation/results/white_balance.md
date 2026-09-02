@@ -1,7 +1,7 @@
 # white_balance - validation result
 
 **Automatic colour cast removal**  
-`src.filters.white_balance` | family: Adjust | 2026-09-01T16:34:50
+`cv_tools.filters.white_balance` | family: Adjust | 2026-09-01T16:34:50
 
 ## Verdict
 

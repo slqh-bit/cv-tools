@@ -1,7 +1,7 @@
 # roi_filter - validation result
 
 **Run another filter inside one region only, with a softened edge**  
-`src.filters.roi` | family: Adjust | 2026-09-01T16:34:48
+`cv_tools.filters.roi` | family: Adjust | 2026-09-01T16:34:48
 
 ## Verdict
 

@@ -50,7 +50,7 @@ there it was a dead end with no way past.
 validates it (`clahe.COLOR_MODES`, `white_balance.METHODS`,
 `saturation.DESATURATE_METHODS`, `super_resolution.METHODS`,
 `aspect_ratio.INTERPOLATIONS`, `fisheye_correction.BORDER_MODES`), and one
-`choices_for(spec)` in `src/gui/widgets.py` narrows per filter for both front
+`choices_for(spec)` in `cv_tools/gui/widgets.py` narrows per filter for both front
 ends - replacing the dashboard's private copy.
 
 **Regression test.** `test_every_offered_choice_is_one_the_filter_accepts`

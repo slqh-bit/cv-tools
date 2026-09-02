@@ -1,7 +1,7 @@
 # contrast_brightness - validation result
 
 **Linear contrast, brightness and gamma adjustment**  
-`src.filters.contrast_brightness` | family: Adjust | 2026-09-01T16:34:44
+`cv_tools.filters.contrast_brightness` | family: Adjust | 2026-09-01T16:34:44
 
 ## Verdict
 

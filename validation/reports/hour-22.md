@@ -50,7 +50,7 @@ handed over was the one format it could not read.
 
 Now it can:
 
-    python -m src.cli snapshots/ --frames 16 --frame-method mean -o averaged.png
+    cv-tools snapshots/ --frames 16 --frame-method mean -o averaged.png
     Combined 16 stills with 'mean'
 
 Frames must share a size - a folder holding two cameras' output is a mistake

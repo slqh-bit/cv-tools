@@ -1,7 +1,7 @@
 # fisheye - validation result
 
 **Equidistant fisheye correction**  
-`src.filters.fisheye_correction` | family: Correct | 2026-09-01T16:35:54
+`cv_tools.filters.fisheye_correction` | family: Correct | 2026-09-01T16:35:54
 
 ## Verdict
 

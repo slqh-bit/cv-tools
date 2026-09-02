@@ -1,7 +1,7 @@
 # clone - validation result
 
 **Duplicated regions and the shifts that relate them**  
-`src.filters.clone_detection` | family: Analysis | 2026-09-01T16:37:21
+`cv_tools.filters.clone_detection` | family: Analysis | 2026-09-01T16:37:21
 
 ## Verdict
 

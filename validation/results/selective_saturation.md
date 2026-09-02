@@ -1,7 +1,7 @@
 # selective_saturation - validation result
 
 **Saturate only colours near a target hue**  
-`src.filters.saturation` | family: Adjust | 2026-09-01T16:34:53
+`cv_tools.filters.saturation` | family: Adjust | 2026-09-01T16:34:53
 
 ## Verdict
 
