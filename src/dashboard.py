@@ -34,7 +34,7 @@ from src.filters import (
     render_histogram,
     resolve_filter,
 )
-from src.gui.widgets import CHOICES, SLIDER_RANGES, _dynamic_choices, to_display
+from src.utils.params import CHOICES, SLIDER_RANGES, _dynamic_choices, to_display
 from src.utils.parsing import parse_value
 
 # streamlit-image-coordinates 0.4.0 (the latest) imports UseColumnWith, a type

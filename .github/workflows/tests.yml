@@ -26,7 +26,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dashboard.txt
 
       - name: Install dependencies
         run: |
@@ -45,9 +47,46 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-ci.txt 'opencv-python-headless>=4.8.0,<5'
 
+      - name: Install the dashboard extras
+        # tests/test_dashboard.py skips without streamlit, so install it here
+        # rather than let 54 tests quietly report as skipped in CI.
+        run: python -m pip install -r requirements-dashboard.txt
+
       - name: Run the test suite
         # The 40 GUI tests skip on a headless runner; the rest must pass.
         run: python -m unittest discover -s tests -t . --verbose
+
+      - name: Check the dashboard imports without Tkinter
+        # The dashboard is served from headless boxes, where python3-tk is
+        # usually absent. It once imported src.gui.widgets and so could not
+        # start at all there; this fails fast if that dependency comes back.
+        run: python -c "import src.dashboard"
+
+  headless-import:
+    name: Dashboard imports with no Tkinter installed
+    runs-on: ubuntu-latest
+    container: python:3.12-slim   # no python3-tk, unlike the GitHub runner image
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          grep -v -e '^opencv-python' -e '^rawpy' requirements.txt > requirements-ci.txt
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-ci.txt 'opencv-python-headless>=4.8.0,<5'
+          python -m pip install -r requirements-dashboard.txt
+
+      - name: Confirm Tkinter really is absent
+        run: |
+          if python -c "import tkinter" 2>/dev/null; then
+            echo "tkinter is present - this job no longer proves anything"; exit 1
+          fi
+
+      - name: Import the dashboard and run its tests
+        run: |
+          python -c "import src.dashboard; print('dashboard imports headless')"
+          python -m unittest tests.test_dashboard --verbose
 
   gallery:
     name: Filter gallery smoke test

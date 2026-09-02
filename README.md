@@ -442,8 +442,13 @@ streamlit run src/dashboard.py --server.address=0.0.0.0
 | Main — Analysis | Live histogram, source metadata with SHA-256, and the processing report |
 
 Nothing here reimplements a filter. The dashboard drives `core.pipeline.Pipeline` through
-`filters.registry` exactly as the CLI and GUI do, and reuses the GUI's parameter metadata,
-so a filter added to the registry appears in all three surfaces with no dashboard work.
+`filters.registry` exactly as the CLI and GUI do, and shares the parameter metadata in
+`utils/params.py` with the Tkinter GUI, so a filter added to the registry appears in all
+three surfaces with no dashboard work.
+
+It needs no Tkinter. The shared parameter metadata lives in `utils` precisely so that the
+dashboard depends on neither the GUI package nor a toolkit the headless box it is served
+from will not have installed.
 
 **Picking coordinates.** `crop`, `roi_crop`, `redact`, `perspective` and `measure_3d` take
 pixel positions, which are awkward to guess from a scaled browser image. Tap-to-pick reads
@@ -540,21 +545,29 @@ To append a preset on top of the current chain instead of replacing it, use
 python -m unittest discover -s tests -t .
 ```
 
-677 tests, in about five seconds. Run one file or one case:
+731 tests, in about five seconds. Run one file or one case:
 
 ```bash
 python -m unittest tests.test_forensic
 python -m unittest tests.test_filters.TestClahe.test_increases_contrast -v
 ```
 
-The 40 GUI tests skip automatically where Tkinter has no display, which is why a headless
-run reports `OK (skipped=40)` rather than failing.
+Two groups skip rather than fail where their optional dependency is absent: the 40 GUI
+tests where Tkinter has no display, and the 54 dashboard tests without Streamlit. A plain
+headless run therefore reports `OK (skipped=40)`, and installing
+`requirements-dashboard.txt` brings the dashboard tests in.
 
-Every push and pull request runs the suite on Python 3.10, 3.11 and 3.12 through
-[.github/workflows/tests.yml](.github/workflows/tests.yml). CI installs
+The dashboard tests drive the real functions with Streamlit in bare mode, where widgets
+return their defaults — including the `CVTOOLS_PASSWORD` gate, which is checked to halt the
+script and not merely to leave `authed` unset.
+
+Every push and pull request runs [.github/workflows/tests.yml](.github/workflows/tests.yml):
+the suite on Python 3.10, 3.11 and 3.12; the filter gallery as a smoke test, since a filter
+can pass its unit tests and still fail on a real image; and an import of the dashboard in a
+`python:3.12-slim` container, which has no Tkinter, so the dashboard cannot regain a
+dependency that would stop it starting on a headless server. CI installs
 `opencv-python-headless` in place of `opencv-python` — the same library without the GUI
-bindings, which the runner has no display for — and runs the filter gallery as a smoke test,
-since a filter can pass its unit tests and still fail on a real image.
+bindings, which the runner has no display for.
 
 ## Trying every filter
 
@@ -582,7 +595,7 @@ cv-tools/
 │   ├── core/          # Pipeline engine, loader, report
 │   ├── filters/       # 36 filter modules + the name registry
 │   ├── gui/           # Optional Tkinter interface
-│   ├── utils/         # Argument parsing, comparison rendering
+│   ├── utils/         # Parsing, comparison rendering, shared parameter metadata
 │   ├── cli.py         # Command-line interface
 │   └── dashboard.py   # Optional Streamlit web dashboard
 ├── tests/             # Unit tests
@@ -625,18 +638,21 @@ registry. A filter is written once, registered once, and appears in all three.
 - **JPEG ghost detection** — per-block prior compression quality from pixel evidence
 - **Metadata forensics** — EXIF and JPEG segment inconsistencies, read from the file
   header rather than the pixels
-- **CI** — the suite on Python 3.10, 3.11 and 3.12, plus a gallery smoke test
+- **CI** — the suite on Python 3.10, 3.11 and 3.12, a gallery smoke test, and a
+  no-Tkinter container proving the dashboard still starts headless
+- **Dashboard tests** — 54 tests over the access gate, the generated parameter forms, the
+  coordinate grid and tap-to-pick. Writing them found that the dashboard imported
+  `src.gui.widgets` and so could not start without Tkinter, which is exactly the
+  environment it is served from; the shared parameter metadata moved to
+  `utils/params.py` and the two front ends no longer depend on each other
 
 **Where that leaves it.** 36 filter modules exposing **67 registered chain filters** across
 six families — Adjust 28, Enhance 12, Correct 7, Analyze 6, Forensic 9, Special 5 — with
 the core engine, three front ends, preset and report systems, batch and multi-frame
-processing, EN/FR documentation, and **677 tests**.
+processing, EN/FR documentation, and **731 tests**.
 
 **Phase 3 — not started**
 
-- **Dashboard tests.** The CLI, engine, filters and GUI are covered; `src/dashboard.py`
-  is not. The password gate in particular should not be the one piece of this repo whose
-  behaviour rests on having been tried by hand.
 - **Packaging.** No `pyproject.toml`, so the toolkit runs as `python -m src.cli` from a
   clone rather than installing as a package with a console entry point. A LICENSE has to
   land with it.
