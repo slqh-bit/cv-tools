@@ -8,6 +8,10 @@ for - see ``docs/validation.md`` for the measured results and, more
 importantly, for what simulated degradation does and does not establish.
 """
 
+# Note that ``degrade`` below is the *function*, and it shadows the submodule
+# of the same name: ``from cv_tools.validation import degrade`` gives the
+# callable, which is the intended API. Reach the module as
+# ``cv_tools.validation.degrade`` only via ``import`` or ``sys.modules``.
 from .degrade import (
     DEGRADATIONS,
     PRESETS,

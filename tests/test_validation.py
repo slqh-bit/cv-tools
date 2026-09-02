@@ -217,7 +217,17 @@ class TestCodecGenerations(unittest.TestCase):
         self.assertLessEqual(out.shape[1], image.shape[1])
 
     def test_reports_clearly_when_no_encoder_exists(self):
-        with mock.patch('cv_tools.validation.degrade.cv2.VideoWriter') as writer:
+        # Patch the attribute on the cv2 module object, which degrade.py looks
+        # up at call time, so this reaches the same object it will use.
+        #
+        # Not the dotted string 'cv_tools.validation.degrade.cv2.VideoWriter'.
+        # `degrade` names both a submodule and the function the package
+        # re-exports, and the function shadows it, so that path resolves
+        # through a function rather than a module. Python 3.11's mock finds the
+        # real module in sys.modules anyway; 3.10's falls through to importing
+        # `degrade.cv2` as a submodule and raises. It passed here and failed in
+        # CI for exactly that reason.
+        with mock.patch.object(cv2, 'VideoWriter') as writer:
             writer.return_value.isOpened.return_value = False
             with self.assertRaises(RuntimeError) as ctx:
                 codec_generations(textured(), 1)
