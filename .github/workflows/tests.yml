@@ -172,10 +172,17 @@ jobs:
         # asserting on arrays will not always catch.
         run: python scripts/filter_gallery.py -o gallery-ci/
 
+      - name: Validate the repair filters against degraded footage
+        # Exits non-zero if any filter raises on degraded, monochrome or
+        # odd-sized input - material the clean sample images never produce.
+        run: python scripts/validate_filters.py --output validation-ci.md
+
       - name: Upload the contact sheet
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: filter-gallery
-          path: gallery-ci/_contact_sheet.png
+          path: |
+            gallery-ci/_contact_sheet.png
+            validation-ci.md
           if-no-files-found: error

@@ -11,3 +11,4 @@ gallery-ci/
 build/
 dist/
 *.egg-info/
+validation-ci.md

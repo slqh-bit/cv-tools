@@ -579,7 +579,7 @@ To append a preset on top of the current chain instead of replacing it, use
 python -m unittest discover -s tests -t .
 ```
 
-731 tests, in about five seconds. Run one file or one case:
+785 tests, in about five seconds. Run one file or one case:
 
 ```bash
 python -m unittest tests.test_forensic
@@ -621,6 +621,53 @@ A filter that reads a property the default sample lacks renders from its own sou
 instead, listed in the script's `SOURCES` table — `ghost` needs an image with real JPEG
 history, and comes out uniformly white on a never-compressed PNG.
 
+## Validating against degraded footage
+
+The tests prove each filter computes what it says; the gallery shows what it
+looks like. Neither says whether a filter's **defaults help** on the material
+this toolkit exists for.
+
+`cv_tools/validation` answers that by degrading a clean image with a
+physically-motivated model of what a camera and recorder do to a frame — Poisson
+shot noise that scales with the signal, light lost before the sensor reads it,
+8×8 transform quantisation, IR illumination falling off from the centre — then
+measuring how far a filter moves the result back toward the original.
+
+```bash
+python scripts/validate_filters.py                              # the whole matrix
+python scripts/validate_filters.py --presets night_ir           # one degradation
+python scripts/validate_filters.py --save-degraded degraded/    # keep the inputs
+```
+
+```python
+from cv_tools.validation import degrade_preset, compare, evaluate
+
+degraded = degrade_preset(clean, 'night_ir', seed=7)
+evaluate(clean, degraded, apply_clahe, 'clahe', 'night_ir').psnr_delta
+```
+
+Six presets — `daytime_dvr`, `night_ir`, `low_light_colour`, `motion_night`,
+`exported_evidence`, `interlaced_sd` — and nine degradations that compose into
+chains of your own.
+
+**[docs/validation.md](docs/validation.md) carries the measured results**, and
+three findings worth knowing before reaching for a filter:
+
+- On a dark frame the **exposure error dominates the metric**, so denoising
+  measures as +0.01 dB until exposure is corrected first — after which the same
+  denoiser on the same frame shows +1.34 dB.
+- Enhancement flips sign with input quality: `auto_contrast` is **+8.79 dB** on
+  IR night footage and **−9.82 dB** on footage that was already exposed
+  correctly. There is no globally good default, which is the argument for the
+  chain-and-preview design.
+- `histeq` loses fidelity under every condition tested while raising the
+  sharpness measure up to **48×** — the clearest reason never to read acutance
+  alone as improvement.
+
+The degradation is simulated, and `docs/validation.md` is explicit about what
+that does and does not establish. The harness takes any clean/degraded pair, so
+real footage drops in unchanged the moment a labelled corpus exists.
+
 ## Project Structure
 
 ```
@@ -630,6 +677,7 @@ cv-tools/
 │   ├── filters/       # 36 filter modules + the name registry
 │   ├── gui/           # Optional Tkinter interface
 │   ├── utils/         # Parsing, comparison rendering, shared parameter metadata
+│   ├── validation/    # Degradation model and benchmark harness
 │   ├── cli.py         # Command-line interface
 │   └── dashboard.py   # Optional Streamlit web dashboard
 ├── tests/             # Unit tests
@@ -685,7 +733,7 @@ registry. A filter is written once, registered once, and appears in all three.
 **Where that leaves it.** 36 filter modules exposing **67 registered chain filters** across
 six families — Adjust 28, Enhance 12, Correct 7, Analyze 6, Forensic 9, Special 5 — with
 the core engine, three front ends, preset and report systems, batch and multi-frame
-processing, EN/FR documentation, and **731 tests**.
+processing, EN/FR documentation, a validation harness, and **785 tests**.
 
 **Phase 3 — in progress**
 
@@ -695,10 +743,18 @@ processing, EN/FR documentation, and **731 tests**.
   collides with every other project and cannot be published. Presets saved before the
   rename still load: filters resolve by registry name, and the module string a step
   records is informational.
-- **Validation against real footage (not started).** Every filter is verified against synthetic ground
-  truth, published algorithms, and OpenCV as a numerical baseline — which says the
-  arithmetic is right, not that the defaults are useful on heavily compressed night-time
-  CCTV at 12 fps. Closing that needs a labelled real-world corpus, not more unit tests.
+- **Validation harness (done)** — `cv_tools/validation` degrades a clean image with a
+  physically-motivated model of camera and recorder behaviour, then measures whether a
+  filter moves it back. 102 measurements across 17 repair filters and 6 presets, written
+  up in [docs/validation.md](docs/validation.md), which found that a dark frame's exposure
+  error hides denoising entirely, that enhancement filters flip sign with input quality,
+  and that filter order depends on the degradation rather than following one rule.
+- **Validation against *real* footage (not started).** The degradation above is simulated:
+  it reproduces the mechanisms, with the physics written into each function, but not any
+  particular recorder's proprietary encoder, denoiser and sharpener. Closing that needs a
+  labelled corpus with a known clean reference — footage of one scene recorded by a good
+  camera and a bad one, or a recorder exposing both its raw and encoded output. The
+  harness takes any clean/degraded pair, so such a corpus drops in unchanged.
 
 ## Licence
 
