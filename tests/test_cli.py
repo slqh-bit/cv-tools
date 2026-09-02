@@ -10,10 +10,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from src.cli import main, translate_step
-from src.core import ImageLoader
-from src.filters import estimate_noise
-from src.utils.parsing import (
+from cv_tools.cli import main, translate_step
+from cv_tools.core import ImageLoader
+from cv_tools.filters import estimate_noise
+from cv_tools.utils.parsing import (
     parse_float_list,
     parse_int_list,
     parse_kv,
@@ -638,7 +638,7 @@ class TestCLICatalogue(CLITestCase):
         self.assertGreater(int(self.read(pixelated)[10:30, 10:40].max()), 0)
 
     def test_undistort_uses_a_calibration_file(self):
-        from src.filters import CameraCalibration, save_calibration
+        from cv_tools.filters import CameraCalibration, save_calibration
         path = self.dir / 'cal.json'
         save_calibration(CameraCalibration(
             np.array([[80.0, 0, 40], [0, 80.0, 30], [0, 0, 1]]),
@@ -715,7 +715,7 @@ class TestCLICatalogue(CLITestCase):
                     self.run_cli([str(self.input)] + flags + ['-o', str(self.dir / 'o.png')])
 
     def test_every_registered_filter_is_listed(self):
-        from src.filters import FILTER_REGISTRY
+        from cv_tools.filters import FILTER_REGISTRY
         code, output = self.run_cli(['--list-filters'])
         self.assertEqual(code, 0)
         for name in FILTER_REGISTRY:

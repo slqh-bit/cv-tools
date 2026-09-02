@@ -1,4 +1,4 @@
-"""Entry point: ``python -m src.gui [image]``."""
+"""Entry point: ``cv-tools-gui [image]``."""
 
 import sys
 

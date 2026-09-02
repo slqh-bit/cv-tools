@@ -11,11 +11,11 @@ One product is named throughout this codebase — **Amped FIVE** — and it is n
 | Location | Reference |
 |---|---|
 | `README.md:3` | "inspired by Amped FIVE forensic image enhancement" |
-| `src/core/pipeline.py:33` | "Mirrors Amped FIVE's chain-based workflow" |
-| `src/core/report.py:51` | "Generate Markdown report (similar to Amped FIVE reports)" |
-| `src/utils/compare.py:2` | "Amped FIVE's original-vs-processed view" |
-| `src/filters/clahe.py:116` | "like Amped FIVE's preview" |
-| `src/filters/motion_deblur.py:298` | "the one Amped FIVE's preview encourages" |
+| `cv_tools/core/pipeline.py:33` | "Mirrors Amped FIVE's chain-based workflow" |
+| `cv_tools/core/report.py:51` | "Generate Markdown report (similar to Amped FIVE reports)" |
+| `cv_tools/utils/compare.py:2` | "Amped FIVE's original-vs-processed view" |
+| `cv_tools/filters/clahe.py:116` | "like Amped FIVE's preview" |
+| `cv_tools/filters/motion_deblur.py:298` | "the one Amped FIVE's preview encourages" |
 
 So: **one modelled-on product, a landscape I can name around it, and an explicit statement of what I used as a reference instead of a bench comparison.** No claim of hands-on lab time with a licence I did not have.
 
@@ -27,10 +27,10 @@ Four observations, four design decisions:
 
 | Observed in FIVE | Decision in cv-tools |
 |---|---|
-| The workflow is a **chain**, not a stack of destructive edits — every step is listed, reorderable, and the original is never touched | `Pipeline` keeps `_original` immutable and records each step as a `FilterStep` dataclass (name, module, params, ISO timestamp) with undo/redo and JSON preset export — `src/core/pipeline.py` |
-| The **report is a deliverable**, not an export afterthought — the point of the tool is that another examiner can reproduce your chain | `src/core/report.py` emits Markdown / JSON / PDF including the source file hash, so the chain is replayable by a third party. PDF renders through matplotlib because it was already a dependency — no extra install between the analyst and a court-presentable document |
-| Parameters that **cannot be estimated reliably** get a preview grid, not an "auto" button | `apply_clahe_grid()` and `deblur_sweep()` render labelled parameter grids. The deblur docstring says it outright: blur length and angle cannot be read off the image reliably, so sweep the parameters and judge by eye — `src/filters/motion_deblur.py:298` |
-| Filters are grouped by **function family** (Adjust / Enhance / Correct / Analyze / Special), and there is always an original-vs-processed view | `src/utils/compare.py` for the split view; commit `6ff67aa` specifically regrouped the dashboard from A–Z into those families |
+| The workflow is a **chain**, not a stack of destructive edits — every step is listed, reorderable, and the original is never touched | `Pipeline` keeps `_original` immutable and records each step as a `FilterStep` dataclass (name, module, params, ISO timestamp) with undo/redo and JSON preset export — `cv_tools/core/pipeline.py` |
+| The **report is a deliverable**, not an export afterthought — the point of the tool is that another examiner can reproduce your chain | `cv_tools/core/report.py` emits Markdown / JSON / PDF including the source file hash, so the chain is replayable by a third party. PDF renders through matplotlib because it was already a dependency — no extra install between the analyst and a court-presentable document |
+| Parameters that **cannot be estimated reliably** get a preview grid, not an "auto" button | `apply_clahe_grid()` and `deblur_sweep()` render labelled parameter grids. The deblur docstring says it outright: blur length and angle cannot be read off the image reliably, so sweep the parameters and judge by eye — `cv_tools/filters/motion_deblur.py:298` |
+| Filters are grouped by **function family** (Adjust / Enhance / Correct / Analyze / Special), and there is always an original-vs-processed view | `cv_tools/utils/compare.py` for the split view; commit `6ff67aa` specifically regrouped the dashboard from A–Z into those families |
 
 ## 2. Amped Authenticate — the authentication counterpart, and the reason Sprint 3 exists
 
@@ -83,7 +83,7 @@ How these filters behave on **real degraded CCTV** — heavy H.264 blocking, IR-
 
 ## 6. Detail to keep in your pocket if they probe further
 
-`src/filters/redaction.py` refuses to treat blur and pixelate as safe:
+`cv_tools/filters/redaction.py` refuses to treat blur and pixelate as safe:
 
 - **Blur is reversible.** A Gaussian blur is a known, invertible convolution — and *this same toolkit ships the Wiener deconvolution that reverses it* (`motion_deblur.py`).
 - **Pixelation is reversible for short known-alphabet text.** Each block is the mean of its pixels; rendering every candidate plate or postcode and matching block means is a documented and cheap attack.

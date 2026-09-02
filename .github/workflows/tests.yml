@@ -58,9 +58,9 @@ jobs:
 
       - name: Check the dashboard imports without Tkinter
         # The dashboard is served from headless boxes, where python3-tk is
-        # usually absent. It once imported src.gui.widgets and so could not
-        # start at all there; this fails fast if that dependency comes back.
-        run: python -c "import src.dashboard"
+        # usually absent. It once imported the Tkinter GUI's widget module and
+        # so could not start there at all; this fails fast if that comes back.
+        run: python -c "import cv_tools.dashboard"
 
   headless-import:
     name: Dashboard imports with no Tkinter installed
@@ -85,8 +85,63 @@ jobs:
 
       - name: Import the dashboard and run its tests
         run: |
-          python -c "import src.dashboard; print('dashboard imports headless')"
+          python -c "import cv_tools.dashboard; print('dashboard imports headless')"
           python -m unittest tests.test_dashboard --verbose
+
+  package:
+    name: Wheel builds and installs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build the wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir dist/
+
+      - name: Check nothing but the package shipped
+        # tests/, scripts/, samples/, docs/ and gallery/ stay in the repository;
+        # a stray top-level directory in the wheel means the find directive
+        # stopped doing its job.
+        run: |
+          python - <<'PY'
+          import pathlib, zipfile
+          wheel = next(pathlib.Path('dist').glob('*.whl'))
+          tops = sorted({n.split('/')[0] for n in zipfile.ZipFile(wheel).namelist()})
+          extra = [t for t in tops if t != 'cv_tools' and not t.endswith('.dist-info')]
+          assert not extra, f'unexpected top-level entries in the wheel: {extra}'
+          print('wheel contains:', tops)
+          PY
+
+      - name: Install it into a clean environment
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install dist/*.whl
+
+      - name: Run the console script from outside the source tree
+        # Run from /tmp so a passing command cannot be the repository checkout
+        # being imported instead of the installed package.
+        run: |
+          cp samples/cctv_dark.png /tmp/
+          cd /tmp
+          /tmp/venv/bin/cv-tools cctv_dark.png --clahe clip=3.0 -o /tmp/out.png
+          test -s /tmp/out.png
+          /tmp/venv/bin/cv-tools --list-filters > /dev/null
+          python -c "import pathlib; assert pathlib.Path('/tmp/out.png').stat().st_size > 0"
+
+      - name: The dashboard entry point reports its missing extra
+        run: |
+          set +e
+          output=$(/tmp/venv/bin/cv-tools-dashboard 2>&1); status=$?
+          set -e
+          echo "$output"
+          test $status -eq 1
+          echo "$output" | grep -q 'cv-tools\[dashboard\]'
 
   gallery:
     name: Filter gallery smoke test

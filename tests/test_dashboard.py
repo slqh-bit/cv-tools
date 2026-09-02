@@ -4,7 +4,7 @@ Unit tests for the Streamlit dashboard.
 Streamlit is an optional dependency (``requirements-dashboard.txt``). Where it
 is absent the whole module skips, the way the GUI tests skip without Tkinter.
 
-Importing ``src.dashboard`` outside ``streamlit run`` puts Streamlit in "bare
+Importing ``cv_tools.dashboard`` outside ``streamlit run`` puts Streamlit in "bare
 mode": widgets return their default value instead of a user's, and
 ``st.session_state`` works while warning that it does not persist. That is
 exactly the harness these tests need - the dashboard's own logic runs for real,
@@ -23,14 +23,14 @@ from PIL import Image
 
 try:
     import streamlit as st
-    import src.dashboard as dash
+    import cv_tools.dashboard as dash
     DASHBOARD_AVAILABLE = True
     DASHBOARD_ERROR = ''
 except Exception as exc:            # pragma: no cover - environment dependent
     DASHBOARD_AVAILABLE = False
     DASHBOARD_ERROR = str(exc)
 
-from src.filters import CATEGORY_ORDER, FILTER_REGISTRY
+from cv_tools.filters import CATEGORY_ORDER, FILTER_REGISTRY
 
 
 def png_bytes(height: int = 40, width: int = 60) -> bytes:
@@ -216,7 +216,7 @@ class TestLoadImage(DashboardTestCase):
     def test_replacing_the_image_resets_the_chain(self):
         dash._load_image(png_bytes(), 'first.png')
         st.session_state.pipeline.apply(
-            FILTER_REGISTRY['invert'].fn, 'invert', 'src.filters.invert', {})
+            FILTER_REGISTRY['invert'].fn, 'invert', 'cv_tools.filters.invert', {})
         dash._load_image(png_bytes(), 'second.png')
         self.assertEqual(st.session_state.pipeline.chain, [])
 
@@ -243,7 +243,7 @@ class TestChoicesFor(DashboardTestCase):
         self.assertEqual(presets[0], '')
 
     def test_stain_preset_is_stain_presets_only(self):
-        from src.filters import STAIN_PRESETS
+        from cv_tools.filters import STAIN_PRESETS
         self.assertEqual(dash._choices_for(FILTER_REGISTRY['stain'])['preset'],
                          sorted(STAIN_PRESETS))
 

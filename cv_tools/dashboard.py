@@ -4,7 +4,7 @@ filter registry the CLI and Tkinter GUI use.
 
 Run with:
 
-    streamlit run src/dashboard.py --server.address=0.0.0.0
+    streamlit run cv_tools/dashboard.py --server.address=0.0.0.0
 
 Nothing here reimplements a filter: it drives ``core.pipeline.Pipeline``
 through ``filters.registry`` exactly like the CLI and GUI do, and reuses the
@@ -24,8 +24,8 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
-from src.core import FilterStep, Pipeline, ReportGenerator, save_image
-from src.filters import (
+from cv_tools.core import FilterStep, Pipeline, ReportGenerator, save_image
+from cv_tools.filters import (
     CATEGORY_ORDER,
     FILTER_REGISTRY,
     dynamic_range_used,
@@ -34,8 +34,8 @@ from src.filters import (
     render_histogram,
     resolve_filter,
 )
-from src.utils.params import CHOICES, SLIDER_RANGES, _dynamic_choices, to_display
-from src.utils.parsing import parse_value
+from cv_tools.utils.params import CHOICES, SLIDER_RANGES, _dynamic_choices, to_display
+from cv_tools.utils.parsing import parse_value
 
 # streamlit-image-coordinates 0.4.0 (the latest) imports UseColumnWith, a type
 # alias Streamlit removed. It appears only in an annotation, never in logic, so
@@ -118,7 +118,7 @@ def _choices_for(spec) -> Dict[str, Any]:
     r/g/b makes ``component`` impossible to drive: it needs the channel
     names of the chosen colour space, and matches them case-sensitively.
     """
-    from src.filters import COLOR_SPACES, CURVE_PRESETS, STAIN_PRESETS
+    from cv_tools.filters import COLOR_SPACES, CURVE_PRESETS, STAIN_PRESETS
 
     merged = dict(CHOICES)
     merged.update(_dynamic_choices())

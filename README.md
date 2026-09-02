@@ -84,20 +84,51 @@ See [docs/filters.md](docs/filters.md) for the full parameter reference.
 ## Installation
 
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
 
-Camera raw support needs `rawpy`, which is in `requirements.txt` but is a large binary
-dependency — everything except raw decoding works without it, and raw files give a clear
-install message if it is missing.
+That puts three commands on the path — `cv-tools`, `cv-tools-gui` and `cv-tools-dashboard`
+— and makes `import cv_tools` work from anywhere. For development, install it editable so
+edits take effect without reinstalling:
 
-Two optional requirement files sit on top of that base, neither needed by the CLI, the
-library or the Tkinter GUI:
+```bash
+pip install -e .
+```
 
-| File | For |
-|---|---|
-| `requirements-dashboard.txt` | The Streamlit web dashboard (`src/dashboard.py`) |
-| `requirements-docs.txt` | Rebuilding the filter-reference PDFs in `docs/` |
+### Extras
+
+The base install carries only what the CLI and the library need. Everything else is an
+extra, so nothing pays for a dependency it does not use:
+
+| Extra | Install | For |
+|---|---|---|
+| `raw` | `pip install ".[raw]"` | Camera raw decoding via `rawpy`, a large binary dependency most workflows never touch. Raw files give a clear install message without it. |
+| `dashboard` | `pip install ".[dashboard]"` | The Streamlit web dashboard |
+| `docs` | `pip install ".[docs]"` | Rebuilding the filter-reference PDFs in `docs/` |
+
+Combine them as `pip install ".[raw,dashboard]"`.
+
+**On a headless server**, replace the OpenCV wheel with the one built without GUI bindings.
+The two provide the same `cv2` module and must not be installed together:
+
+```bash
+pip install .
+pip uninstall -y opencv-python && pip install "opencv-python-headless>=4.8.0,<5"
+```
+
+### Working from a clone
+
+`requirements.txt` and its two companions remain for anyone who would rather run from the
+source tree than install. They cover the same ground as the extras above:
+
+```bash
+pip install -r requirements.txt                      # base, including rawpy
+pip install -r requirements-dashboard.txt            # the dashboard
+pip install -r requirements-docs.txt                 # the PDF build
+```
+
+Every command below is written as the installed `cv-tools`; from a clone without
+installing, `python -m cv_tools.cli` is the same thing.
 
 Generate the sample test images and video:
 
@@ -112,106 +143,106 @@ ghost detection), and a 24-frame video of a static scene with one moving object.
 
 ## CLI Usage
 
-Run from the project root. Filters apply **in the order written on the command line**.
+Filters apply **in the order written on the command line**.
 
 ```bash
 # CLAHE enhancement
-python -m src.cli input.jpg --clahe clip=2.0 tile=8x8 -o output.jpg
+cv-tools input.jpg --clahe clip=2.0 tile=8x8 -o output.jpg
 
 # ROI crop (x,y,width,height)
-python -m src.cli input.jpg --roi 100,100,300,200 -o cropped.jpg
+cv-tools input.jpg --roi 100,100,300,200 -o cropped.jpg
 
 # Brightness + Contrast
-python -m src.cli input.jpg --brightness 30 --contrast 1.5 -o adjusted.jpg
+cv-tools input.jpg --brightness 30 --contrast 1.5 -o adjusted.jpg
 
 # Levels adjustment (black,gamma,white)
-python -m src.cli input.jpg --levels 20,1.0,220 -o leveled.jpg
+cv-tools input.jpg --levels 20,1.0,220 -o leveled.jpg
 
 # Histogram equalization
-python -m src.cli input.jpg --histeq mode=lab -o equalized.jpg
+cv-tools input.jpg --histeq mode=lab -o equalized.jpg
 
 # Chain filters — order matters
-python -m src.cli input.jpg --brightness 20 --clahe clip=3.0 --resize 50% -o out.jpg
+cv-tools input.jpg --brightness 20 --clahe clip=3.0 --resize 50% -o out.jpg
 ```
 
 ### Colour adjustment
 
 ```bash
 # Tonal curve, by preset or explicit control points
-python -m src.cli input.jpg --curves preset=lift_shadows -o out.jpg
-python -m src.cli input.jpg --curves points=0:0,128:170,255:255 -o out.jpg
+cv-tools input.jpg --curves preset=lift_shadows -o out.jpg
+cv-tools input.jpg --curves points=0:0,128:170,255:255 -o out.jpg
 
 # White balance: automatic, or measured from a region known to be neutral
-python -m src.cli input.jpg --white-balance method=shades_of_gray -o out.jpg
-python -m src.cli input.jpg --wb-patch 300,200,40,30 -o out.jpg
+cv-tools input.jpg --white-balance method=shades_of_gray -o out.jpg
+cv-tools input.jpg --wb-patch 300,200,40,30 -o out.jpg
 
 # Saturation, vibrance (protects already-vivid colours), and grayscale
-python -m src.cli input.jpg --saturation 1.4 -o out.jpg
-python -m src.cli input.jpg --vibrance 1.5 -o out.jpg
-python -m src.cli input.jpg --desaturate lightness -o out.jpg
+cv-tools input.jpg --saturation 1.4 -o out.jpg
+cv-tools input.jpg --vibrance 1.5 -o out.jpg
+cv-tools input.jpg --desaturate lightness -o out.jpg
 
 # Colour balance per tonal range, and inversion
-python -m src.cli input.jpg --color-balance shadows=-15:0:15 highlights=15:5:-10 -o out.jpg
-python -m src.cli negative.jpg --invert -o positive.jpg
+cv-tools input.jpg --color-balance shadows=-15:0:15 highlights=15:5:-10 -o out.jpg
+cv-tools negative.jpg --invert -o positive.jpg
 ```
 
 ### Geometric correction
 
 ```bash
 # Rectify a surface from its four corners, with a known real-world ratio
-python -m src.cli plate.jpg --perspective 120,80,500,60,530,300,100,320 \
+cv-tools plate.jpg --perspective 120,80,500,60,530,300,100,320 \
     --perspective-ratio plate_eu -o flat.jpg
 
 # Lens distortion: by eye, or from a real camera calibration
-python -m src.cli wide.jpg --barrel k1=-0.25 zoom=1.15 -o straight.jpg
-python -m src.cli dome.jpg --fisheye strength=0.6 zoom=1.2 -o flat.jpg
-python -m src.cli frame.jpg --undistort calibration.json -o corrected.jpg
+cv-tools wide.jpg --barrel k1=-0.25 zoom=1.15 -o straight.jpg
+cv-tools dome.jpg --fisheye strength=0.6 zoom=1.2 -o flat.jpg
+cv-tools frame.jpg --undistort calibration.json -o corrected.jpg
 
 # Square up non-square pixels from SD video
-python -m src.cli pal.png --pixel-aspect pal_43 -o square.png
+cv-tools pal.png --pixel-aspect pal_43 -o square.png
 ```
 
 ### Separation and redaction
 
 ```bash
 # Isolate a colour component - detail invisible in RGB often shows in LAB
-python -m src.cli input.jpg --component lab:a -o redness.png
+cv-tools input.jpg --component lab:a -o redness.png
 
 # Bit planes: structure in the low planes is worth a second look
-python -m src.cli input.jpg --bit-plane 0 -o lsb.png
+cv-tools input.jpg --bit-plane 0 -o lsb.png
 
 # Separate overlapping inks
-python -m src.cli document.jpg --stain preset=blue_black_ink index=0 -o ink.png
+cv-tools document.jpg --stain preset=blue_black_ink index=0 -o ink.png
 
 # Redact. fill and noise destroy the content; blur and pixelate are recoverable
-python -m src.cli input.jpg --redact 120,80,200,40 -o safe.jpg
-python -m src.cli input.jpg --redact 120,80,200,40 --redact-method blur -o preview.jpg
+cv-tools input.jpg --redact 120,80,200,40 -o safe.jpg
+cv-tools input.jpg --redact 120,80,200,40 --redact-method blur -o preview.jpg
 
 # Compression history
-python -m src.cli evidence.jpg --compression-stats
+cv-tools evidence.jpg --compression-stats
 ```
 
 ### Enhance and denoise
 
 ```bash
 # Unsharp mask — threshold protects flat areas from noise amplification
-python -m src.cli input.jpg --sharpen amount=1.5 radius=1.0 threshold=4 -o sharp.jpg
+cv-tools input.jpg --sharpen amount=1.5 radius=1.0 threshold=4 -o sharp.jpg
 
 # Denoise: gaussian (general), median (salt-and-pepper), bilateral (edge-preserving)
-python -m src.cli input.jpg --gaussian 1.5 -o soft.jpg
-python -m src.cli input.jpg --median 3 -o despeckled.jpg
-python -m src.cli input.jpg --bilateral d=9 color=75 space=75 -o denoised.jpg
+cv-tools input.jpg --gaussian 1.5 -o soft.jpg
+cv-tools input.jpg --median 3 -o despeckled.jpg
+cv-tools input.jpg --bilateral d=9 color=75 space=75 -o denoised.jpg
 
 # Non-local means: slower than bilateral, but keeps repeating texture
-python -m src.cli input.jpg --nl-means h=12 -o denoised.jpg
-python -m src.cli input.jpg --nl-means-auto -o denoised.jpg
+cv-tools input.jpg --nl-means h=12 -o denoised.jpg
+cv-tools input.jpg --nl-means-auto -o denoised.jpg
 
 # Local contrast ("clarity") and texture enhancement
-python -m src.cli input.jpg --local-contrast radius=25 strength=0.6 -o clearer.jpg
-python -m src.cli input.jpg --detail-enhance sigma_s=10 sigma_r=0.15 -o detailed.jpg
+cv-tools input.jpg --local-contrast radius=25 strength=0.6 -o clearer.jpg
+cv-tools input.jpg --detail-enhance sigma_s=10 sigma_r=0.15 -o detailed.jpg
 
 # Typical forensic order: denoise, enhance contrast, then sharpen
-python -m src.cli plate.jpg --roi 240,280,180,80 --resize 300% \
+cv-tools plate.jpg --roi 240,280,180,80 --resize 300% \
     --bilateral d=7 color=40 --clahe clip=3.0 tile=4x4 \
     --sharpen amount=1.4 radius=1.5 threshold=6 -o plate_enhanced.jpg
 ```
@@ -223,7 +254,7 @@ Correct perspective first — a calibration taken on the ground says nothing abo
 further from the camera.
 
 ```python
-from src.filters import Scale, scale_from_reference, measure_distance, draw_measurement
+from cv_tools.filters import Scale, scale_from_reference, measure_distance, draw_measurement
 
 # Calibrate from something of known size in the rectified plane
 scale = scale_from_reference((100, 200), (340, 200), 520, 'mm')   # EU plate width
@@ -242,13 +273,13 @@ standing on that same ground.
 ```bash
 # Horizon as a single row works for a level camera; give the vertical vanishing
 # point as well for a tilted one, which most CCTV is
-python -m src.cli scene.jpg --measure-3d \
+cv-tools scene.jpg --measure-3d \
     base=352,408 top=352,264 reference_base=160,374 reference_top=160,250 \
     horizon=144 reference_height=1800 -o measured.jpg
 ```
 
 ```python
-from src.filters import measure_height, vanishing_point, horizon_from_vanishing_points
+from cv_tools.filters import measure_height, vanishing_point, horizon_from_vanishing_points
 
 # Recover the geometry from lines already in the scene
 horizon = horizon_from_vanishing_points(
@@ -276,45 +307,45 @@ result['height'], result['uncertainty_per_pixel']
 Edge detectors return a single-channel map, so they turn a color image grayscale mid-chain.
 
 ```bash
-python -m src.cli input.jpg --canny 50,150 -o edges.jpg
+cv-tools input.jpg --canny 50,150 -o edges.jpg
 
 # Thresholds derived from the image median — useful across varied exposures
-python -m src.cli input.jpg --auto-canny --blur-first 1.5 -o edges.jpg
+cv-tools input.jpg --auto-canny --blur-first 1.5 -o edges.jpg
 
-python -m src.cli input.jpg --sobel dx=1 dy=1 kernel=3 -o gradients.jpg
-python -m src.cli input.jpg --laplacian kernel=3 blur=1.0 -o laplacian.jpg
+cv-tools input.jpg --sobel dx=1 dy=1 kernel=3 -o gradients.jpg
+cv-tools input.jpg --laplacian kernel=3 blur=1.0 -o laplacian.jpg
 ```
 
 ### Forensic analysis
 
 ```bash
 # Error Level Analysis — meaningful only on JPEG originals
-python -m src.cli photo.jpg --ela quality=90 -o ela.png
-python -m src.cli photo.jpg --ela-stats
+cv-tools photo.jpg --ela quality=90 -o ela.png
+cv-tools photo.jpg --ela-stats
 
 # Copy-move forgery detection (highlights both the source and the paste)
-python -m src.cli photo.jpg --clone-stats
-python -m src.cli photo.jpg --clone-detect -o clones.png
+cv-tools photo.jpg --clone-stats
+cv-tools photo.jpg --clone-detect -o clones.png
 
 # Noise level, SNR, and per-block uniformity
-python -m src.cli photo.jpg --noise-stats
-python -m src.cli photo.jpg --noise-map 32 -o noise.png
+cv-tools photo.jpg --noise-stats
+cv-tools photo.jpg --noise-map 32 -o noise.png
 
 # JPEG ghost detection — per-block prior compression quality from pixels alone
-python -m src.cli photo.jpg --ghost-stats
-python -m src.cli photo.jpg --ghost block=16 min=50 max=100 step=5 -o ghost.png
+cv-tools photo.jpg --ghost-stats
+cv-tools photo.jpg --ghost block=16 min=50 max=100 step=5 -o ghost.png
 
 # EXIF and JPEG segment inconsistencies — reads the file header, not the pixels
-python -m src.cli photo.jpg --metadata-stats
+cv-tools photo.jpg --metadata-stats
 
 # Frequency domain: spectrum, filtering, and periodic pattern removal
-python -m src.cli scan.png --fft -o spectrum.png
-python -m src.cli scan.png --remove-periodic -o cleaned.png
-python -m src.cli scan.png --fft-filter type=lowpass cutoff=30 -o smoothed.png
+cv-tools scan.png --fft -o spectrum.png
+cv-tools scan.png --remove-periodic -o cleaned.png
+cv-tools scan.png --fft-filter type=lowpass cutoff=30 -o smoothed.png
 
 # Wiener deblurring — you must supply the correct PSF
-python -m src.cli blurred.jpg --deblur length=15 angle=30 noise=0.01 -o sharp.jpg
-python -m src.cli blurred.jpg --deblur-defocus radius=5 noise=0.01 -o sharp.jpg
+cv-tools blurred.jpg --deblur length=15 angle=30 noise=0.01 -o sharp.jpg
+cv-tools blurred.jpg --deblur-defocus radius=5 noise=0.01 -o sharp.jpg
 ```
 
 ### Multi-frame video processing
@@ -323,62 +354,62 @@ python -m src.cli blurred.jpg --deblur-defocus radius=5 noise=0.01 -o sharp.jpg
 
 ```bash
 # Average 24 frames to suppress sensor noise
-python -m src.cli clip.avi --frames 24 -o clean.png
+cv-tools clip.avi --frames 24 -o clean.png
 
 # Median composite: removes anything that moved, leaving the background
-python -m src.cli clip.avi --frames 24 --frame-method median -o background.png
+cv-tools clip.avi --frames 24 --frame-method median -o background.png
 
 # Brighten very dark footage by accumulating light
-python -m src.cli clip.avi --frames 30 --frame-method integrate -o brightened.png
+cv-tools clip.avi --frames 30 --frame-method integrate -o brightened.png
 
 # Average only the best-focused half of the frames
-python -m src.cli clip.avi --frames 20 --frame-method sharpest -o sharpest.png
+cv-tools clip.avi --frames 20 --frame-method sharpest -o sharpest.png
 
 # Spread the sample over a longer span to clear a slow-moving object
-python -m src.cli clip.avi --frames 12 --frame-step 5 --frame-method median -o bg.png
+cv-tools clip.avi --frames 12 --frame-step 5 --frame-method median -o bg.png
 ```
 
 ### Analysis and reporting
 
 ```bash
 # Source metadata: dimensions, EXIF, SHA-256
-python -m src.cli input.jpg --info
+cv-tools input.jpg --info
 
 # Per-channel statistics for a region of the processed image
-python -m src.cli input.jpg --clahe --analyze-roi 270,300,110,36
+cv-tools input.jpg --clahe --analyze-roi 270,300,110,36
 
 # Histogram chart of the processed image
-python -m src.cli input.jpg --clahe --histogram hist.png -o out.jpg
+cv-tools input.jpg --clahe --histogram hist.png -o out.jpg
 
 # Tonal stats: dynamic range used, plus shadow/highlight clipping
-python -m src.cli input.jpg --hist-stats
+cv-tools input.jpg --hist-stats
 
 # Side-by-side original vs processed
-python -m src.cli input.jpg --clahe clip=3.0 --compare compare.png -o out.jpg
+cv-tools input.jpg --clahe clip=3.0 --compare compare.png -o out.jpg
 
 # Processing report — .md, .json or .pdf chosen by extension
-python -m src.cli input.jpg --clahe --levels 10,1.1,200 --report report.md -o out.jpg
-python -m src.cli input.jpg --clahe --report report.pdf -o out.jpg
+cv-tools input.jpg --clahe --levels 10,1.1,200 --report report.md -o out.jpg
+cv-tools input.jpg --clahe --report report.pdf -o out.jpg
 ```
 
 ### Presets and batch processing
 
 ```bash
 # Save the applied chain as a reusable preset
-python -m src.cli input.jpg --brightness 30 --clahe clip=2.5 \
+cv-tools input.jpg --brightness 30 --clahe clip=2.5 \
     --save-preset plate.json -o out.jpg
 
 # Replay it on another image
-python -m src.cli other.jpg --load-preset plate.json -o other_out.jpg
+cv-tools other.jpg --load-preset plate.json -o other_out.jpg
 
 # Apply to every image in a directory
-python -m src.cli frames/ --load-preset plate.json --batch -o enhanced/
+cv-tools frames/ --load-preset plate.json --batch -o enhanced/
 
 # Include subdirectories; the output mirrors the input tree
-python -m src.cli frames/ --load-preset plate.json --batch --recursive -o enhanced/
+cv-tools frames/ --load-preset plate.json --batch --recursive -o enhanced/
 
 # List every registered filter
-python -m src.cli --list-filters
+cv-tools --list-filters
 ```
 
 Video input is supported for still extraction — use `--frame N` to pick the frame.
@@ -394,13 +425,8 @@ stretch**, so the exposure you see is the exposure that was recorded. Override w
 ## GUI
 
 ```bash
-python -m src.gui
-```
-
-Optionally with a file to open at startup:
-
-```bash
-python -m src.gui samples/cctv_dark.png
+cv-tools-gui                          # or: python -m cv_tools.gui
+cv-tools-gui samples/cctv_dark.png    # with a file open at startup
 ```
 
 | Panel | What it does |
@@ -427,8 +453,16 @@ A Streamlit front end over the same engine, for working from a browser or a phon
 Tkinter window is not available.
 
 ```bash
-pip install -r requirements.txt -r requirements-dashboard.txt
-streamlit run src/dashboard.py --server.address=0.0.0.0
+pip install ".[dashboard]"
+cv-tools-dashboard --server.address=0.0.0.0
+```
+
+`cv-tools-dashboard` resolves `dashboard.py` inside the installed package and hands it to
+Streamlit, passing your options through, so it works the same from a wheel as from a clone.
+From a source tree you can still run Streamlit directly:
+
+```bash
+streamlit run cv_tools/dashboard.py --server.address=0.0.0.0
 ```
 
 | Area | What it does |
@@ -460,7 +494,7 @@ displayed copy only — the download stays clean.
 everything, compared with `hmac.compare_digest`:
 
 ```bash
-CVTOOLS_PASSWORD='...' streamlit run src/dashboard.py --server.address=0.0.0.0
+CVTOOLS_PASSWORD='...' cv-tools-dashboard --server.address=0.0.0.0
 ```
 
 Unset, there is no gate and local use stays frictionless. The gate is meant for an instance
@@ -470,16 +504,16 @@ front of it, not an account system, so terminate TLS at the tunnel and treat it 
 ## Library Usage
 
 ```python
-from src.core import ImageLoader, Pipeline, ReportGenerator, save_image
-from src.filters import apply_clahe, adjust_levels
+from cv_tools.core import ImageLoader, Pipeline, ReportGenerator, save_image
+from cv_tools.filters import apply_clahe, adjust_levels
 
 with ImageLoader('input.jpg') as loader:
     image = loader.load()
     metadata = loader.metadata
 
 pipeline = Pipeline(image)
-pipeline.apply(apply_clahe, 'clahe', 'src.filters.clahe', {'clip_limit': 3.0})
-pipeline.apply(adjust_levels, 'levels', 'src.filters.levels', {'black_point': 10})
+pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 3.0})
+pipeline.apply(adjust_levels, 'levels', 'cv_tools.filters.levels', {'black_point': 10})
 
 pipeline.undo()                     # step back through the chain
 result = pipeline.redo()
@@ -491,7 +525,7 @@ ReportGenerator(pipeline.generate_report(), metadata).save('report.md')
 ### Loading directories and navigating video
 
 ```python
-from src.core import ImageLoader
+from cv_tools.core import ImageLoader
 
 # Every loadable still in a directory, lazily so large sets need not fit in memory
 for path, image in ImageLoader.load_directory('frames/', recursive=True):
@@ -514,8 +548,8 @@ or drop steps. It takes a resolver mapping each step's name to its function —
 `filter_function` covers every registered filter.
 
 ```python
-from src.core import FilterStep
-from src.filters import filter_function
+from cv_tools.core import FilterStep
+from cv_tools.filters import filter_function
 
 # Reorder: CLAHE before the brightness lift instead of after
 pipeline.replace_chain(list(reversed(pipeline.chain)), filter_function)
@@ -591,7 +625,7 @@ history, and comes out uniformly white on a never-compressed PNG.
 
 ```
 cv-tools/
-├── src/
+├── cv_tools/
 │   ├── core/          # Pipeline engine, loader, report
 │   ├── filters/       # 36 filter modules + the name registry
 │   ├── gui/           # Optional Tkinter interface
@@ -603,7 +637,9 @@ cv-tools/
 ├── scripts/           # Filter gallery, filter-reference PDF build
 ├── gallery/           # Rendered gallery output and contact sheet
 ├── docs/              # Filter parameter reference, EN and FR, md and pdf
-└── .github/workflows/ # CI: the test suite on Python 3.10-3.12
+├── .github/workflows/ # CI: tests, gallery, headless import, packaging
+├── pyproject.toml     # Package metadata, extras, console entry points
+└── LICENSE            # MIT
 ```
 
 Three front ends — CLI, Tkinter GUI, Streamlit dashboard — over one `Pipeline` and one
@@ -642,8 +678,8 @@ registry. A filter is written once, registered once, and appears in all three.
   no-Tkinter container proving the dashboard still starts headless
 - **Dashboard tests** — 54 tests over the access gate, the generated parameter forms, the
   coordinate grid and tap-to-pick. Writing them found that the dashboard imported
-  `src.gui.widgets` and so could not start without Tkinter, which is exactly the
-  environment it is served from; the shared parameter metadata moved to
+  the Tkinter GUI's widget module and so could not start without Tkinter, which is
+  exactly the environment it is served from; the shared parameter metadata moved to
   `utils/params.py` and the two front ends no longer depend on each other
 
 **Where that leaves it.** 36 filter modules exposing **67 registered chain filters** across
@@ -651,12 +687,20 @@ six families — Adjust 28, Enhance 12, Correct 7, Analyze 6, Forensic 9, Specia
 the core engine, three front ends, preset and report systems, batch and multi-frame
 processing, EN/FR documentation, and **731 tests**.
 
-**Phase 3 — not started**
+**Phase 3 — in progress**
 
-- **Packaging.** No `pyproject.toml`, so the toolkit runs as `python -m src.cli` from a
-  clone rather than installing as a package with a console entry point. A LICENSE has to
-  land with it.
-- **Validation against real footage.** Every filter is verified against synthetic ground
+- **Packaging (done)** — `pyproject.toml` with three console entry points and optional
+  extras for raw decoding, the dashboard and the PDF build; MIT licensed. The importable
+  package was renamed from `src` to `cv_tools`, since a top-level package called `src`
+  collides with every other project and cannot be published. Presets saved before the
+  rename still load: filters resolve by registry name, and the module string a step
+  records is informational.
+- **Validation against real footage (not started).** Every filter is verified against synthetic ground
   truth, published algorithms, and OpenCV as a numerical baseline — which says the
   arithmetic is right, not that the defaults are useful on heavily compressed night-time
   CCTV at 12 fps. Closing that needs a labelled real-world corpus, not more unit tests.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Use it, modify it, ship it commercially; keep the copyright
+notice.

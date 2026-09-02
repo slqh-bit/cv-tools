@@ -23,8 +23,8 @@ except Exception as exc:            # pragma: no cover - environment dependent
     TK_AVAILABLE = False
     TK_ERROR = str(exc)
 
-from src.core import FilterStep, Pipeline
-from src.filters import FILTER_REGISTRY, apply_clahe, resolve_filter
+from cv_tools.core import FilterStep, Pipeline
+from cv_tools.filters import FILTER_REGISTRY, apply_clahe, resolve_filter
 
 
 def sample_image(height: int = 48, width: int = 64) -> np.ndarray:
@@ -40,7 +40,7 @@ class TestParameterPanel(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from src.gui.widgets import ParameterPanel
+        from cv_tools.gui.widgets import ParameterPanel
         cls.ParameterPanel = ParameterPanel
         cls.root = tk.Tk()
         cls.root.withdraw()
@@ -121,13 +121,13 @@ class TestParameterPanel(unittest.TestCase):
         panel.destroy()
 
     def test_comma_text_parses_to_a_list(self):
-        from src.gui.widgets import _parse_text
+        from cv_tools.gui.widgets import _parse_text
         self.assertEqual(_parse_text('1,2,3'), [1, 2, 3])
         self.assertEqual(_parse_text('8x8'), (8, 8))
         self.assertEqual(_parse_text('lab'), 'lab')
 
     def test_eight_numbers_become_corner_pairs(self):
-        from src.gui.widgets import _parse_text
+        from cv_tools.gui.widgets import _parse_text
         self.assertEqual(_parse_text('1,2,3,4,5,6,7,8'),
                          [[1, 2], [3, 4], [5, 6], [7, 8]])
 
@@ -144,7 +144,7 @@ class TestImageCanvas(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from src.gui.widgets import ImageCanvas
+        from cv_tools.gui.widgets import ImageCanvas
         cls.ImageCanvas = ImageCanvas
         cls.root = tk.Tk()
         cls.root.withdraw()
@@ -199,7 +199,7 @@ class TestImageCanvas(unittest.TestCase):
                 self.assertIsNotNone(self.canvas._compose())
 
     def test_grayscale_output_is_displayable(self):
-        from src.filters import canny_edges
+        from cv_tools.filters import canny_edges
         edges = canny_edges(self.original, 50, 150)
         self.canvas.set_images(self.original, edges)
         composite = self.canvas._compose()
@@ -223,14 +223,14 @@ class TestApp(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from src.gui.app import CVToolsApp
+        from cv_tools.gui.app import CVToolsApp
         cls.CVToolsApp = CVToolsApp
 
     def setUp(self):
         # Modal dialogs block forever without a user to dismiss them, so they
         # are intercepted; the mock also lets a test assert one was raised
-        self.messagebox = mock.patch('src.gui.app.messagebox').start()
-        self.filedialog = mock.patch('src.gui.app.filedialog').start()
+        self.messagebox = mock.patch('cv_tools.gui.app.messagebox').start()
+        self.filedialog = mock.patch('cv_tools.gui.app.filedialog').start()
         self.addCleanup(mock.patch.stopall)
 
         self.app = self.CVToolsApp()
@@ -337,7 +337,7 @@ class TestApp(unittest.TestCase):
             self.assertEqual(preset['filters'][0]['name'], 'clahe')
 
             # Replay it through the plain pipeline, as the CLI would
-            from src.filters import filter_function
+            from cv_tools.filters import filter_function
             replayed = Pipeline(self.image)
             steps = [FilterStep.from_dict(s) for s in preset['filters']]
             replayed.replace_chain(steps, filter_function)
@@ -348,7 +348,7 @@ class TestApp(unittest.TestCase):
         self._select('clahe')
         self.app.apply_filter()
 
-        from src.core import ReportGenerator
+        from cv_tools.core import ReportGenerator
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'report.md'
             ReportGenerator(self.app.pipeline.generate_report(),
