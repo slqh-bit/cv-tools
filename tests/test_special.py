@@ -8,7 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from src.filters import (
+from cv_tools.filters import (
     COLOR_SPACES,
     STAIN_PRESETS,
     Scale,

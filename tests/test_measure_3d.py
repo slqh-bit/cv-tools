@@ -11,7 +11,7 @@ import unittest
 
 import numpy as np
 
-from src.filters import (
+from cv_tools.filters import (
     draw_height_measurement,
     horizon_from_vanishing_points,
     line_through,
@@ -218,7 +218,7 @@ class TestMeasure3dFilter(unittest.TestCase):
         self.assertFalse(np.array_equal(shown, hidden))
 
     def test_is_registered_as_a_chain_filter(self):
-        from src.filters import FILTER_REGISTRY, filter_function
+        from cv_tools.filters import FILTER_REGISTRY, filter_function
         self.assertIn('measure_3d', FILTER_REGISTRY)
         self.assertIs(filter_function('measure_3d'), draw_height_measurement)
 

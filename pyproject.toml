@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cv-tools"
+version = "0.1.0"
+description = "Modular forensic image enhancement and analysis toolkit, chain-based and reportable"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Hikview Engineering", email = "slahchmissi@gmail.com" }]
+keywords = [
+    "forensics", "image-processing", "cctv", "image-enhancement",
+    "image-authentication", "opencv", "photogrammetry",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Legal Industry",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+
+# Kept in step with requirements.txt, minus rawpy: camera raw decoding is a
+# large binary dependency that most workflows never touch, so it is an extra
+# here rather than something every install pays for.
+dependencies = [
+    "opencv-python>=4.8.0,<5",
+    "numpy>=1.24.0",
+    "scikit-image>=0.21.0",
+    "matplotlib>=3.7.0",
+    "Pillow>=10.0.0",
+    "scipy>=1.11.0",
+    "tqdm>=4.65.0",
+]
+
+[project.optional-dependencies]
+# Camera raw formats (CR2/CR3, NEF, ARW, DNG and the rest)
+raw = ["rawpy>=0.18.0"]
+# The Streamlit web dashboard
+dashboard = [
+    "streamlit>=1.50",
+    "streamlit-image-coordinates>=0.4.0",
+    "markdown>=3.7",
+    "xhtml2pdf>=0.2.16",
+]
+# Rebuilding the filter-reference PDFs in docs/
+docs = ["markdown>=3.7", "xhtml2pdf>=0.2.16"]
+[project.urls]
+Homepage = "https://github.com/slqh-bit/cv-tools"
+Repository = "https://github.com/slqh-bit/cv-tools"
+Issues = "https://github.com/slqh-bit/cv-tools/issues"
+
+[project.scripts]
+cv-tools = "cv_tools.cli:main"
+cv-tools-gui = "cv_tools.gui.app:main"
+cv-tools-dashboard = "cv_tools._dashboard_cli:main"
+
+[tool.setuptools.packages.find]
+# Only the library ships. tests/, scripts/, samples/, docs/ and gallery/ stay
+# in the repository.
+include = ["cv_tools*"]

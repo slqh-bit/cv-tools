@@ -6,7 +6,7 @@ import unittest
 import cv2
 import numpy as np
 
-from src.filters import (
+from cv_tools.filters import (
     CURVE_PRESETS,
     adjust_cmyk,
     adjust_color_balance,

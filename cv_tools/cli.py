@@ -6,7 +6,7 @@ Filters are applied in the order they appear on the command line, so
 produce different results, exactly like reordering steps in a filter chain.
 
 Usage:
-    python -m src.cli input.jpg --clahe clip=2.0 tile=8x8 -o output.jpg
+    cv-tools input.jpg --clahe clip=2.0 tile=8x8 -o output.jpg
 """
 
 import argparse
@@ -65,15 +65,15 @@ class ChainAction(argparse.Action):
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='cv-tools',
-        description='Modular forensic image enhancement toolkit (Sprint 1 filters).',
+        description='Modular forensic image enhancement toolkit.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python -m src.cli in.jpg --clahe clip=2.0 tile=8x8 -o out.jpg\n"
-            "  python -m src.cli in.jpg --roi 100,100,300,200 -o crop.jpg\n"
-            "  python -m src.cli in.jpg --brightness 20 --contrast 1.5 -o out.jpg\n"
-            "  python -m src.cli in.jpg --levels 20,1.0,220 --report report.md -o out.jpg\n"
-            "  python -m src.cli frames/ --clahe --batch -o enhanced/\n"
+            "  cv-tools in.jpg --clahe clip=2.0 tile=8x8 -o out.jpg\n"
+            "  cv-tools in.jpg --roi 100,100,300,200 -o crop.jpg\n"
+            "  cv-tools in.jpg --brightness 20 --contrast 1.5 -o out.jpg\n"
+            "  cv-tools in.jpg --levels 20,1.0,220 --report report.md -o out.jpg\n"
+            "  cv-tools frames/ --clahe --batch -o enhanced/\n"
         ),
     )
 

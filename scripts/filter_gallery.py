@@ -35,9 +35,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.core import ImageLoader, save_image                      # noqa: E402
-from src.filters import FILTER_REGISTRY, CameraCalibration        # noqa: E402
-from src.filters import save_calibration                          # noqa: E402
+from cv_tools.core import ImageLoader, save_image                      # noqa: E402
+from cv_tools.filters import FILTER_REGISTRY, CameraCalibration        # noqa: E402
+from cv_tools.filters import save_calibration                          # noqa: E402
 
 # Parameters that have no usable default. Scaled to the sample at run time
 # where they are fractions of the image.

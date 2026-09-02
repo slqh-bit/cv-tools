@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from src.filters import (
+from cv_tools.filters import (
     ROI,
     adjust_contrast_brightness,
     adjust_levels,

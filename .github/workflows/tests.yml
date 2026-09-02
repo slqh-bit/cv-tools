@@ -1,0 +1,194 @@
+name: Tests
+
+on:
+  # `push` is limited to main: an unfiltered push trigger fires alongside
+  # `pull_request` on every push to a PR branch, running the whole matrix twice
+  # for one commit. This way a PR branch is covered once by `pull_request`, and
+  # main is covered once by `push` after a merge. A branch with no PR open gets
+  # no run, which is the intended trade.
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push supersedes the run in flight for the same branch.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      # Report every version that fails, not just the first.
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dashboard.txt
+
+      - name: Install dependencies
+        run: |
+          # Two substitutions against requirements.txt, so everything else stays
+          # in sync with it automatically:
+          #
+          #   opencv-python -> opencv-python-headless. Same library without the
+          #   GUI bindings, which pull system libraries (libGL) the runner has
+          #   no display for. The version range is kept as written.
+          #
+          #   rawpy dropped. It is a large binary dependency used only for
+          #   camera raw decoding, and every test that touches it mocks the
+          #   module out (tests/test_core.py), so a real install proves nothing
+          #   and only risks a source build.
+          grep -v -e '^opencv-python' -e '^rawpy' requirements.txt > requirements-ci.txt
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-ci.txt 'opencv-python-headless>=4.8.0,<5'
+
+      - name: Install the dashboard extras
+        # tests/test_dashboard.py skips without streamlit, so install it here
+        # rather than let 54 tests quietly report as skipped in CI.
+        run: python -m pip install -r requirements-dashboard.txt
+
+      - name: Run the test suite
+        # The 40 GUI tests skip on a headless runner; the rest must pass.
+        run: python -m unittest discover -s tests -t . --verbose
+
+      - name: Check the dashboard imports without Tkinter
+        # The dashboard is served from headless boxes, where python3-tk is
+        # usually absent. It once imported the Tkinter GUI's widget module and
+        # so could not start there at all; this fails fast if that comes back.
+        run: python -c "import cv_tools.dashboard"
+
+  headless-import:
+    name: Dashboard imports with no Tkinter installed
+    runs-on: ubuntu-latest
+    container: python:3.12-slim   # no python3-tk, unlike the GitHub runner image
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          grep -v -e '^opencv-python' -e '^rawpy' requirements.txt > requirements-ci.txt
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-ci.txt 'opencv-python-headless>=4.8.0,<5'
+          python -m pip install -r requirements-dashboard.txt
+
+      - name: Confirm Tkinter really is absent
+        run: |
+          if python -c "import tkinter" 2>/dev/null; then
+            echo "tkinter is present - this job no longer proves anything"; exit 1
+          fi
+
+      - name: Import the dashboard and run its tests
+        run: |
+          python -c "import cv_tools.dashboard; print('dashboard imports headless')"
+          python -m unittest tests.test_dashboard --verbose
+
+  package:
+    name: Wheel builds and installs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build the wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir dist/
+
+      - name: Check nothing but the package shipped
+        # tests/, scripts/, samples/, docs/ and gallery/ stay in the repository;
+        # a stray top-level directory in the wheel means the find directive
+        # stopped doing its job.
+        run: |
+          python - <<'PY'
+          import pathlib, zipfile
+          wheel = next(pathlib.Path('dist').glob('*.whl'))
+          tops = sorted({n.split('/')[0] for n in zipfile.ZipFile(wheel).namelist()})
+          extra = [t for t in tops if t != 'cv_tools' and not t.endswith('.dist-info')]
+          assert not extra, f'unexpected top-level entries in the wheel: {extra}'
+          print('wheel contains:', tops)
+          PY
+
+      - name: Install it into a clean environment
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install dist/*.whl
+
+      - name: Run the console script from outside the source tree
+        # Run from /tmp so a passing command cannot be the repository checkout
+        # being imported instead of the installed package.
+        run: |
+          cp samples/cctv_dark.png /tmp/
+          cd /tmp
+          /tmp/venv/bin/cv-tools cctv_dark.png --clahe clip=3.0 -o /tmp/out.png
+          test -s /tmp/out.png
+          /tmp/venv/bin/cv-tools --list-filters > /dev/null
+          python -c "import pathlib; assert pathlib.Path('/tmp/out.png').stat().st_size > 0"
+
+      - name: The dashboard entry point reports its missing extra
+        run: |
+          set +e
+          output=$(/tmp/venv/bin/cv-tools-dashboard 2>&1); status=$?
+          set -e
+          echo "$output"
+          test $status -eq 1
+          echo "$output" | grep -q 'cv-tools\[dashboard\]'
+
+  gallery:
+    name: Filter gallery smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          grep -v -e '^opencv-python' -e '^rawpy' requirements.txt > requirements-ci.txt
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-ci.txt 'opencv-python-headless>=4.8.0,<5'
+
+      - name: Regenerate the sample images
+        # Build them rather than trusting the committed copies, so a change that
+        # breaks the generator is caught here.
+        run: python samples/generate_samples.py
+
+      - name: Render every registered filter
+        # Exits non-zero if any filter fails on a real image, which unit tests
+        # asserting on arrays will not always catch.
+        run: python scripts/filter_gallery.py -o gallery-ci/
+
+      - name: Validate the repair filters against degraded footage
+        # Exits non-zero if any filter raises on degraded, monochrome or
+        # odd-sized input - material the clean sample images never produce.
+        run: python scripts/validate_filters.py --output validation-ci.md
+
+      - name: Upload the contact sheet
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: filter-gallery
+          path: |
+            gallery-ci/_contact_sheet.png
+            validation-ci.md
+          if-no-files-found: error

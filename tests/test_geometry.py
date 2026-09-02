@@ -8,7 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from src.filters import (
+from cv_tools.filters import (
     CameraCalibration,
     KNOWN_RATIOS,
     PIXEL_ASPECT_RATIOS,
@@ -91,7 +91,7 @@ def grid_scene(height: int = 120, width: int = 160) -> np.ndarray:
 class TestNLMeans(unittest.TestCase):
 
     def test_reduces_noise(self):
-        from src.filters import estimate_noise
+        from cv_tools.filters import estimate_noise
         image = noisy()
         result = nl_means_denoise(image, h=12)
         self.assertLess(estimate_noise(result), estimate_noise(image))
@@ -131,7 +131,7 @@ class TestNLMeans(unittest.TestCase):
             estimate_h(noisy(), aggressiveness=0)
 
     def test_auto_denoise_runs(self):
-        from src.filters import estimate_noise
+        from cv_tools.filters import estimate_noise
         image = noisy()
         result = nl_means_denoise_auto(image)
         self.assertLess(estimate_noise(result), estimate_noise(image))
@@ -572,7 +572,7 @@ class TestUndistort(unittest.TestCase):
             CameraCalibration(np.eye(2), np.zeros(5), (80, 64))
 
     def test_calibration_requires_enough_detections(self):
-        from src.filters import calibrate_from_chessboard
+        from cv_tools.filters import calibrate_from_chessboard
         # Blank frames contain no chessboard at all
         blanks = [np.zeros((64, 80, 3), dtype=np.uint8) for _ in range(4)]
         with self.assertRaises(ValueError) as ctx:
@@ -580,7 +580,7 @@ class TestUndistort(unittest.TestCase):
         self.assertIn('chessboard', str(ctx.exception))
 
     def test_calibration_validates_arguments(self):
-        from src.filters import calibrate_from_chessboard
+        from cv_tools.filters import calibrate_from_chessboard
         with self.assertRaises(ValueError):
             calibrate_from_chessboard([], (9, 6))
         with self.assertRaises(ValueError):
