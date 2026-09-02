@@ -1,7 +1,13 @@
 name: Tests
 
 on:
+  # `push` is limited to main: an unfiltered push trigger fires alongside
+  # `pull_request` on every push to a PR branch, running the whole matrix twice
+  # for one commit. This way a PR branch is covered once by `pull_request`, and
+  # main is covered once by `push` after a merge. A branch with no PR open gets
+  # no run, which is the intended trade.
   push:
+    branches: [main]
   pull_request:
 
 # A new push supersedes the run in flight for the same branch.
