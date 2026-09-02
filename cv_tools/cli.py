@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -20,13 +21,16 @@ import numpy as np
 from .core.loader import ImageLoader, save_image
 from .core.pipeline import Pipeline
 from .core.report import ReportGenerator
+from .core.video import DEFAULT_CODECS, VideoWriter
 from .filters.aspect_ratio import PIXEL_ASPECT_RATIOS
-from .filters.clone_detection import detect_copy_move
-from .filters.compression_analysis import compression_report
+from .filters.analysis import (
+    ANALYSIS_REGISTRY,
+    list_analyses,
+    report_lines,
+    resolve_analysis,
+    run_analysis,
+)
 from .filters.curves import curve_from_string
-from .filters.ela import ela_stats
-from .filters.jpeg_ghost import ghost_report
-from .filters.metadata_forensics import metadata_report
 from .filters.perspective_correction import KNOWN_RATIOS
 from .filters.frame_averaging import (
     average_frames,
@@ -34,9 +38,16 @@ from .filters.frame_averaging import (
     median_frames,
     sharpest_frames,
 )
+from .filters.stabilise import (
+    DEFAULT_MIN_CONFIDENCE,
+    METHODS as STABILISE_METHODS,
+    MOTION_MODELS,
+    align_frames,
+    alignment_report,
+)
 from .filters.histogram import dynamic_range_used, histogram_stats, render_histogram
-from .filters.noise_analysis import noise_report
-from .filters.registry import resolve_filter, list_filters
+from .filters.registry import resolve_filter, list_filters, filter_description
+from .filters.super_resolution import super_resolve, super_resolve_report
 from .filters.roi import ROI, analyze_roi
 from .utils.compare import side_by_side
 from .utils.parsing import (
@@ -225,6 +236,53 @@ def build_parser() -> argparse.ArgumentParser:
                          metavar='STRENGTH', action=ChainAction,
                          help='Soften JPEG block edges')
 
+    # ---- Measurement and annotation ----
+    # The calibration is a modifier rather than a per-measurement parameter
+    # because a scale belongs to an image plane, not to one measurement: every
+    # measurement taken in that plane shares it, and two in the same plane
+    # disagreeing about the scale would be a defect, not a feature.
+    measure_group = parser.add_argument_group('measurement and annotation')
+    measure_group.add_argument('--scale-ref', metavar='X1,Y1,X2,Y2',
+                               help='The two ends of something of known length, '
+                                    'calibrating --measure, --measure-area and '
+                                    '--scale-bar. Correct perspective first: a '
+                                    'scale is valid only in its own plane')
+    measure_group.add_argument('--scale-length', type=float, metavar='LENGTH',
+                               help='True length of --scale-ref, e.g. 520 for an '
+                                    'EU number plate')
+    measure_group.add_argument('--scale-unit', default='mm', metavar='UNIT',
+                               help='Unit of --scale-length (default: mm)')
+    measure_group.add_argument('--measure', metavar='X1,Y1,X2,Y2',
+                               action=ChainAction,
+                               help='Measure between two points and draw the '
+                                    'dimension line. Uncalibrated, the label is '
+                                    'in pixels')
+    measure_group.add_argument('--measure-area', metavar='X1,Y1,X2,Y2,...',
+                               action=ChainAction,
+                               help='Measure the area of a polygon of three or '
+                                    'more vertices, and draw it labelled')
+    measure_group.add_argument('--scale-bar', nargs='?', type=float, const=100.0,
+                               metavar='LENGTH', action=ChainAction,
+                               help='Draw a calibrated scale bar of LENGTH units '
+                                    '(default: 100); needs --scale-ref')
+    measure_group.add_argument('--scale-bar-position', default='bottom_right',
+                               choices=['bottom_right', 'bottom_left',
+                                        'top_right', 'top_left'],
+                               help='Which corner --scale-bar sits in '
+                                    '(default: bottom_right)')
+    measure_group.add_argument('--arrow', nargs='*', metavar='KEY=VALUE',
+                               action=ChainAction,
+                               help='Draw an arrow. Params: start, end (X,Y), '
+                                    'label, thickness, tip_length')
+    measure_group.add_argument('--text', nargs='*', metavar='KEY=VALUE',
+                               action=ChainAction,
+                               help='Draw a text label. Params: text, position '
+                                    '(X,Y), font_scale, thickness, background')
+    measure_group.add_argument('--shape', nargs='*', metavar='KEY=VALUE',
+                               action=ChainAction,
+                               help='Draw a shape. Params: shape (rectangle, '
+                                    'circle, ellipse, line, polygon), points, label')
+
     # ---- Edge detection ----
     edges = parser.add_argument_group('edge detection')
     edges.add_argument('--canny', metavar='LOW,HIGH', action=ChainAction,
@@ -298,19 +356,21 @@ def build_parser() -> argparse.ArgumentParser:
                      help='Plot --histogram on a log scale')
     out.add_argument('--hist-stats', action='store_true',
                      help='Print tonal statistics and clipping percentages')
-    out.add_argument('--noise-stats', action='store_true',
-                     help='Print noise sigma, SNR, and per-block uniformity')
-    out.add_argument('--ela-stats', nargs='?', type=int, const=90, metavar='QUALITY',
-                     help='Print Error Level Analysis block statistics (default quality 90)')
-    out.add_argument('--clone-stats', action='store_true',
-                     help='Print copy-move detection results without altering the image')
-    out.add_argument('--compression-stats', action='store_true',
-                     help='Print JPEG blocking measures and, for a JPEG source, its quality')
-    out.add_argument('--ghost-stats', action='store_true',
-                     help='Print JPEG ghost detection results without altering the image')
-    out.add_argument('--metadata-stats', action='store_true',
-                     help='Inspect EXIF and JPEG segments of the source file for '
-                          'inconsistencies (editor tags, timestamp disorder, resizing)')
+    # One flag per registered analysis, so a report added to the registry is
+    # reachable from the command line without this file being edited - the
+    # same property the GUI's Analysis tab and the dashboard already have
+    for spec in ANALYSIS_REGISTRY.values():
+        if spec.cli_value is None:
+            out.add_argument(spec.cli_flag, action='store_true', help=spec.cli_help())
+            continue
+
+        # A bare value is shorthand for one parameter, and the parameter's own
+        # default is what the flag means when given without one
+        default = inspect.signature(spec.fn).parameters[spec.cli_value].default
+        out.add_argument(spec.cli_flag, nargs='?', type=type(default), const=default,
+                         metavar=spec.cli_value.upper(),
+                         help=f'{spec.cli_help()} '
+                              f'(default {spec.cli_value} {default})')
     out.add_argument('--info', action='store_true',
                      help='Print source metadata (dimensions, EXIF, SHA-256)')
     out.add_argument('--report', metavar='PATH',
@@ -324,14 +384,64 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument('--frame', type=int, default=0, metavar='N',
                      help='Frame index for video input (default: 0)')
     out.add_argument('--frames', type=int, default=0, metavar='N',
-                     help='Combine N video frames into the source image, starting at --frame')
+                     help='Combine N frames into the source image: from a video '
+                          'starting at --frame, or from a directory of stills. '
+                          'Averaging only reduces noise where the scene holds '
+                          'still - use median where it does not')
     out.add_argument('--frame-step', type=int, default=1, metavar='N',
                      help='Stride between the frames gathered by --frames (default: 1)')
     out.add_argument('--frame-method', default='mean',
-                     choices=['mean', 'median', 'integrate', 'sharpest'],
+                     choices=['mean', 'median', 'integrate', 'sharpest',
+                              'superres'],
                      help='How --frames are combined: mean denoises, median removes moving '
                           'objects, integrate brightens dark footage, sharpest averages only '
-                          'the best-focused half (default: mean)')
+                          'the best-focused half, superres reconstructs a larger image from '
+                          'their sub-pixel offsets (default: mean)')
+    out.add_argument('--sr-scale', type=float, default=2.0, metavar='FACTOR',
+                     help='Magnification for --frame-method superres (default: 2.0)')
+    out.add_argument('--sr-sharpen', type=float, default=0.6, metavar='AMOUNT',
+                     help='Unsharp amount applied after reconstruction, '
+                          '0 to disable (default: 0.6)')
+    out.add_argument('--sr-max-shift', type=float, default=8.0, metavar='PIXELS',
+                     help='Frames displaced further than this are dropped as '
+                          'mis-registered rather than smeared in (default: 8.0)')
+    out.add_argument('--stabilise', '--stabilize', nargs='?',
+                     const='euclidean', choices=sorted(MOTION_MODELS),
+                     metavar='MODEL',
+                     help='Align --frames before combining them. Every method '
+                          'assumes the frames line up and none can tell that '
+                          'they do not. Pick the least freedom the camera had: '
+                          'translation for a shaky mount, euclidean for '
+                          'handheld (default), homography for a pan across a '
+                          'flat scene. The result is cropped to the area every '
+                          'frame covers')
+    out.add_argument('--stabilise-method', '--stabilize-method', default='auto',
+                     choices=list(STABILISE_METHODS),
+                     help='features survives large motion, ecc is sub-pixel but '
+                          'local, auto seeds ecc from features (default: auto)')
+    out.add_argument('--stabilise-reference', '--stabilize-reference', type=int,
+                     default=0, metavar='N',
+                     help='Index within the gathered frames that the others are '
+                          'aligned to (default: 0)')
+    out.add_argument('--stabilise-min-confidence', '--stabilize-min-confidence',
+                     type=float, default=DEFAULT_MIN_CONFIDENCE, metavar='C',
+                     help=f'Frames matching below this are left out rather than '
+                          f'warped on a guess (default: {DEFAULT_MIN_CONFIDENCE})')
+    out.add_argument('--video', action='store_true',
+                     help='Apply the chain to every frame of a range and write '
+                          'video, instead of reducing the input to one still. '
+                          'Needs a video input and an output file')
+    out.add_argument('--video-frames', type=int, default=0, metavar='N',
+                     help='How many frames --video processes, from --frame '
+                          'onward (default: to the end)')
+    out.add_argument('--fps', type=float, default=0.0, metavar='RATE',
+                     help="Output frame rate for --video (default: the "
+                          "source's, divided by --frame-step)")
+    out.add_argument('--codec', metavar='FOURCC',
+                     help='Video codec, e.g. FFV1 (lossless), MJPG, mp4v. '
+                          'Default depends on the output container: '
+                          + ', '.join(f'{ext} -> {code}'
+                                      for ext, code in DEFAULT_CODECS.items()))
     out.add_argument('--batch', action='store_true',
                      help='Process every image in the input directory')
     out.add_argument('--recursive', action='store_true',
@@ -340,10 +450,105 @@ def build_parser() -> argparse.ArgumentParser:
                      help='JPEG quality 1-100 (default: 95)')
     out.add_argument('--list-filters', action='store_true',
                      help='List registered filters and exit')
+    out.add_argument('--list-analyses', action='store_true',
+                     help='List the analysis reports and exit')
     out.add_argument('-v', '--verbose', action='store_true',
                      help='Print each step as it is applied')
 
     return parser
+
+
+def expand_point_params(
+    params: Dict[str, Any],
+    keys: Tuple[str, ...],
+) -> Dict[str, Any]:
+    """
+    Turn ``key=X,Y`` values into coordinate lists, in place.
+
+    ``parse_value`` leaves "352,408" as text, since a comma means nothing to it.
+    Which keys hold coordinates is filter knowledge, so the caller names them.
+
+    Args:
+        params: Parsed key=value parameters
+        keys: The parameter names that hold coordinates
+
+    Returns:
+        The same dict, with those values converted
+
+    Raises:
+        ValueError: If a named value is not a list of numbers
+    """
+    for key in keys:
+        value = params.get(key)
+        if not isinstance(value, str) or ',' not in value:
+            continue
+        parts = [part.strip() for part in value.split(',')]
+        try:
+            params[key] = [float(part) for part in parts]
+        except ValueError:
+            raise ValueError(
+                f"{key} should be comma-separated numbers, got {value!r}"
+            ) from None
+    return params
+
+
+def translate_measurement(
+    dest: str,
+    value: Any,
+    scale_ref: Optional[str],
+    scale_length: Optional[float],
+    scale_unit: str,
+    scale_bar_position: str,
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Build a measurement step, attaching the shared calibration if one was given.
+
+    Raises:
+        ValueError: If the flag's coordinates are malformed, if the calibration
+            is only half given, or if a scale bar was asked for without one
+    """
+    calibration: Dict[str, Any] = {}
+    if scale_ref is not None or scale_length is not None:
+        if scale_ref is None or scale_length is None:
+            raise ValueError(
+                "a calibration needs both --scale-ref and --scale-length")
+        x1, y1, x2, y2 = parse_float_list(scale_ref, 4)
+        calibration = {
+            'reference_a': [x1, y1],
+            'reference_b': [x2, y2],
+            'reference_length': scale_length,
+            'unit_name': scale_unit,
+        }
+
+    if dest == 'measure':
+        x1, y1, x2, y2 = parse_float_list(value, 4)
+        return 'measure', {'point_a': [x1, y1], 'point_b': [x2, y2],
+                           **calibration}
+
+    if dest == 'measure_area':
+        parts = [part.strip() for part in str(value).split(',')]
+        if len(parts) < 6 or len(parts) % 2 != 0:
+            raise ValueError(
+                f"an area needs at least 3 X,Y vertices, got {len(parts)} values")
+        try:
+            flat = [float(part) for part in parts]
+        except ValueError:
+            raise ValueError(f"expected numbers in: {value!r}") from None
+        return 'measure_area', {
+            'points': [[flat[i], flat[i + 1]] for i in range(0, len(flat), 2)],
+            **calibration,
+        }
+
+    # scale_bar
+    if not calibration:
+        raise ValueError(
+            "--scale-bar needs --scale-ref and --scale-length; a bar with no "
+            "calibration would be a ruler with no units")
+    return 'scale_bar', {
+        'length_units': float(value if value is not None else 100.0),
+        'position': scale_bar_position,
+        **calibration,
+    }
 
 
 def translate_step(
@@ -353,6 +558,10 @@ def translate_step(
     blur_first: float = 0.0,
     perspective_ratio: Optional[str] = None,
     redact_method: str = 'fill',
+    scale_ref: Optional[str] = None,
+    scale_length: Optional[float] = None,
+    scale_unit: str = 'mm',
+    scale_bar_position: str = 'bottom_right',
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Convert one parsed command-line filter flag into (registry_name, params).
@@ -364,6 +573,10 @@ def translate_step(
         blur_first: Gaussian pre-blur sigma for the edge detectors
         perspective_ratio: Named aspect ratio applied to a perspective step
         redact_method: How a redaction step obscures its region
+        scale_ref: ``X1,Y1,X2,Y2`` spanning a reference of known length
+        scale_length: That reference's true length
+        scale_unit: Unit of scale_length
+        scale_bar_position: Which corner a scale bar sits in
 
     Raises:
         ValueError: If the flag's value is malformed
@@ -689,14 +902,37 @@ def translate_step(
 
     if dest == 'measure_3d':
         params = parse_kv(value or [])
-        # Points arrive as "352,408", which parse_value leaves as text
-        for key in ('base', 'top', 'reference_base', 'reference_top',
-                    'vertical_point', 'horizon'):
-            if isinstance(params.get(key), str):
-                parts = [p.strip() for p in str(params[key]).split(',')]
-                if len(parts) > 1:
-                    params[key] = [float(p) for p in parts]
-        return 'measure_3d', params
+        return 'measure_3d', expand_point_params(
+            params, ('base', 'top', 'reference_base', 'reference_top',
+                     'vertical_point', 'horizon'))
+
+    # ---- Measurement and annotation ----
+    if dest in ('measure', 'measure_area', 'scale_bar'):
+        return translate_measurement(
+            dest, value, scale_ref, scale_length, scale_unit,
+            scale_bar_position,
+        )
+
+    if dest == 'arrow':
+        return 'arrow', expand_point_params(parse_kv(value or []),
+                                            ('start', 'end'))
+
+    if dest == 'text':
+        params = expand_point_params(parse_kv(value or []), ('position',))
+        if 'text' not in params:
+            raise ValueError("--text needs text=<label>, e.g. text=Exhibit_A")
+        # parse_value types a numeric label as a number; the filter wants a string
+        params['text'] = str(params['text'])
+        return 'text', params
+
+    if dest == 'shape':
+        params = expand_point_params(parse_kv(value or []), ('points',))
+        if 'shape' not in params:
+            raise ValueError(
+                "--shape needs shape=<rectangle|circle|ellipse|line|polygon>")
+        if 'points' not in params:
+            raise ValueError("--shape needs points=X1,Y1,X2,Y2")
+        return 'shape', params
 
     if dest == 'blocking_map':
         return 'blocking_map', {'block_size': int(value if value is not None else 32)}
@@ -775,9 +1011,64 @@ def print_histogram_stats(stats: Dict[str, Any], dynamic_range: float) -> None:
             print(f"     clipped: {shadows:.2f}% shadows, {highlights:.2f}% highlights")
 
 
-def combine_frames(frames: List[np.ndarray], method: str) -> np.ndarray:
+def stabilise_frames(
+    frames: List[np.ndarray],
+    args: argparse.Namespace,
+) -> Tuple[List[np.ndarray], Optional[Dict[str, Any]]]:
+    """
+    Align a frame stack, if the run asked for it.
+
+    Every combination method assumes the frames line up, and none of them can
+    tell that they do not - averaging a moving camera just returns something
+    softer. So this runs before the combination, and says what it did.
+
+    Returns:
+        (frames to combine, the alignment report or None if not stabilising)
+    """
+    if not args.stabilise:
+        return frames, None
+
+    aligned, results = align_frames(
+        frames,
+        reference=args.stabilise_reference,
+        model=args.stabilise,
+        method=args.stabilise_method,
+        min_confidence=args.stabilise_min_confidence,
+    )
+    report = alignment_report(results)
+
+    if args.verbose:
+        print(f"  aligned {report['aligned']}/{report['frames']} frames "
+              f"({args.stabilise}, {args.stabilise_method}), "
+              f"largest motion {report['max_shift_pixels']}px, "
+              f"mean confidence {report['mean_confidence']:.2f}",
+              file=sys.stderr)
+        for record in report['per_frame']:
+            if record['note']:
+                print(f"    frame {record['index']}: {record['note']}",
+                      file=sys.stderr)
+    elif report['dropped']:
+        # Quiet runs still need to hear this: frames silently missing from an
+        # average is exactly the failure stabilising is meant to prevent
+        print(f"note: {report['dropped']} of {report['frames']} frames could "
+              f"not be aligned and were left out", file=sys.stderr)
+
+    return aligned, report
+
+
+def combine_frames(
+    frames: List[np.ndarray],
+    method: str,
+    args: Optional[argparse.Namespace] = None,
+) -> np.ndarray:
     """
     Reduce a sequence of video frames to one source image.
+
+    Args:
+        frames: The gathered frames
+        method: One of the --frame-method choices
+        args: The parsed arguments, for the methods that take parameters of
+            their own. Optional so the simple methods stay callable with two.
 
     Raises:
         ValueError: If the method is unknown
@@ -793,109 +1084,70 @@ def combine_frames(frames: List[np.ndarray], method: str) -> np.ndarray:
         # when part of the sequence is motion-blurred
         best = sharpest_frames(frames, count=max(1, len(frames) // 2))
         return average_frames([frames[index] for index in best])
+    if method == 'superres':
+        scale = getattr(args, 'sr_scale', 2.0)
+        sharpen = getattr(args, 'sr_sharpen', 0.6)
+        max_shift = getattr(args, 'sr_max_shift', 8.0)
+        report_super_resolution(frames, args, max_shift)
+        return super_resolve(frames, scale=scale, sharpen=sharpen,
+                             max_shift=max_shift)
     raise ValueError(f"Unknown frame method: {method}")
 
 
-def print_noise_stats(report: Dict[str, Any]) -> None:
-    """Print the noise report, flagging non-uniform noise across the frame."""
-    print("Noise analysis:")
-    print(f"  global sigma: {report['noise_sigma']:.2f}")
-    snr = report['snr_db']
-    print(f"  SNR: {'infinite' if snr == float('inf') else f'{snr:.1f} dB'}")
-    blocks = report['blocks']
-    print(f"  blocks: {blocks['rows']}x{blocks['cols']} of {report['block_size']}px, "
-          f"mean={report['block_mean']:.2f} std={report['block_std']:.2f}")
-    print(f"  uniformity: {report['uniformity']:.2f} "
-          f"({'uneven - inspect' if report['uniformity'] > 0.6 else 'fairly even'})")
-    noisiest = report['noisiest_block']
-    quietest = report['quietest_block']
-    print(f"  noisiest block at ({noisiest['x']}, {noisiest['y']}): "
-          f"sigma={noisiest['sigma']:.2f}")
-    print(f"  quietest block at ({quietest['x']}, {quietest['y']}): "
-          f"sigma={quietest['sigma']:.2f}")
+def report_super_resolution(
+    frames: List[np.ndarray],
+    args: Optional[argparse.Namespace],
+    max_shift: float,
+) -> Dict[str, Any]:
+    """
+    Say whether the sequence carries the motion reconstruction needs.
+
+    Reconstruction without sub-pixel motion quietly degrades to an interpolated
+    upscale of averaged frames - which looks like more detail without being any,
+    and is the one outcome this must not produce silently. So the measurement
+    goes to stderr either way, and a sequence that cannot support it says so.
+    """
+    report = super_resolve_report(frames, max_shift=max_shift)
+    verbose = getattr(args, 'verbose', False)
+
+    if not report['usable']:
+        print(f"warning: these {report['frames']} frames carry little sub-pixel "
+              f"motion ({report['frames_with_subpixel_motion']} of "
+              f"{report['frames_within_max_shift']} within range have any), so "
+              f"the result may be no better than --upscale. Compare the two "
+              f"before relying on it.", file=sys.stderr)
+    elif verbose:
+        print(f"  {report['frames_within_max_shift']}/{report['frames']} frames "
+              f"within {max_shift}px, "
+              f"{report['frames_with_subpixel_motion']} with sub-pixel motion, "
+              f"largest offset {report['max_shift_px']:.2f}px",
+              file=sys.stderr)
+
+    return report
 
 
-def print_ela_stats(stats: Dict[str, Any]) -> None:
-    """Print ELA block statistics with the usual interpretation caveat."""
-    print(f"Error Level Analysis (JPEG quality {stats['quality']}, "
-          f"{stats['block_size']}px blocks):")
-    print(f"  mean error: {stats['mean_error']:.2f}, max: {stats['max_error']:.2f}")
-    print(f"  block mean: {stats['block_mean']:.2f}, std: {stats['block_std']:.2f}")
-    hottest = stats['hottest_block']
-    print(f"  hottest block at ({hottest['x']}, {hottest['y']}): "
-          f"mean={hottest['mean_error']:.2f}, z-score={hottest['z_score']:.2f}")
-    print("  note: only meaningful on JPEG originals; texture raises error levels too")
+def print_analysis(
+    name: str,
+    image: Optional[np.ndarray] = None,
+    path: Optional[Path] = None,
+    params: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Run one registered analysis and print its report.
 
+    The header, the rows and the caveat all come from ``filters.analysis``, so
+    this prints exactly what the GUI and the dashboard show.
 
-def print_clone_stats(result: Dict[str, Any]) -> None:
-    """Print copy-move detection results."""
-    print("Copy-move detection:")
-    print(f"  blocks analyzed: {result['blocks_analyzed']} "
-          f"({result['blocks_skipped']} skipped as featureless)")
-    if not result['detected']:
-        print("  no duplicated regions found")
-        return
-    print(f"  duplicated regions found: {result['match_count']} matching block pairs")
-    for shift in result['shifts'][:5]:
-        print(f"    shift dx={shift['dx']:+d} dy={shift['dy']:+d}: "
-              f"{shift['matches']} pairs")
-    print("  note: genuine repetition (tiles, windows, text) also matches")
-
-
-def print_compression_stats(report: Dict[str, Any]) -> None:
-    """Print blocking measures and any JPEG quality read from the file."""
-    print("Compression analysis:")
-    print(f"  blockiness: {report['blockiness']:.1f}/100 "
-          f"(boundary step {report['boundary_step']:.2f} vs "
-          f"interior {report['interior_step']:.2f})")
-    print(f"  likely JPEG-compressed: {'yes' if report['likely_jpeg'] else 'no'}")
-    print(f"  region uniformity: {report['region_uniformity']:.2f}")
-
-    quality = report.get('jpeg_quality')
-    if quality:
-        print(f"  quantisation tables: {quality['tables']}, "
-              f"estimated quality {quality['quality']}")
-    elif 'jpeg_quality' in report:
-        print("  no quantisation tables (not a JPEG, or already re-saved)")
-
-    print("  note: blocking indicates compression strength, not manipulation")
-
-
-def print_ghost_stats(report: Dict[str, Any]) -> None:
-    """Print JPEG ghost detection results."""
-    print(f"JPEG ghost detection (qualities {report['qualities'][0]}-{report['qualities'][-1]}, "
-          f"{report['block_size']}px blocks):")
-    print(f"  dominant quality: {report['dominant_quality']}")
-    print(f"  outlier blocks: {report['outlier_count']} "
-          f"({report['outlier_fraction'] * 100:.1f}% of blocks)")
-    for outlier in report['outliers'][:5]:
-        print(f"    block at ({outlier['x']}, {outlier['y']}): "
-              f"best match quality {outlier['quality']}")
-    print("  note: only meaningful on a single-JPEG composite; any re-save erases it")
-
-
-def print_metadata_stats(report: Dict[str, Any]) -> None:
-    """Print metadata findings, most serious first."""
-    print(f"Metadata forensics ({report['filename']}):")
-    if report['has_exif']:
-        print(f"  EXIF: {report['exif_tag_count']} tags, "
-              f"camera {report['make'] or '?'} {report['model'] or '?'}")
-        print(f"  software: {report['software'] or 'not recorded'}")
-        print(f"  captured: {report['datetime_original'] or 'not recorded'}, "
-              f"last written: {report['datetime_modified'] or 'not recorded'}")
-    else:
-        print("  EXIF: none")
-    if report['segments']:
-        print(f"  segments: {', '.join(report['segments'])}")
-
-    findings = sorted(report['findings'], key=lambda f: f['severity'] != 'flag')
-    if not findings:
-        print("  nothing inconsistent found")
-    for finding in findings:
-        marker = 'FLAG' if finding['severity'] == 'flag' else 'info'
-        print(f"  [{marker}] {finding['check']}: {finding['detail']}")
-
-    print("  note: metadata is trivially edited or stripped; a clean header proves nothing")
+    Args:
+        name: Registry name of the analysis
+        image: Image to measure, for analyses that read pixels
+        path: Source file, for analyses that read the container
+        params: Extra keyword arguments for the analysis function
+    """
+    spec = resolve_analysis(name)
+    report = run_analysis(spec, image=image, path=path, params=params)
+    for line in report_lines(spec, report):
+        print(line)
 
 
 def resolve_batch_output(
@@ -927,6 +1179,52 @@ def resolve_batch_output(
     return target
 
 
+def _combine_stills(directory: Path,
+                    args: argparse.Namespace) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """
+    Combine a directory of stills into one source image.
+
+    The video path takes frames from a container; this takes them from a
+    folder, which is how a camera's exported snapshots and most disclosed
+    evidence actually arrive. Frames must share a shape - a folder holding two
+    cameras' output is a mistake worth reporting rather than resizing away.
+
+    Raises:
+        ValueError: If too few images are found, or they disagree on size
+    """
+    paths = ImageLoader.find_images(directory, recursive=args.recursive)
+    selected = paths[args.frame::max(1, args.frame_step)][:args.frames]
+    if len(selected) < 2:
+        raise ValueError(
+            f"--frames needs at least 2 images, found {len(selected)} in "
+            f"{directory}")
+
+    frames, metadata = [], {}
+    for index, source in enumerate(selected):
+        with ImageLoader(source) as loader:
+            frame = loader.load()
+            if index == 0:
+                metadata = dict(loader.metadata)
+        if frames and frame.shape != frames[0].shape:
+            raise ValueError(
+                f"{source.name} is {frame.shape[1]}x{frame.shape[0]} but "
+                f"{selected[0].name} is {frames[0].shape[1]}x{frames[0].shape[0]}; "
+                f"frames must share a size to be combined")
+        frames.append(frame)
+
+    frames, alignment = stabilise_frames(frames, args)
+    image = combine_frames(frames, args.frame_method, args)
+    metadata['filename'] = f'{len(frames)} frames from {directory.name}'
+    metadata['combined_from'] = [source.name for source in selected]
+    metadata['frame_method'] = args.frame_method
+    if alignment is not None:
+        metadata['alignment'] = alignment
+    if args.verbose:
+        print(f"Combined {len(frames)} stills with '{args.frame_method}'",
+              file=sys.stderr)
+    return image, metadata
+
+
 def run_one(
     path: Path,
     output_path: Optional[Path],
@@ -935,20 +1233,18 @@ def run_one(
     preset: Optional[Dict[str, Any]],
 ) -> int:
     """Process a single input file. Returns a process exit code."""
+    if args.video:
+        return _process_video(path, output_path, steps, args, preset)
+
     try:
-        with ImageLoader(path) as loader:
-            if args.frames > 0:
-                if not loader.is_video:
-                    raise ValueError(f"--frames requires a video file, got: {path.name}")
-                frames = loader.load_frames(args.frames, start=args.frame,
-                                            step=args.frame_step)
-                image = combine_frames(frames, args.frame_method)
-                if args.verbose:
-                    print(f"Combined {len(frames)} frames with '{args.frame_method}'",
-                          file=sys.stderr)
-            else:
-                image = loader.load(args.frame if loader.is_video else None)
-            metadata = loader.metadata
+        if args.frames > 0 and path.is_dir():
+            # A folder of exported stills is how CCTV evidence usually
+            # arrives, and it is the case frame integration exists for. Until
+            # this branch, --frames took video only, so the one format most
+            # likely to be handed over could not be integrated at all.
+            image, metadata = _combine_stills(path, args)
+        else:
+            image, metadata = _load_one(path, args)
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -959,6 +1255,142 @@ def run_one(
     if args.verbose:
         print(f"Processing {path.name} ({image.shape[1]}x{image.shape[0]})", file=sys.stderr)
 
+    return _process_source(image, metadata, path, output_path, steps, args, preset)
+
+
+def _load_one(path: Path,
+              args: argparse.Namespace) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """One still, one video frame, or several video frames combined."""
+    with ImageLoader(path) as loader:
+        if args.frames > 0:
+            if not loader.is_video:
+                raise ValueError(
+                    f"--frames needs a video or a directory of stills, "
+                    f"got: {path.name}")
+            frames = loader.load_frames(args.frames, start=args.frame,
+                                        step=args.frame_step)
+            frames, alignment = stabilise_frames(frames, args)
+            image = combine_frames(frames, args.frame_method, args)
+            if args.verbose:
+                print(f"Combined {len(frames)} frames with '{args.frame_method}'",
+                      file=sys.stderr)
+            metadata = dict(loader.metadata)
+            if alignment is not None:
+                metadata['alignment'] = alignment
+            return image, metadata
+        else:
+            image = loader.load(args.frame if loader.is_video else None)
+        return image, loader.metadata
+
+
+def _process_video(
+    path: Path,
+    output_path: Optional[Path],
+    steps: List[Tuple[str, Dict[str, Any]]],
+    args: argparse.Namespace,
+    preset: Optional[Dict[str, Any]],
+) -> int:
+    """
+    Run the chain over a range of frames and write the result as video.
+
+    One frame is held at a time rather than the whole range, so this works on
+    footage longer than memory. The chain is rebuilt per frame, which is what
+    keeps every frame's processing identical and independently described in the
+    report.
+    """
+    if output_path is None:
+        print("error: --video needs an output file, e.g. -o processed.avi",
+              file=sys.stderr)
+        return 1
+
+    try:
+        with ImageLoader(path) as loader:
+            if not loader.is_video:
+                raise ValueError(
+                    f"--video needs a video input, got: {path.name}")
+
+            total = loader.get_video_frame_count()
+            step = max(1, args.frame_step)
+            wanted = args.video_frames if args.video_frames > 0 else total
+            indices = list(range(args.frame, total, step))[:wanted]
+            if not indices:
+                raise ValueError(
+                    f"No frames selected: the video has {total} frames and "
+                    f"--frame is {args.frame}")
+
+            # Dropping frames drops the playback rate with them, so a stride of
+            # 5 over 25fps footage plays back at 5fps and keeps real time
+            source_fps = loader.get_video_fps()
+            fps = args.fps or (source_fps / step if source_fps > 0 else 25.0)
+
+            writer = VideoWriter(output_path, fps=fps, codec=args.codec)
+            if not writer.lossless:
+                # The toolkit reads compression history elsewhere; adding a
+                # generation of it to an exhibit should be a decision, not a
+                # default that happened
+                print(f"note: '{writer.codec}' is lossy, so the output carries "
+                      f"compression this input did not. Write .avi for "
+                      f"lossless FFV1 if the result is evidence.",
+                      file=sys.stderr)
+
+            pipeline = None
+            with writer:
+                for position, index in enumerate(indices):
+                    frame = loader.goto_frame(index)
+                    pipeline = process_image(
+                        frame, steps, preset=preset,
+                        verbose=args.verbose and position == 0)
+                    writer.write(pipeline.current)
+                    if args.verbose and position and position % 25 == 0:
+                        print(f"  {position}/{len(indices)} frames",
+                              file=sys.stderr)
+
+            metadata = dict(loader.metadata)
+            metadata['frames_written'] = writer.frames_written
+            metadata['frame_range'] = f'{indices[0]}..{indices[-1]} step {step}'
+            metadata['output_codec'] = writer.codec
+            metadata['output_lossless'] = writer.lossless
+            metadata['output_fps'] = round(fps, 3)
+
+    except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"Saved: {output_path} ({writer.frames_written} frames, "
+          f"{writer.codec}, {fps:.3g} fps)")
+
+    if args.report and pipeline is not None:
+        try:
+            report = ReportGenerator(pipeline.generate_report(), metadata,
+                                     describe=filter_description)
+            fmt = REPORT_FORMATS.get(Path(args.report).suffix.lower(), 'markdown')
+            report.save(args.report, format=fmt)
+            print(f"Saved report: {args.report}")
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+    if args.save_preset and pipeline is not None:
+        try:
+            pipeline.save_preset(args.save_preset)
+            print(f"Saved preset: {args.save_preset}")
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+    return 0
+
+
+def _process_source(
+    image: np.ndarray,
+    metadata: Dict[str, Any],
+    path: Path,
+    output_path: Optional[Path],
+    steps: List[Tuple[str, Dict[str, Any]]],
+    args: argparse.Namespace,
+    preset: Optional[Dict[str, Any]],
+) -> int:
+    """Run the chain, the analyses and the outputs over one loaded image."""
     try:
         pipeline = process_image(image, steps, preset=preset, verbose=args.verbose)
     except (RuntimeError, KeyError, ValueError) as exc:
@@ -974,25 +1406,17 @@ def run_one(
     if args.hist_stats:
         print_histogram_stats(histogram_stats(result), dynamic_range_used(result))
 
-    if args.noise_stats:
-        print_noise_stats(noise_report(result))
-
-    if args.ela_stats:
-        print_ela_stats(ela_stats(result, quality=args.ela_stats))
-
-    if args.clone_stats:
-        print_clone_stats(detect_copy_move(result))
-
-    if args.compression_stats:
-        print_compression_stats(compression_report(result, path=path))
-
-    if args.ghost_stats:
-        print_ghost_stats(ghost_report(result))
-
-    # Reads the source file's header, so it describes the input rather than
-    # whatever the chain produced
-    if args.metadata_stats:
-        print_metadata_stats(metadata_report(path))
+    # Reports that read the container - metadata, and the quantisation tables
+    # behind --compression-stats - are handed the source path, so they
+    # describe the input rather than whatever the chain produced
+    for name, spec in ANALYSIS_REGISTRY.items():
+        value = getattr(args, spec.cli_dest)
+        if not value:
+            continue
+        params = ({spec.cli_value: value}
+                  if spec.cli_value is not None and value is not True else {})
+        print_analysis(name, result if spec.needs_image else None,
+                       path=path, params=params)
 
     try:
         if output_path is not None:
@@ -1010,7 +1434,8 @@ def run_one(
             print(f"Saved histogram: {args.histogram}")
 
         if args.report:
-            report = ReportGenerator(pipeline.generate_report(), metadata)
+            report = ReportGenerator(pipeline.generate_report(), metadata,
+                                     describe=filter_description)
             fmt = REPORT_FORMATS.get(Path(args.report).suffix.lower(), 'markdown')
             report.save(args.report, format=fmt)
             print(f"Saved report: {args.report}")
@@ -1035,6 +1460,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"  {name:22s} {description}")
         return 0
 
+    if args.list_analyses:
+        print("Analysis reports:")
+        for name, description in list_analyses():
+            print(f"  {ANALYSIS_REGISTRY[name].cli_flag:22s} {description}")
+        return 0
+
     if not args.input:
         parser.error("the following arguments are required: input")
 
@@ -1046,6 +1477,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                 dest, value, args.interpolation, args.blur_first,
                 perspective_ratio=args.perspective_ratio,
                 redact_method=args.redact_method,
+                scale_ref=args.scale_ref,
+                scale_length=args.scale_length,
+                scale_unit=args.scale_unit,
+                scale_bar_position=args.scale_bar_position,
             ))
         except ValueError as exc:
             parser.error(f"{option_string}: {exc}")
@@ -1089,12 +1524,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1 if failures else 0
 
     analysis_only = (args.info or args.analyze_roi or args.hist_stats or args.histogram
-                     or args.noise_stats or args.ela_stats or args.clone_stats
-                     or args.compression_stats or args.ghost_stats
-                     or args.metadata_stats)
+                     or any(getattr(args, spec.cli_dest)
+                            for spec in ANALYSIS_REGISTRY.values()))
     # Combining frames is a transformation in its own right, so it counts as
-    # work even with no filter chain behind it
-    if not steps and not preset and not analysis_only and args.frames <= 0:
+    # work even with no filter chain behind it. So is writing video: extracting
+    # a frame range losslessly is a job, and refusing it because no filter was
+    # named would be arbitrary.
+    if (not steps and not preset and not analysis_only
+            and args.frames <= 0 and not args.video):
         parser.error("no filters specified (try --list-filters, or --info)")
 
     output_path = Path(args.output) if args.output else None

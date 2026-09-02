@@ -1,14 +1,23 @@
 name: Tests
 
+# The unit suite runs here. The validation campaign does not, and cannot: its
+# corpus is nine real frames from the camera on the author's desk, chosen by
+# measurement from two hundred, plus forgeries built from them so the answer is
+# known. build_corpus.py reads those from outside the repository and they are
+# not redistributable, so a hosted runner has no way to assemble the images
+# that make the campaign worth running. `python validation/regress.py` is the
+# gate for that, run where the evidence is; it diffs a fresh campaign against
+# the recorded one and exits non-zero on a regression.
+
 on:
   # `push` is limited to main: an unfiltered push trigger fires alongside
   # `pull_request` on every push to a PR branch, running the whole matrix twice
-  # for one commit. This way a PR branch is covered once by `pull_request`, and
-  # main is covered once by `push` after a merge. A branch with no PR open gets
-  # no run, which is the intended trade.
+  # for one commit. A PR branch is covered once by `pull_request`, and main once
+  # by `push` after a merge.
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 # A new push supersedes the run in flight for the same branch.
 concurrency:
@@ -17,56 +26,71 @@ concurrency:
 
 jobs:
   test:
-    name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
     strategy:
-      # Report every version that fails, not just the first.
+      # Report every configuration that fails, not just the first.
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12']
+        # Three Python versions on Linux for the version floor and ceiling;
+        # one Windows runner, since the toolkit is used there and path and
+        # encoding differences are what that catches.
+        include:
+          - { os: ubuntu-latest, python: '3.10' }
+          - { os: ubuntu-latest, python: '3.11' }
+          - { os: ubuntu-latest, python: '3.12' }
+          - { os: windows-latest, python: '3.12' }
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: |
             requirements.txt
             requirements-dashboard.txt
 
       - name: Install dependencies
+        # Two substitutions against requirements.txt, so everything else stays
+        # in sync with it automatically:
+        #
+        #   opencv-python -> opencv-python-headless. Same library without the
+        #   GUI bindings, which pull system libraries (libGL) no runner has a
+        #   display for. Using it avoids an apt step on Linux entirely.
+        #
+        #   rawpy dropped. It is a large binary dependency used only for
+        #   camera raw decoding, and every test that touches it mocks the
+        #   module out (tests/test_core.py), so a real install proves nothing
+        #   and only risks a source build.
+        #
+        # The dashboard extras go in too, so the Streamlit tests run rather
+        # than skipping. The Tkinter tests skip on a headless runner by design.
+        shell: bash
         run: |
-          # Two substitutions against requirements.txt, so everything else stays
-          # in sync with it automatically:
-          #
-          #   opencv-python -> opencv-python-headless. Same library without the
-          #   GUI bindings, which pull system libraries (libGL) the runner has
-          #   no display for. The version range is kept as written.
-          #
-          #   rawpy dropped. It is a large binary dependency used only for
-          #   camera raw decoding, and every test that touches it mocks the
-          #   module out (tests/test_core.py), so a real install proves nothing
-          #   and only risks a source build.
           grep -v -e '^opencv-python' -e '^rawpy' requirements.txt > requirements-ci.txt
           python -m pip install --upgrade pip
           python -m pip install -r requirements-ci.txt 'opencv-python-headless>=4.8.0,<5'
+          python -m pip install -r requirements-dashboard.txt
 
-      - name: Install the dashboard extras
-        # tests/test_dashboard.py skips without streamlit, so install it here
-        # rather than let 54 tests quietly report as skipped in CI.
-        run: python -m pip install -r requirements-dashboard.txt
+      - name: Run the unit suite
+        run: python -m unittest discover -s tests -t . -v
 
-      - name: Run the test suite
-        # The 40 GUI tests skip on a headless runner; the rest must pass.
-        run: python -m unittest discover -s tests -t . --verbose
-
-      - name: Check the dashboard imports without Tkinter
-        # The dashboard is served from headless boxes, where python3-tk is
-        # usually absent. It once imported the Tkinter GUI's widget module and
-        # so could not start there at all; this fails fast if that comes back.
-        run: python -c "import cv_tools.dashboard"
+      - name: Smoke-test the CLI
+        # Relative output, so the same script runs on both runners without a
+        # temp-directory convention
+        shell: bash
+        run: |
+          python -m cv_tools.cli --list-filters
+          python -m cv_tools.cli --list-analyses
+          python -m cv_tools.cli samples/color_chart.png --info
+          python -m cv_tools.cli samples/color_chart.png --clahe clip=2.0 \
+            --sharpen amount=0.5 -o smoke.png
+          python -m cv_tools.cli samples/color_chart.png --scale-ref 40,40,140,40 \
+            --scale-length 520 --measure 40,80,190,80 -o measured.png
+          test -f smoke.png
+          test -f measured.png
 
   headless-import:
     name: Dashboard imports with no Tkinter installed
@@ -111,9 +135,9 @@ jobs:
           python -m build --wheel --outdir dist/
 
       - name: Check nothing but the package shipped
-        # tests/, scripts/, samples/, docs/ and gallery/ stay in the repository;
-        # a stray top-level directory in the wheel means the find directive
-        # stopped doing its job.
+        # tests/, scripts/, samples/, docs/, gallery/ and validation/ stay in
+        # the repository; a stray top-level directory in the wheel means the
+        # find directive stopped doing its job.
         run: |
           python - <<'PY'
           import pathlib, zipfile
@@ -138,7 +162,6 @@ jobs:
           /tmp/venv/bin/cv-tools cctv_dark.png --clahe clip=3.0 -o /tmp/out.png
           test -s /tmp/out.png
           /tmp/venv/bin/cv-tools --list-filters > /dev/null
-          python -c "import pathlib; assert pathlib.Path('/tmp/out.png').stat().st_size > 0"
 
       - name: The dashboard entry point reports its missing extra
         run: |

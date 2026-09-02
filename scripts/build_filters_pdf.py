@@ -1,8 +1,9 @@
-"""Render docs/filters*.md to a PDF.
+"""Render a document under docs/ to a PDF.
 
 Usage:
-    python scripts/build_filters_pdf.py              # English
-    python scripts/build_filters_pdf.py fr           # French (docs/filters.fr.md)
+    python scripts/build_filters_pdf.py              # filters, English
+    python scripts/build_filters_pdf.py fr           # filters, French
+    python scripts/build_filters_pdf.py clahe.fr     # any document in DOCUMENTS
 """
 import sys
 from pathlib import Path
@@ -12,22 +13,32 @@ from xhtml2pdf import pisa
 
 ROOT = Path(__file__).resolve().parent.parent
 
-LANGUAGES = {
-    "en": {
+DOCUMENTS = {
+    "filters.en": {
         "source": ROOT / "docs" / "filters.md",
         "output": ROOT / "docs" / "filters.pdf",
         "title": "CV-Tools Filter Reference",
         "subtitle": "Every filter, parameter, and caveat in one document",
         "footer": "CV-Tools Filter Reference",
     },
-    "fr": {
+    "filters.fr": {
         "source": ROOT / "docs" / "filters.fr.md",
         "output": ROOT / "docs" / "filters.fr.pdf",
         "title": "CV-Tools — Référence des filtres",
         "subtitle": "Chaque filtre, paramètre et mise en garde en un seul document",
         "footer": "CV-Tools — Référence des filtres",
     },
+    "clahe.fr": {
+        "source": ROOT / "docs" / "clahe.fr.md",
+        "output": ROOT / "docs" / "clahe.fr.pdf",
+        "title": "CLAHE — réglage et bonnes pratiques",
+        "subtitle": "Ce que le filtre fait vraiment, mesuré sur le corpus de validation",
+        "footer": "CV-Tools — CLAHE",
+    },
 }
+
+# Les anciens noms courts continuent de designer la reference des filtres.
+ALIASES = {"en": "filters.en", "fr": "filters.fr"}
 
 CSS = """
 @page {
@@ -57,8 +68,8 @@ ul, ol { margin: 4pt 0; padding-left: 16pt; }
 li { margin: 2pt 0; }
 """
 
-def build(lang: str) -> None:
-    cfg = LANGUAGES[lang]
+def build(name: str) -> None:
+    cfg = DOCUMENTS[ALIASES.get(name, name)]
     md_text = cfg["source"].read_text(encoding="utf-8")
     body_html = markdown.markdown(
         md_text, extensions=["tables", "fenced_code", "sane_lists"]
@@ -96,7 +107,7 @@ def build(lang: str) -> None:
 
 
 if __name__ == "__main__":
-    lang_arg = sys.argv[1] if len(sys.argv) > 1 else "en"
-    if lang_arg not in LANGUAGES:
-        sys.exit(f"Unknown language '{lang_arg}'. Choices: {', '.join(LANGUAGES)}")
-    build(lang_arg)
+    arg = sys.argv[1] if len(sys.argv) > 1 else "en"
+    if ALIASES.get(arg, arg) not in DOCUMENTS:
+        sys.exit(f"Unknown document '{arg}'. Choices: {', '.join(DOCUMENTS)}")
+    build(arg)

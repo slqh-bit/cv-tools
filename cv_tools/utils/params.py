@@ -103,6 +103,74 @@ def _dynamic_choices() -> Dict[str, List[str]]:
     }
 
 
+def choices_for(spec) -> Dict[str, List[str]]:
+    """
+    Valid values per parameter, narrowed to the filter being configured.
+
+    CHOICES is one map for every filter, so a name that means different things
+    to two filters ends up holding the union - and offering a user the half
+    their filter rejects. ``color_mode`` is the case that bites: CLAHE
+    implements 'luminance' and not 'grayscale', histogram equalization the
+    reverse, and a shared list offers both to both.
+
+    Args:
+        spec: A ``FilterSpec`` or ``AnalysisSpec``
+
+    Returns:
+        The choice map, with the entries this filter narrows replaced
+    """
+    from ..filters.aspect_ratio import INTERPOLATIONS as ASPECT_INTERPOLATIONS
+    from ..filters.clahe import COLOR_MODES as CLAHE_MODES
+    from ..filters.registry import filters_with_all_defaults
+    from ..filters.color_deconvolution import STAIN_PRESETS
+    from ..filters.component_separation import COLOR_SPACES
+    from ..filters.curves import CURVE_PRESETS
+    from ..filters.fisheye_correction import BORDER_MODES as FISHEYE_BORDERS
+    from ..filters.histogram_equalization import COLOR_MODES as HISTEQ_MODES
+    from ..filters.redaction import IRREVERSIBLE_METHODS, REVERSIBLE_METHODS
+    from ..filters.saturation import DESATURATE_METHODS
+    from ..filters.super_resolution import METHODS as UPSCALE_METHODS
+    from ..filters.white_balance import METHODS as WHITE_BALANCE_METHODS
+
+    merged = dict(CHOICES)
+    merged.update(_dynamic_choices())
+
+    # 'method' is the worst of them: four filters use the name for four
+    # unrelated vocabularies, so the shared list is their union and every one
+    # of the four is offered the other three's values
+    narrowed = {
+        'clahe': {'color_mode': list(CLAHE_MODES)},
+        'roi_filter': {'filter_name': filters_with_all_defaults()},
+        'clahe_grid': {'color_mode': list(CLAHE_MODES)},
+        'histeq': {'color_mode': list(HISTEQ_MODES)},
+        'redact': {'method': sorted(IRREVERSIBLE_METHODS | REVERSIBLE_METHODS)},
+        'white_balance': {'method': list(WHITE_BALANCE_METHODS)},
+        'desaturate': {'method': list(DESATURATE_METHODS)},
+        'upscale': {'method': list(UPSCALE_METHODS)},
+        'pixel_aspect': {'interpolation': list(ASPECT_INTERPOLATIONS)},
+        'fit_aspect': {'interpolation': list(ASPECT_INTERPOLATIONS)},
+        'barrel': {'border_mode': list(FISHEYE_BORDERS)},
+        'fisheye': {'border_mode': list(FISHEYE_BORDERS)},
+    }
+
+    name = getattr(spec, 'name', '')
+    if name in narrowed:
+        merged.update(narrowed[name])
+    elif name == 'component':
+        # Channel names belong to the chosen colour space, and are matched
+        # case-sensitively; the global r/g/b list cannot drive this at all
+        names: List[str] = []
+        for _code, channels in COLOR_SPACES.values():
+            names.extend(channels)
+        merged['channel'] = sorted(dict.fromkeys(names))
+    elif name == 'curves':
+        merged['preset'] = [''] + sorted(CURVE_PRESETS)
+    elif name == 'stain':
+        merged['preset'] = sorted(STAIN_PRESETS)
+
+    return merged
+
+
 def to_display(image: np.ndarray) -> np.ndarray:
     """Normalize any filter output to 3-channel uint8 RGB for display."""
     img = image

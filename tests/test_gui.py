@@ -5,9 +5,11 @@ Tkinter needs a display. Where there is none - a headless CI box - the whole
 module skips rather than fails, since the GUI is an optional component.
 """
 
+import inspect
 import json
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 
@@ -24,7 +26,13 @@ except Exception as exc:            # pragma: no cover - environment dependent
     TK_ERROR = str(exc)
 
 from cv_tools.core import FilterStep, Pipeline
-from cv_tools.filters import FILTER_REGISTRY, apply_clahe, resolve_filter
+from cv_tools.filters import (
+    ANALYSIS_REGISTRY,
+    CATEGORY_ORDER,
+    FILTER_REGISTRY,
+    apply_clahe,
+    resolve_filter,
+)
 
 
 def sample_image(height: int = 48, width: int = 64) -> np.ndarray:
@@ -65,6 +73,112 @@ class TestParameterPanel(unittest.TestCase):
         params = panel.get_params()
         self.assertAlmostEqual(params['clip_limit'], 2.0, places=3)
         self.assertEqual(params['color_mode'], 'lab')
+        panel.destroy()
+
+    def test_picked_points_reach_every_filter_that_asks_for_them(self):
+        """
+        The whole point-picking path, for each filter with a click plan.
+
+        Clicks are distributed exactly as ``app._on_picks_complete`` does it -
+        one point stays a pair, several flatten - then go through the panel's
+        own round trip and into the filter. A plan that produces a value the
+        entry cannot parse back, or that the filter rejects, fails here rather
+        than under an operator's mouse.
+        """
+        from cv_tools.filters.registry import POINT_PARAMETERS
+
+        image = sample_image(120, 160)
+        panel = self.ParameterPanel(self.root)
+
+        for name, plan in POINT_PARAMETERS.items():
+            spec = resolve_filter(name)
+            # Spread the clicks over the image, and keep them apart: a
+            # reference span of zero length is not a calibration
+            points = [(12 + index * 11, 18 + index * 7)
+                      for index in range(sum(count for _p, count, _t in plan))]
+
+            values, index = {}, 0
+            for parameter, count, _prompt in plan:
+                taken = points[index:index + count]
+                index += count
+                values[parameter] = list(taken[0]) if count == 1 else [
+                    coordinate for point in taken for coordinate in point]
+
+            # Required parameters a click plan does not cover - a reference's
+            # true length, a label's words - still have to be typed
+            typed = {parameter: value for parameter, value in
+                     {'reference_length': 520.0, 'reference_height': 1800.0,
+                      'text': 'exhibit', 'shape': 'rectangle'}.items()
+                     if parameter in inspect.signature(spec.fn).parameters}
+
+            with self.subTest(filter=name):
+                panel.build(spec)
+                filled = panel.set_values(values)
+                self.assertEqual(set(filled), set(values),
+                                 f'{name}: the form has no field for some picks')
+                panel.set_values(typed)
+
+                result = spec.fn(image, **panel.get_params())
+                # Not the input's shape: perspective rectifies to the picked
+                # quad, so it is meant to come back a different size
+                self.assertEqual(result.ndim, 3)
+                self.assertGreater(result.size, 0)
+
+        panel.destroy()
+
+    def test_every_offered_choice_is_one_the_filter_accepts(self):
+        """
+        The panel must not offer a value the filter rejects.
+
+        CHOICES is one map for every filter, so a parameter name that means
+        different things to two of them holds the union: clahe implements
+        color_mode 'luminance' and not 'grayscale', histeq the reverse. The
+        Tkinter combobox is editable so a bad suggestion can be typed over,
+        but the dashboard's selectbox offers only what it lists - there it is
+        a dead end. choices_for narrows per filter; this holds it to that.
+        """
+        from cv_tools.gui.widgets import choices_for
+
+        image = sample_image(32, 40)
+        for name, spec in FILTER_REGISTRY.items():
+            offered = choices_for(spec)
+            signature = inspect.signature(spec.fn)
+            parameters = list(signature.parameters.values())[1:]
+
+            for parameter in parameters:
+                if parameter.name not in offered:
+                    continue
+                if not isinstance(parameter.default, str):
+                    continue        # a required or non-string parameter
+
+                for value in offered[parameter.name]:
+                    if value == '':
+                        continue
+                    with self.subTest(filter=name, parameter=parameter.name,
+                                      value=value):
+                        try:
+                            spec.fn(image, **{parameter.name: value})
+                        except ValueError as exc:
+                            if 'Unknown' in str(exc) or 'Expected one of' in str(exc):
+                                self.fail(f'{name} offers {parameter.name}='
+                                          f'{value!r} but rejects it: {exc}')
+                        except Exception:
+                            # Anything else means the value was understood and
+                            # something further along objected, which is not
+                            # what this test is about
+                            pass
+
+    def test_set_values_fills_only_the_names_it_recognises(self):
+        panel = self.ParameterPanel(self.root)
+        panel.build(resolve_filter('redact'))
+
+        filled = panel.set_values({'x': 4, 'y': 5, 'width': 6, 'height': 7,
+                                   'nonesuch': 1})
+        self.assertEqual(filled, ['x', 'y', 'width', 'height'])
+
+        params = panel.get_params()
+        self.assertEqual((params['x'], params['y'], params['width'],
+                          params['height']), (4, 5, 6, 7))
         panel.destroy()
 
     def test_produces_params_the_filter_accepts(self):
@@ -206,6 +320,122 @@ class TestImageCanvas(unittest.TestCase):
         self.assertEqual(composite.ndim, 3)
         self.assertEqual(composite.shape[2], 3)
 
+    def test_dragging_reports_a_region_in_image_pixels(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_mode('processed')
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 6), (40, 26))
+        self.assertEqual(seen, [(10, 6, 30, 20)])
+
+    def test_a_backwards_drag_is_the_same_region(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((40, 26), (10, 6))
+        self.assertEqual(seen, [(10, 6, 30, 20)])
+
+    def test_a_drag_past_the_edge_stops_at_it(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 10), (9999, 9999))
+
+        x, y, width, height = seen[0]
+        self.assertEqual((x + width, y + height),
+                         (self.processed.shape[1], self.processed.shape[0]))
+
+    def test_a_click_is_not_a_region(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 10), (12, 11))
+        self.assertEqual(seen, [])
+
+    def test_difference_mode_shows_where_the_filter_acted(self):
+        """
+        The point of the view: it must light up where the images differ and
+        stay dark where they do not.
+        """
+        original = np.full((300, 400, 3), 100, dtype=np.uint8)
+        processed = original.copy()
+        processed[100:160, 120:260] = 104       # a change of 4 levels, invisible raw
+
+        self.canvas.set_images(original, processed)
+        self.canvas.set_mode('difference')
+        composite = self.canvas._compose()
+
+        self.assertEqual(composite.shape[:2], original.shape[:2])
+        # The changed block is bright, the untouched corner is not
+        self.assertGreater(int(composite[110:150, 130:250].mean()), 200)
+        self.assertLess(int(composite[200:, 300:].mean()), 10)
+
+    def test_difference_mode_records_the_true_numbers(self):
+        original = np.full((300, 400, 3), 100, dtype=np.uint8)
+        processed = original.copy()
+        processed[100:160, 120:260] = 104
+
+        self.canvas.set_images(original, processed)
+        self.canvas.set_mode('difference')
+        self.canvas._compose()
+
+        stats = self.canvas.difference_stats
+        self.assertEqual(stats['peak'], 4.0)
+        self.assertGreater(stats['scale'], 1.0)
+
+    def test_identical_images_make_a_dark_difference(self):
+        image = np.full((300, 400, 3), 77, dtype=np.uint8)
+        self.canvas.set_images(image, image.copy())
+        self.canvas.set_mode('difference')
+        composite = self.canvas._compose()
+
+        self.assertEqual(self.canvas.difference_stats['peak'], 0.0)
+        # Below the caption the picture is black: nothing changed
+        self.assertEqual(int(composite[60:, :].max()), 0)
+
+    def test_difference_allows_a_region_drag(self):
+        # Spot where the filter acted, drag it out, hand it to roi_filter
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_mode('difference')
+        self.assertTrue(self.canvas._can_select_region())
+
+    def test_side_by_side_offers_no_region(self):
+        # Two frames on one canvas: a point past the midpoint means something
+        # different from the same point before it
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_mode('side by side')
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 6), (40, 26))
+        self.assertEqual(seen, [])
+
+    def test_split_still_drags_its_divider(self):
+        self.canvas.set_images(self.original, self.processed)
+        self.canvas.set_mode('split')
+        self.canvas.set_zoom(1.0)
+
+        seen = self._collect_regions()
+        self._drag((10, 6), (40, 26))
+
+        self.assertEqual(seen, [])
+        self.assertNotAlmostEqual(self.canvas._split, 0.5, places=3)
+
+    def _collect_regions(self):
+        seen = []
+        self.canvas.on_region = lambda *region: seen.append(region)
+        return seen
+
+    def _drag(self, start, end):
+        """Press, move and release, as Tk would deliver them."""
+        self.canvas._on_press(SimpleNamespace(x=start[0], y=start[1]))
+        self.canvas._on_drag(SimpleNamespace(x=end[0], y=end[1]))
+        self.canvas._on_release(SimpleNamespace(x=end[0], y=end[1]))
+
     def test_zoom_setting(self):
         self.canvas.set_zoom(2.0)
         self.assertFalse(self.canvas.fit_to_window)
@@ -239,31 +469,66 @@ class TestApp(unittest.TestCase):
         self.app.pipeline = Pipeline(self.image)
         self.app.metadata = {'filename': 'test.png', 'width': 64, 'height': 48,
                              'sha256': 'a' * 64}
+        # As open_image would: the viewer only holds an image once refreshed,
+        # and anything driving the canvas needs one
+        self.app._refresh()
         self.app.update_idletasks()
 
     def tearDown(self):
         self.app.destroy()
 
     def _select(self, name: str) -> None:
-        names = sorted(FILTER_REGISTRY)
+        # The list is grouped by family, so a row's index is not the filter's
+        # position in a sorted registry; _filter_rows maps rows to names
         self.app.filter_list.selection_clear(0, 'end')
-        self.app.filter_list.selection_set(names.index(name))
+        self.app.filter_list.selection_set(self.app._filter_rows.index(name))
         self.app._on_filter_selected()
 
+    def _listed(self) -> list:
+        return [name for name in self.app._filter_rows if name is not None]
+
     def test_filter_list_holds_every_registered_filter(self):
-        listed = set(self.app.filter_list.get(0, 'end'))
-        self.assertEqual(listed, set(FILTER_REGISTRY))
+        self.assertEqual(set(self._listed()), set(FILTER_REGISTRY))
+
+    def test_filter_list_is_grouped_by_family(self):
+        rows = list(self.app.filter_list.get(0, 'end'))
+        headings = [row.strip() for row, name in zip(rows, self.app._filter_rows)
+                    if name is None]
+        self.assertEqual(headings, [c.upper() for c in CATEGORY_ORDER])
+
+        # Every filter sits under the heading for its own family
+        current = None
+        for row, name in zip(rows, self.app._filter_rows):
+            if name is None:
+                current = row.strip().title()
+            else:
+                self.assertEqual(FILTER_REGISTRY[name].category, current)
+
+    def test_category_narrows_the_list(self):
+        self.app.category.set('Forensic')
+        self.app._refresh_filter_list()
+        categories = {FILTER_REGISTRY[name].category for name in self._listed()}
+        self.assertEqual(categories, {'Forensic'})
+
+    def test_headings_cannot_be_selected_as_filters(self):
+        self.app._selected_filter = None
+        heading = self.app._filter_rows.index(None)
+        self.app.filter_list.selection_set(heading)
+        self.app._on_filter_selected()
+
+        self.assertIsNone(self.app._selected_filter)
+        self.assertEqual(self.app.filter_list.curselection(), ())
 
     def test_search_filters_the_list(self):
         self.app.search.set('clahe')
         self.app.update_idletasks()
-        self.assertEqual(list(self.app.filter_list.get(0, 'end')), ['clahe'])
+        # Both CLAHE entries match the term: the filter and its settings board
+        self.assertEqual(self._listed(), ['clahe', 'clahe_grid'])
 
     def test_search_matches_descriptions_too(self):
         self.app.search.set('wiener')
         self.app.update_idletasks()
-        listed = list(self.app.filter_list.get(0, 'end'))
-        self.assertIn('deblur_motion', listed)
+        self.assertIn('deblur_motion', self._listed())
 
     def test_apply_adds_to_the_chain(self):
         self._select('clahe')
@@ -324,6 +589,247 @@ class TestApp(unittest.TestCase):
         self.app.move_up()
         self.assertEqual(len(self.app.pipeline), 1)
 
+    def test_duplicate_step_repeats_it_in_place(self):
+        self._select('clahe')
+        self.app.apply_filter()
+        self.app.chain_list.selection_set(0)
+        self.app.duplicate_step()
+
+        self.assertEqual([s.name for s in self.app.pipeline.chain],
+                         ['clahe', 'clahe'])
+        self.assertEqual(self.app.pipeline.chain[0].params,
+                         self.app.pipeline.chain[1].params)
+
+    def test_selecting_a_step_loads_its_own_parameters(self):
+        self._select('contrast_brightness')
+        self.app.parameters._entries['brightness']['var'].set(40.0)
+        self.app.apply_filter()
+
+        self.app.chain_list.selection_set(0)
+        self.app._on_step_selected()
+
+        self.assertEqual(self.app._editing_step, 0)
+        self.assertAlmostEqual(
+            self.app.parameters._entries['brightness']['var'].get(), 40.0, places=3)
+        self.assertIn('Step 1', self.app.parameter_title.cget('text'))
+
+    def test_updating_a_step_reprocesses_rather_than_appending(self):
+        self._select('contrast_brightness')
+        self.app.parameters._entries['brightness']['var'].set(20.0)
+        self.app.apply_filter()
+        before = self.app.pipeline.current.copy()
+
+        self.app.chain_list.selection_set(0)
+        self.app._on_step_selected()
+        self.app.parameters._entries['brightness']['var'].set(90.0)
+        self.app.update_step()
+
+        self.assertEqual(len(self.app.pipeline), 1)
+        self.assertEqual(self.app.pipeline.chain[0].params['brightness'], 90.0)
+        self.assertFalse(np.array_equal(self.app.pipeline.current, before))
+
+    def test_a_step_edit_does_not_survive_selecting_a_filter(self):
+        self._select('clahe')
+        self.app.apply_filter()
+        self.app.chain_list.selection_set(0)
+        self.app._on_step_selected()
+
+        self._select('invert')
+        self.assertIsNone(self.app._editing_step)
+
+    def test_analysis_tab_offers_every_registered_report(self):
+        box_values = self.app.analysis_name.get()
+        self.assertIn(box_values, ANALYSIS_REGISTRY)
+
+        for name in ANALYSIS_REGISTRY:
+            with self.subTest(analysis=name):
+                self.app.analysis_name.set(name)
+                self.app._on_analysis_selected()
+                self.assertIsNotNone(self.app.analysis_params._body)
+
+    def test_running_a_report_shows_it_with_its_caveat(self):
+        self.app.analysis_name.set('noise')
+        self.app._on_analysis_selected()
+        self.app.run_selected_analysis()
+        self.app.wait_for_analysis()
+
+        text = self.app.analysis_text.get('1.0', 'end')
+        self.assertIn('Noise analysis:', text)
+        self.assertIn('global sigma', text)
+        self.assertIn('note:', text)
+
+    def test_a_report_needing_the_file_says_so_when_there_is_none(self):
+        # The image was set directly in setUp, as an upload would be, so there
+        # is no file for the metadata check to read
+        self.app.source_path = None
+        self.app.analysis_name.set('metadata')
+        self.app._on_analysis_selected()
+        self.app.run_selected_analysis()
+
+        self.messagebox.showinfo.assert_called_once()
+        self.assertEqual(self.app.analysis_text.get('1.0', 'end').strip(), '')
+
+    def test_a_report_runs_off_the_tk_thread(self):
+        # A long report must not freeze the window, so the work leaves the Tk
+        # thread and the button stays disabled until it comes back
+        self.app.analysis_name.set('noise')
+        self.app._on_analysis_selected()
+        self.app.run_selected_analysis()
+
+        self.assertIsNotNone(self.app._analysis_thread)
+        self.assertEqual(str(self.app.analysis_button.cget('state')), 'disabled')
+
+        self.app.wait_for_analysis()
+        self.assertIsNone(self.app._analysis_thread)
+        self.assertEqual(str(self.app.analysis_button.cget('state')), 'normal')
+
+    def test_a_failing_report_is_reported_not_swallowed(self):
+        self.app.analysis_name.set('ela')
+        self.app._on_analysis_selected()
+        # A quality no JPEG encoder accepts, raised on the worker thread
+        self.app.analysis_params._entries['quality']['var'].set(0)
+        self.app.run_selected_analysis()
+        self.app.wait_for_analysis()
+
+        self.messagebox.showerror.assert_called_once()
+        self.assertIn('failed', self.app.status.cget('text'))
+
+    def test_dragging_a_region_fills_the_matching_parameters(self):
+        self._select('roi_crop')
+        self.app._on_region(12, 8, 30, 20)
+
+        params = self.app.parameters.get_params()
+        self.assertEqual((params['x'], params['y'], params['width'], params['height']),
+                         (12, 8, 30, 20))
+        self.assertEqual(self.app.last_region, (12, 8, 30, 20))
+        self.assertIn('12,8,30,20', self.app.status.cget('text'))
+
+    def test_a_region_on_a_filter_that_takes_none_still_reports_it(self):
+        self._select('clahe')
+        self.app._on_region(5, 5, 20, 20)
+
+        self.assertEqual(self.app.last_region, (5, 5, 20, 20))
+        self.assertIn('takes no region', self.app.status.cget('text'))
+
+    def test_a_long_parameter_form_does_not_hide_the_buttons(self):
+        # measure_3d has fourteen parameters. Packed after the form, the
+        # buttons were pushed out of the window entirely - so the filter
+        # that most needs Pick points was the one that could not reach it,
+        # and Apply was unreachable with it.
+        self.app.deiconify()
+        self.app.update()
+
+        for name in ('measure_3d', 'undistort', 'roi_draw', 'clahe'):
+            with self.subTest(filter=name):
+                self._select(name)
+                self.app.update_idletasks()
+                for button in (self.app.apply_button, self.app.pick_button,
+                               self.app.update_button):
+                    self.assertTrue(button.winfo_ismapped(),
+                                    f'{name}: a button is not laid out')
+
+    def test_picking_points_fills_every_coordinate_parameter(self):
+        # measure_3d has five required parameters and all of them are
+        # coordinates; typing them from a hover readout is the slow path
+        self._select('measure_3d')
+        self.app.viewer.set_zoom(1.0)
+        self.app.start_point_picking()
+
+        self.assertTrue(self.app.viewer.picking)
+        self.assertIn('FOOT of the reference', self.app.status.cget('text'))
+
+        # Four points, then two receding lines of two points each. The lines
+        # converge at (90, 26), so the horizon they imply is the row y = 26.
+        # Every point stays inside the frame: the canvas clamps a drag that
+        # overshoots, which would quietly move the line
+        for x, y in [(30, 40), (30, 20), (45, 42), (45, 25),
+                     (0, 8), (60, 20), (0, 44), (60, 32)]:
+            self.app.viewer._on_press(SimpleNamespace(x=x, y=y))
+
+        self.assertFalse(self.app.viewer.picking)
+        params = self.app.parameters.get_params()
+        self.assertEqual(params['reference_base'], [30, 40])
+        self.assertEqual(params['reference_top'], [30, 20])
+        self.assertEqual(params['base'], [45, 42])
+        self.assertEqual(params['top'], [45, 25])
+
+        # Eight numbers reach the form as four pairs, which resolve_horizon
+        # flattens; either shape has to give the same line
+        from cv_tools.filters.measure_3d import resolve_horizon
+        line = resolve_horizon(params['horizon'])
+        self.assertAlmostEqual(-line[2] / line[1], 26.0, places=6)
+        self.assertAlmostEqual(line[0], 0.0, places=9)
+
+        # And the filter accepts what the picking produced
+        result = resolve_filter('measure_3d').fn(self.app.pipeline.current, **params)
+        self.assertIsInstance(result, np.ndarray)
+
+    def test_picking_prompts_for_each_point_in_turn(self):
+        self._select('measure_3d')
+        self.app.start_point_picking()
+
+        seen = [self.app.status.cget('text')]
+        for x, y in [(10, 10), (10, 5), (20, 12)]:
+            self.app.viewer._on_press(SimpleNamespace(x=x, y=y))
+            seen.append(self.app.status.cget('text'))
+
+        self.assertIn('FOOT of the reference', seen[0])
+        self.assertIn('TOP of the reference', seen[1])
+        self.assertIn('FOOT of the object', seen[2])
+        self.assertIn('TOP of the object', seen[3])
+
+    def test_four_corners_become_one_parameter(self):
+        self._select('perspective')
+        self.app.viewer.set_zoom(1.0)
+        self.app.start_point_picking()
+
+        for x, y in [(5, 5), (55, 8), (58, 40), (2, 38)]:
+            self.app.viewer._on_press(SimpleNamespace(x=x, y=y))
+
+        # Eight numbers, which the entry parses back into four pairs
+        self.assertEqual(self.app.parameters.get_params()['corners'],
+                         [[5, 5], [55, 8], [58, 40], [2, 38]])
+
+    def test_escape_cancels_a_pick_in_progress(self):
+        self._select('measure_3d')
+        self.app.start_point_picking()
+        self.app.viewer._on_press(SimpleNamespace(x=10, y=10))
+
+        self.app.cancel_point_picking()
+        self.assertFalse(self.app.viewer.picking)
+        self.assertEqual(self.app.viewer._picked, [])
+
+    def test_picking_is_offered_only_where_it_applies(self):
+        self._select('measure_3d')
+        self.assertEqual(str(self.app.pick_button.cget('state')), 'normal')
+        self._select('clahe')
+        self.assertEqual(str(self.app.pick_button.cget('state')), 'disabled')
+
+    def test_a_pick_is_clamped_to_the_image(self):
+        self._select('measure_3d')
+        self.app.viewer.set_zoom(1.0)
+        self.app.start_point_picking()
+        self.app.viewer._on_press(SimpleNamespace(x=9999, y=9999))
+
+        height, width = self.app.pipeline.current.shape[:2]
+        self.assertEqual(self.app.viewer._picked, [(width - 1, height - 1)])
+
+    def test_theme_switch_recolours_every_kind_of_widget(self):
+        from cv_tools.gui.theme import LIGHT
+
+        self.app.set_theme('light')
+        self.assertEqual(self.app.palette, LIGHT)
+        self.assertEqual(self.app.filter_list.cget('background'), LIGHT['field'])
+        self.assertEqual(self.app.info_text.cget('background'), LIGHT['field'])
+        self.assertEqual(self.app.viewer.canvas.cget('background'), LIGHT['canvas'])
+        # The info panel is read-only, and has to stay that way afterwards
+        self.assertEqual(str(self.app.info_text.cget('state')), 'disabled')
+
+    def test_zoom_readout_follows_the_viewer(self):
+        self.app._refresh()
+        self.app._set_zoom(2.0)
+        self.assertEqual(self.app.zoom_label.cget('text'), '200%')
+
     def test_preset_roundtrip_matches_the_cli_format(self):
         self._select('clahe')
         self.app.apply_filter()
@@ -356,7 +862,9 @@ class TestApp(unittest.TestCase):
             self.assertIn('clahe', path.read_text(encoding='utf-8'))
 
     def test_view_modes_switch(self):
-        for mode in ('processed', 'original', 'split', 'side by side'):
+        from cv_tools.gui.widgets import VIEW_MODES
+
+        for mode in VIEW_MODES:
             with self.subTest(mode=mode):
                 self.app._set_view(mode)
                 self.assertEqual(self.app.viewer.mode.get(), mode)

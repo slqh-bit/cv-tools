@@ -23,10 +23,12 @@ Findings carry a severity of 'info' (worth knowing) or 'flag' (worth
 investigating). Neither is a conclusion.
 """
 
+import io
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 from PIL import ExifTags, Image
 
 # Software strings that indicate an image editor rather than camera firmware.
@@ -44,6 +46,17 @@ EXIF_TIME_FORMAT = '%Y:%m:%d %H:%M:%S'
 # Formats that normally carry EXIF, so its absence is worth remarking on.
 # PNG and BMP do not, and a missing header there means nothing.
 EXIF_BEARING_FORMATS = {'.jpg', '.jpeg', '.tif', '.tiff', '.heic', '.webp'}
+
+# IFD1 tags pointing at the embedded thumbnail JPEG.
+_THUMBNAIL_OFFSET_TAG = 0x0201  # JPEGInterchangeFormat
+_THUMBNAIL_LENGTH_TAG = 0x0202  # JPEGInterchangeFormatLength
+
+# Hamming distance (out of 64 bits) above which a thumbnail's content is
+# treated as disagreeing with the main image rather than merely recompressed.
+# A thumbnail regenerated from the same pixels lands at 0-2 even after heavy
+# JPEG recompression; an unrelated image or a materially different crop lands
+# above 25 (see tests). 12 sits with a wide margin on both sides.
+THUMBNAIL_HASH_THRESHOLD = 12
 
 
 def parse_exif_datetime(value: Any) -> Optional[datetime]:
@@ -109,6 +122,79 @@ def _actual_size(path: Union[str, Path]) -> Optional[tuple]:
             return img.size
     except Exception:
         return None
+
+
+def extract_thumbnail(path: Union[str, Path]) -> Optional[bytes]:
+    """
+    Pull the raw embedded JPEG thumbnail (EXIF IFD1) out of a file, if present.
+
+    Pillow exposes IFD1's tags through ``Exif.get_ifd`` but has no method to hand
+    back the thumbnail bytes themselves - and no way to *write* them either
+    (``Exif.tobytes()`` errors on a populated IFD1), so this only ever reads.
+    The bytes are found by hand: ``JPEGInterchangeFormat`` is an offset relative
+    to the start of the TIFF header inside the raw APP1 payload Pillow keeps in
+    ``img.info['exif']``.
+    """
+    try:
+        with Image.open(path) as img:
+            ifd1 = img.getexif().get_ifd(ExifTags.IFD.IFD1)
+            offset = ifd1.get(_THUMBNAIL_OFFSET_TAG)
+            length = ifd1.get(_THUMBNAIL_LENGTH_TAG)
+            raw = img.info.get('exif')
+    except Exception:
+        return None
+
+    if offset is None or length is None or not raw:
+        return None
+
+    tiff_start = raw.find(b'II*\x00')
+    if tiff_start == -1:
+        tiff_start = raw.find(b'MM\x00*')
+    if tiff_start == -1:
+        return None
+
+    data = raw[tiff_start + offset: tiff_start + offset + length]
+    return data if data[:2] == b'\xff\xd8' else None
+
+
+def _average_hash(image: Image.Image, hash_size: int = 8) -> int:
+    """Cheap perceptual hash: which cells of a small grayscale grid sit above its mean."""
+    small = image.convert('L').resize((hash_size, hash_size), Image.LANCZOS)
+    pixels = np.asarray(small, dtype=np.float64)
+    bits = pixels > pixels.mean()
+    return int(''.join('1' if bit else '0' for bit in bits.flatten()), 2)
+
+
+def check_thumbnail_mismatch(path: Union[str, Path]) -> List[Dict[str, str]]:
+    """
+    Compare the embedded EXIF thumbnail's content against the main image's.
+
+    Editors regularly update the pixels without regenerating the thumbnail, so
+    a splice or a swapped subject can leave the thumbnail still showing the
+    original scene - a discrepancy that survives casual re-saving because
+    nothing prompts an editor to touch IFD1. Absence of a thumbnail is not
+    itself a finding: plenty of ordinary files never had one.
+    """
+    thumbnail = extract_thumbnail(path)
+    if thumbnail is None:
+        return []
+
+    try:
+        thumb_hash = _average_hash(Image.open(io.BytesIO(thumbnail)))
+        with Image.open(path) as main_img:
+            main_hash = _average_hash(main_img)
+    except Exception:
+        return []
+
+    distance = bin(thumb_hash ^ main_hash).count('1')
+    if distance <= THUMBNAIL_HASH_THRESHOLD:
+        return []
+
+    return [_finding(
+        'thumbnail_mismatch', 'flag',
+        f'The embedded thumbnail disagrees with the image content (hash distance '
+        f'{distance}/64) - the image was likely edited without regenerating the '
+        f'thumbnail')]
 
 
 def _finding(check: str, severity: str, detail: str) -> Dict[str, str]:
@@ -244,10 +330,15 @@ def metadata_report(path: Union[str, Path]) -> Dict[str, Any]:
             'An XMP packet is embedded; it often records an editing history '
             'that the EXIF tags do not'))
 
+    thumbnail = extract_thumbnail(path)
+    if thumbnail is not None:
+        findings.extend(check_thumbnail_mismatch(path))
+
     return {
         'filename': path.name,
         'format': suffix,
         'has_exif': bool(exif),
+        'has_thumbnail': thumbnail is not None,
         'exif_tag_count': len(exif),
         'make': exif.get('Make'),
         'model': exif.get('Model'),

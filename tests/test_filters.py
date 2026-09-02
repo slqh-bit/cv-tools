@@ -9,7 +9,11 @@ from cv_tools.filters import (
     adjust_contrast_brightness,
     adjust_levels,
     analyze_roi,
+    CLAHE_SIXTEEN_BIT_MODES,
     apply_clahe,
+    apply_clahe_grid,
+    feather_mask,
+    roi_filter,
     apply_to_roi,
     auto_contrast,
     auto_levels,
@@ -84,6 +88,97 @@ class TestClahe(unittest.TestCase):
     def test_empty_image_raises(self):
         with self.assertRaises(ValueError):
             apply_clahe(np.array([], dtype=np.uint8))
+
+    def test_luminance_is_close_to_yuv_but_not_identical(self):
+        """
+        The two modes are the same BT.601 combination rounded differently.
+
+        Both halves matter. They are close, so 'luminance' is not some other
+        operation; they are not identical, so collapsing the branches would
+        silently change what an existing preset replays. On the validation
+        corpus the luma channels differ by 1 on 0.001% of pixels, which CLAHE
+        amplifies to a handful of levels in the output - more on a synthetic
+        low-contrast fixture like this one than on a real frame.
+        """
+        image = low_contrast_image()
+        difference = np.abs(
+            apply_clahe(image, color_mode='luminance').astype(int)
+            - apply_clahe(image, color_mode='yuv').astype(int))
+        self.assertGreater(difference.max(), 0)
+        self.assertLess(difference.max(), 16)
+
+    def test_sixteen_bit_survives_instead_of_wrapping(self):
+        """
+        A 10- or 12-bit source arrives as uint16. Casting it to uint8 does not
+        coarsen it, it wraps it modulo 256 - so 4096 becomes 0 and a bright
+        pixel goes black immediately before the step meant to stretch
+        contrast. Rank correlation catches that where a shape check would not.
+        """
+        ramp = np.tile(np.linspace(0, 4095, 256, dtype=np.uint16), (64, 1))
+        result = apply_clahe(ramp)
+
+        self.assertEqual(result.dtype, np.uint16)
+        # Ordering must survive: CLAHE redistributes levels, it does not
+        # reorder them wholesale
+        order = np.corrcoef(ramp.ravel().argsort().argsort(),
+                            result.ravel().argsort().argsort())[0, 1]
+        self.assertGreater(order, 0.9)
+
+    def test_sixteen_bit_colour_modes_keep_their_depth(self):
+        rng = np.random.default_rng(4)
+        image = (rng.random((32, 48, 3)) * 4095).astype(np.uint16)
+        for mode in CLAHE_SIXTEEN_BIT_MODES:
+            with self.subTest(mode=mode):
+                result = apply_clahe(image, color_mode=mode)
+                self.assertEqual(result.dtype, np.uint16)
+                self.assertEqual(result.shape, image.shape)
+
+    def test_sixteen_bit_is_refused_by_modes_that_cannot_hold_it(self):
+        """
+        OpenCV's LAB and HSV conversions reject CV_16U. Saying so beats
+        quietly dropping to 8 bits, which is what the cast used to do.
+        """
+        rng = np.random.default_rng(5)
+        image = (rng.random((32, 48, 3)) * 4095).astype(np.uint16)
+        for mode in ('lab', 'hsv'):
+            with self.subTest(mode=mode):
+                with self.assertRaises(ValueError) as ctx:
+                    apply_clahe(image, color_mode=mode)
+                self.assertIn('16 bits', str(ctx.exception))
+
+    def test_eight_bit_is_untouched_by_the_depth_handling(self):
+        image = low_contrast_image()
+        self.assertEqual(apply_clahe(image).dtype, np.uint8)
+
+
+class TestCLAHEGrid(unittest.TestCase):
+    """The contact sheet an operator picks a clip_limit from."""
+
+    def test_grid_covers_every_combination(self):
+        image = low_contrast_image()
+        result = apply_clahe_grid(image, clip_limits=[1.5, 3.0], tile_grid_sizes=[4, 8])
+        self.assertEqual(result.ndim, 3)
+        self.assertEqual(result.shape[2], 3)
+
+    def test_defaults_need_no_arguments(self):
+        # The registry offers this filter, so its form must produce a board
+        # without the operator typing a list first
+        result = apply_clahe_grid(low_contrast_image())
+        self.assertEqual(result.ndim, 3)
+
+    def test_single_values_are_accepted(self):
+        # A parameter form with one value typed in it yields a scalar
+        result = apply_clahe_grid(low_contrast_image(), clip_limits=2.0,
+                                  tile_grid_sizes=8)
+        self.assertEqual(result.ndim, 3)
+
+    def test_empty_settings_raise(self):
+        with self.assertRaises(ValueError):
+            apply_clahe_grid(low_contrast_image(), clip_limits=[], tile_grid_sizes=[8])
+
+    def test_registered_so_a_front_end_can_reach_it(self):
+        from cv_tools.filters import FILTER_REGISTRY
+        self.assertIn('clahe_grid', FILTER_REGISTRY)
 
 
 class TestContrastBrightness(unittest.TestCase):
@@ -280,6 +375,75 @@ class TestROI(unittest.TestCase):
         result = apply_to_roi(image, roi, adjust_contrast_brightness, brightness=60)
         self.assertGreater(result[10:30, 10:30].mean(), image[10:30, 10:30].mean())
         np.testing.assert_array_equal(result[0:10, :], image[0:10, :])
+
+    def test_feather_softens_the_border(self):
+        """
+        A visible seam around an enhanced region is a question at the hearing.
+        The ramp has to make the step across the border materially smaller
+        than the hard-edged version.
+        """
+        image = low_contrast_image(80, 120)
+        roi = ROI(30, 20, 50, 40)
+
+        def step(result):
+            inside = result[roi.y:roi.y2, roi.x].astype(float)
+            outside = result[roi.y:roi.y2, roi.x - 1].astype(float)
+            return float(np.abs(inside - outside).mean())
+
+        hard = apply_to_roi(image, roi, adjust_contrast_brightness,
+                            brightness=60, feather=0)
+        soft = apply_to_roi(image, roi, adjust_contrast_brightness,
+                            brightness=60, feather=10)
+
+        self.assertLess(step(soft), step(hard) / 2)
+        # and the region is still actually enhanced in the middle
+        self.assertGreater(soft[40:50, 50:60].mean(), image[40:50, 50:60].mean())
+
+    def test_feather_leaves_the_outside_alone(self):
+        image = low_contrast_image(80, 120)
+        roi = ROI(30, 20, 50, 40)
+        result = apply_to_roi(image, roi, adjust_contrast_brightness,
+                              brightness=60, feather=10)
+        np.testing.assert_array_equal(result[:roi.y, :], image[:roi.y, :])
+        np.testing.assert_array_equal(result[:, :roi.x], image[:, :roi.x])
+
+    def test_feather_mask_ramps_from_edge_to_middle(self):
+        mask = feather_mask(40, 60, 8)
+        self.assertEqual(mask.shape, (40, 60))
+        self.assertAlmostEqual(float(mask[20, 30]), 1.0)
+        self.assertLess(float(mask[0, 30]), float(mask[4, 30]))
+        self.assertLess(float(mask[4, 30]), 1.0)
+
+    def test_feather_is_clamped_to_a_small_region(self):
+        # Two ramps must not meet and leave the middle unfiltered
+        mask = feather_mask(6, 6, 50)
+        self.assertGreater(float(mask.max()), 0.0)
+        self.assertEqual(mask.shape, (6, 6))
+
+    def test_a_filter_that_resizes_the_region_is_refused(self):
+        from cv_tools.filters import resize
+        image = low_contrast_image(80, 120)
+        with self.assertRaises(ValueError) as ctx:
+            apply_to_roi(image, ROI(30, 20, 50, 40), resize, scale=0.5)
+        self.assertIn('same region', str(ctx.exception))
+
+    def test_roi_filter_is_registered_and_runs(self):
+        from cv_tools.filters import FILTER_REGISTRY
+        self.assertIn('roi_filter', FILTER_REGISTRY)
+
+        image = low_contrast_image(80, 120)
+        result = roi_filter(image, x=30, y=20, width=50, height=40,
+                            filter_name='clahe')
+        self.assertEqual(result.shape, image.shape)
+        np.testing.assert_array_equal(result[:20, :], image[:20, :])
+
+    def test_roi_filter_refuses_itself_and_filters_needing_arguments(self):
+        image = low_contrast_image(80, 120)
+        for inner in ('roi_filter', 'crop'):
+            with self.subTest(inner=inner):
+                with self.assertRaises(ValueError):
+                    roi_filter(image, x=30, y=20, width=50, height=40,
+                               filter_name=inner)
 
     def test_draw_roi_does_not_change_size(self):
         image = low_contrast_image()

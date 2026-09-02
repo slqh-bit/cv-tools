@@ -57,6 +57,16 @@ class Pipeline:
         """Return the current filter chain."""
         return self._chain.copy()
 
+    @property
+    def can_undo(self) -> bool:
+        """Whether there is a step to undo, for greying out a control."""
+        return bool(self._history)
+
+    @property
+    def can_redo(self) -> bool:
+        """Whether there is an undone step to redo, for greying out a control."""
+        return bool(self._redo_stack)
+
     def apply(self, filter_fn: Callable, name: str, module: str, params: Dict[str, Any]) -> np.ndarray:
         """
         Apply a filter function and record it in the chain.

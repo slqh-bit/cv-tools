@@ -82,13 +82,18 @@ def compute_gains(image: np.ndarray, method: str = 'shades_of_gray',
         ])
     else:
         raise ValueError(
-            f"Unknown method '{method}'. Use gray_world, white_patch, or shades_of_gray"
+            f"Unknown method '{method}'. Available: {', '.join(METHODS)}"
         )
 
     estimate[estimate <= 0] = 1.0
     # Anchor on green: it carries most of the luminance, so holding it fixed
     # keeps overall brightness roughly unchanged
     return estimate[1] / estimate
+
+
+# The estimators this module implements. Named so a front end can offer
+# exactly these: 'method' means something different on four other filters.
+METHODS = ('gray_world', 'white_patch', 'shades_of_gray')
 
 
 def auto_white_balance(

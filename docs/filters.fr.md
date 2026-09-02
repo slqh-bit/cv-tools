@@ -4,6 +4,16 @@ Chaque filtre est une simple fonction qui prend une image en premier argument et
 nouvelle image. Les noms de registre (colonne `name`) sont ceux qui apparaissent dans les
 préréglages JSON et les rapports.
 
+**Les images sont en RVB.** `ImageLoader` convertit au chargement et `save_image` reconvertit
+à l'enregistrement : chaque filtre reçoit donc le canal 0 comme rouge — et non le BGR que
+renvoie `cv2.imread`. Cela compte pour le paramètre `channel` et pour tout traitement
+sensible à la couleur ; une opération de luminance comme CLAHE ne voit aucune différence, ce
+qui rend précisément l'erreur facile à manquer.
+
+Les mesures qui renvoient des chiffres plutôt qu'une image — bruit, ELA, copier-déplacer,
+compression, fantôme JPEG et métadonnées — ne sont pas des étapes de chaîne et sont
+regroupées à part, sous [Rapports d'analyse](#rapports-danalyse-pas-des-étapes-de-chaîne).
+
 | Nom dans le registre | Fonction | Module | Sprint |
 |---|---|---|---|
 | `clahe` | `apply_clahe` | `cv_tools.filters.clahe` | 1 |
@@ -13,6 +23,7 @@ préréglages JSON et les rapports.
 | `auto_levels` | `auto_levels` | `cv_tools.filters.levels` | 1 |
 | `histeq` | `histogram_equalization` | `cv_tools.filters.histogram_equalization` | 1 |
 | `roi_crop` | `roi_crop` | `cv_tools.filters.roi` | 1 |
+| `roi_filter` | `roi_filter` | `cv_tools.filters.roi` | — |
 | `roi_draw` | `roi_draw` | `cv_tools.filters.roi` | 1 |
 | `crop` | `crop` | `cv_tools.filters.crop_resize` | 1 |
 | `resize` | `resize` | `cv_tools.filters.crop_resize` | 1 |
@@ -48,6 +59,7 @@ préréglages JSON et les rapports.
 | `barrel` / `fisheye` | `correct_barrel_distortion` / `correct_fisheye` | `cv_tools.filters.fisheye_correction` | — |
 | `pixel_aspect` / `fit_aspect` | `correct_pixel_aspect` / `fit_to_aspect` | `cv_tools.filters.aspect_ratio` | — |
 | `undistort` | `undistort_with_file` | `cv_tools.filters.undistort` | — |
+| `clahe_grid` | `apply_clahe_grid` | `cv_tools.filters.clahe` | — |
 | `blocking_map` / `deblock` | voir le module | `cv_tools.filters.compression_analysis` | — |
 | `stain` | `extract_stain` | `cv_tools.filters.color_deconvolution` | — |
 | `component` / `bit_plane` | `extract_component` / `extract_bit_plane` | `cv_tools.filters.component_separation` | — |
@@ -74,9 +86,19 @@ inchangée, la couleur reste donc stable. `channelwise` égalise R, G et B indé
 **modifiera** la couleur — à n'utiliser que si c'est l'effet recherché.
 
 CLI : `--clahe clip=3.0 tile=8x8 mode=lab`
+Sur la profondeur : une source 10 ou 12 bits arrive en `uint16` et est égalisée en
+16 bits par `yuv`, `channelwise` et `luminance`. `lab` et `hsv` lèvent une erreur sur
+une entrée 16 bits, la conversion OpenCV correspondante n'acceptant que le 8 bits —
+convertissez l'image vous-même en acceptant la perte, ou choisissez un mode qui tient
+la profondeur.
+
 
 `apply_clahe_grid(image, clip_limits, tile_grid_sizes)` génère une grille annotée de
-combinaisons de paramètres pour choisir des valeurs rapidement.
+combinaisons de paramètres pour choisir des valeurs rapidement. Enregistré sous le nom
+`clahe_grid`, donc offert par les deux interfaces ; les deux arguments ont des valeurs par
+défaut utilisables et acceptent une valeur unique. Le coût en bruit d'un `clip_limit` donné
+variant d'un facteur 1,4 à 1,9 selon l'image, la valeur se choisit sur la planche plutôt
+qu'au jugé devant un curseur.
 
 ## Contraste & Luminosité — `contrast_brightness`
 
@@ -139,6 +161,29 @@ CLAHE ; a tendance à amplifier le bruit dans les zones plates.
 | `mask` | ndarray ou None | `None` | Restreint la région utilisée pour construire l'histogramme |
 
 CLI : `--histeq mode=lab`
+
+## Filtre sur ROI — `roi_filter`
+
+Applique un autre filtre enregistré à une seule région et laisse le reste de l'image
+intact, parce que le reste n'est pas ce qu'on démontre. C'est aussi la vraie réponse à
+l'histogramme bimodal : appliquée à la zone qui porte la question, une opération de
+contraste travaille sur l'histogramme qui intéresse.
+
+| paramètre | type | défaut | notes |
+|---|---|---|---|
+| `x`, `y`, `width`, `height` | int | — | La région, rognée aux bornes de l'image |
+| `filter_name` | str | `'clahe'` | Nom du filtre à appliquer dans la région |
+| `feather` | int | `8` | Largeur de la rampe de fondu en pixels ; `0` pour un bord net |
+
+La transition est adoucie plutôt que coupée : une couture nette autour d'une zone
+rehaussée est une question à l'audience. La rampe est bornée par la région, de sorte
+qu'une petite ROI en reçoit une proportionnée.
+
+Le filtre intérieur tourne avec ses propres valeurs par défaut — nommer un filtre *et*
+ses paramètres demanderait des paramètres imbriqués, ce que le contrat JSON plat du
+registre n'autorise pas. Seuls les filtres qui tournent sur une image seule peuvent être
+imbriqués ; les autres sont refusés par leur nom plutôt qu'en échouant plus loin. Un
+filtre qui redimensionne la région est refusé également.
 
 ## Recadrage ROI — `roi_crop`
 
@@ -514,20 +559,32 @@ comptes de blocs) ; `draw_clone_regions` le superpose en teinte sur l'image.
 
 Recompresse l'image sur une plage de qualités JPEG et calcule la différence de chaque passage
 par rapport à la source, la même astuce que l'ELA utilise une seule fois. Requantifier une
-région déjà en JPEG à sa qualité antérieure est quasi sans perte, donc la courbe
-erreur-en-fonction-de-la-qualité de chaque bloc chute nettement à cette qualité précise — le
-« fantôme ». Le minimum d'un bloc localise sa qualité de compression antérieure probable à
-partir des seuls pixels, même une fois les tables de quantification du fichier disparues.
+région déjà en JPEG à sa qualité antérieure est quasi sans perte, donc l'erreur d'une région
+chute à la qualité à laquelle elle a été enregistrée pour la dernière fois — le « fantôme ».
+
+**Il faut indiquer la région.** Cet outil ne la cherche pas, et la raison est mesurée plutôt
+que supposée. Sur 18 images de vidéosurveillance intactes, la région la plus contrastée
+qu'une recherche automatique puisse trouver obtient −0,53 en moyenne, tandis que les mêmes
+images portant un collage Q55 réel obtiennent −0,44 : les images intactes se séparent *plus
+nettement* que les images truquées, parce qu'un mur plat forme, dans chaque image, une vaste
+région cohérente à faible différence à l'une ou l'autre qualité. Une recherche renvoie de la
+texture, pas une histoire. Une fois la région donnée, la même mesure est décisive : −0,34 à
+la qualité réelle contre −0,02 pour un témoin intact.
+
+Marquez la région — la visionneuse de bureau remplit `x, y, width, height` à partir d'un
+glissé — et l'outil indique à quelle qualité elle a été compressée.
 
 | Paramètre | Type | Défaut | Remarques |
 |---|---|---|---|
 | `qualities` | list[int] | `50,55,...,100` | Paliers de qualité croissants à balayer |
 | `block_size` | int | `16` | Côté des blocs d'analyse |
-| `upscale` | bool | `True` | Redimensionne la grille de blocs à la taille de l'image d'entrée |
+| `region` | (x,y,w,h) | `None` | La région à interroger. Sans elle, rien n'est affirmé |
+| `upscale` | bool | `True` | `ghost_map` seulement : redimensionne la grille de blocs à la taille de l'image |
 
-La carte produite encode, par bloc, l'*indice* dans `qualities` de la meilleure correspondance
-— plus sombre signifie un palier plus ancien (qualité plus basse). Une région dont la teinte
-diffère nettement de son voisinage a une histoire JPEG différente.
+**Précision mesurée.** Sur 12 images réelles portant un collage Q55 connu : détecté dans 10,
+et 2 images intactes déclarées positives. Une détection est une piste à examiner, jamais une
+conclusion. La qualité retrouvée tombe à un palier près de la vérité : lisez-la comme un
+voisinage, pas comme un nombre.
 
 **Limites.** Un nouvel enregistrement JPEG uniforme de tout le montage est un angle mort :
 chaque bloc partage alors une même qualité finale réelle, et son creux quasi nul à cette
@@ -535,12 +592,31 @@ qualité noie toute trace plus subtile de la compression antérieure d'une régi
 collage. La technique lit un montage qui n'a jamais été unifié par un enregistrement JPEG
 ultérieur sur l'image entière — un PNG construit à partir de sources JPEG est le cas courant
 qu'elle détecte. Les régions plates et peu texturées ne creusent que faiblement à chaque
-qualité et se lisent comme ambiguës par construction.
+qualité et se lisent comme ambiguës par construction. Le seuil de 0,10 a été calibré sur une
+seule caméra ; recalibrez-le avant de vous y fier ailleurs.
 
 CLI : `--ghost block=16 min=50 max=100 step=5`, `--ghost-stats`
 
-`ghost_map` renvoie la carte visuelle ; `ghost_report` ajoute la qualité dominante et la liste
-des blocs atypiques.
+`ghost_sweep` renvoie la différence normalisée à chaque qualité — la matière première, et la
+forme qu'il vaut la peine de regarder. `ghost_map` renvoie l'unique image du balayage qui
+porte le plus de structure, sombre là où les pixels correspondent à cette qualité.
+`ghost_report` nomme la qualité de la région, l'écart qui a tranché, et le score de chaque
+qualité pour que le verdict puisse être vérifié plutôt que cru.
+
+> Une version antérieure de ce filtre prenait le minimum *global* de chaque bloc sur le
+> balayage. Cela ne peut pas fonctionner : la courbe de différence décroît de façon monotone
+> vers la qualité 100 pour presque tous les blocs, si bien que le minimum tombe en haut du
+> balayage quelle que soit l'histoire du bloc, et une image intacte déclarait 42 % de ses
+> blocs atypiques. Les préréglages et rapports écrits avant ce correctif mentionnent
+> `dominant_quality` et `outlier_count`, qui n'existent plus.
+
+> **Sur les filtres qui ne trouvent rien.** `clone_detect` et `auto_perspective` renvoient
+> l'image inchangée lorsqu'ils ne détectent aucune région dupliquée ni aucun quadrilatère.
+> C'est le bon contrat pour une étape de chaîne — une image entre, une image sort, et un
+> préréglage se rejoue à l'identique — mais « rien trouvé » et « rien fait » se ressemblent
+> dans la visionneuse. Utilisez le rapport correspondant pour les distinguer :
+> `--clone-stats` indique explicitement *no duplicated regions found*, et l'onglet Analysis
+> de l'interface graphique affiche la même ligne.
 
 ## Analyse des métadonnées (pas une étape de chaîne)
 
@@ -556,6 +632,7 @@ option de statistiques plutôt qu'un filtre.
 | `timestamp_disorder` | flag | `DateTimeDigitized` précède `DateTimeOriginal`, ce que l'ordre de capture interdit |
 | `dimension_mismatch` | flag | Les dimensions enregistrées dans l'EXIF diffèrent des dimensions réelles — image redimensionnée ou recadrée depuis la capture |
 | `photoshop_segment` | flag | Un bloc de ressources Photoshop APP13 est intégré |
+| `thumbnail_mismatch` | flag | Le contenu de la miniature EXIF intégrée diverge de l'image principale |
 | `no_exif` | info | Un format qui porte normalement de l'EXIF n'en a aucun |
 | `no_camera_identification` | info | EXIF présent mais sans `Make` ni `Model` |
 | `xmp_segment` | info | Un paquet XMP est intégré ; il consigne souvent un historique d'édition absent de l'EXIF |
@@ -570,11 +647,22 @@ laissent tous un.
 Ce sont les contradictions qui méritent l'attention. Un tag qui contredit les pixels, ou un
 autre tag, est plus difficile à produire par accident qu'un nom d'apparence suspecte.
 
+**La miniature intégrée est une contradiction que les éditeurs laissent souvent derrière
+eux.** Les JPEG transportent une seconde copie réduite de l'image dans l'IFD1 de l'EXIF,
+destinée aux aperçus, et un éditeur qui remplace les pixels n'a aucune raison de la
+régénérer — un recadrage, un montage ou un remplacement du sujet peut laisser la miniature
+afficher encore la scène d'origine. `check_thumbnail_mismatch` l'extrait et compare son
+contenu à l'image principale au moyen d'un hachage perceptuel simple (un average-hash 8x8),
+tolérant à la recompression propre de la miniature mais pas à une image réellement
+différente. L'absence de miniature n'est pas en soi un signalement — c'est l'état normal de
+nombreux fichiers ordinaires.
+
 CLI : `--metadata-stats`
 
 `read_exif` renvoie les tags sous forme de dictionnaire ; `detect_editing_software` et
 `check_timestamps` sont les contrôles individuels, utilisables sur un dictionnaire EXIF déjà
-en main.
+en main. `extract_thumbnail` renvoie les octets JPEG bruts de la miniature intégrée, ou
+`None`.
 
 ## Défloutage de Wiener — `deblur_motion`, `deblur_defocus`
 
@@ -624,14 +712,106 @@ donc avant la chaîne de filtres plutôt qu'à l'intérieur. Sur la CLI, c'est `
 | `integrate_frames(frames, gain, auto_scale)` | `integrate` | Accumule la lumière d'images très sombres sans amplifier le bruit comme le ferait un gain |
 | `sharpest_frames(frames, count)` | `sharpest` | Classe les images par netteté ; la CLI moyenne la meilleure moitié |
 
-Toutes supposent que les images sont **alignées**. Des images filmées à la main ou avec une
-caméra PTZ nécessitent une stabilisation préalable — une caméra en mouvement transforme le
-moyennage en flou.
+Toutes supposent que les images sont **alignées**, et aucune ne peut détecter qu'elles ne le
+sont pas — une caméra en mouvement renvoie simplement une image plus molle, sans rien dire de
+la raison.
 
 `frame_difference(a, b, amplify)` donne la différence absolue entre deux images, pour isoler
 ce qui a bougé.
 
 CLI : `--frames 24 --frame-method median --frame-step 5`
+
+## Stabilisation — `--stabilise`
+
+`stabilise.py` amène une séquence à un alignement commun, ce qui rend les méthodes ci-dessus
+utilisables sur des images qui n'ont pas été tournées sur trépied. Mesuré sur une séquence
+tremblante et bruitée de 16 images, comparée à l'original propre :
+
+| | PSNR |
+|---|---|
+| une image bruitée | 17,86 dB |
+| moyennées, sans alignement | 22,01 dB |
+| **moyennées après alignement** | **28,27 dB** |
+
+Le moyennage seul récupère 4 dB de bruit puis plafonne, car il lutte désormais contre le
+mouvement de la caméra. L'alignement préalable en récupère 6 de plus — la différence entre
+une plaque illisible et une plaque lisible.
+
+**Modèles de mouvement.** Choisir le moins de liberté que la caméra a réellement eu ; un
+modèle plus libre ajustera volontiers le bruit.
+
+| Modèle | Pour |
+|---|---|
+| `translation` | Caméra fixe sur un support qui vibre |
+| `euclidean` | Caméra à la main — tremblement et roulis (défaut) |
+| `affine` | À la main, avec un léger changement d'échelle |
+| `homography` | Panoramique ou zoom sur une scène globalement plane |
+
+**Méthodes.** `features` apparie des points ORB et supporte les grands mouvements mais exige
+de la texture ; `ecc` maximise la corrélation, est précis au sous-pixel, et constitue une
+recherche *locale* qui ne converge que pour de petits mouvements sans point de départ.
+`auto` initialise `ecc` à partir de l'estimation par points et obtient donc les deux, en se
+repliant sur celle des deux moitiés qui a réussi.
+
+Ce n'est pas le même travail que `super_resolution.estimate_shifts`, et les deux ne sont pas
+interchangeables : `estimate_shifts` mesure une translation pure à une petite fraction de
+pixel, ce dont une reconstruction a besoin avec une caméra quasi immobile. `align_frames`
+gère en plus la rotation, l'échelle et la perspective, au pixel près, ce qui rend combinables
+les images d'une caméra en mouvement. Stabiliser d'abord, reconstruire ensuite.
+
+> **Un mauvais alignement étale, et le dissimule.** Une image qui n'a pas pu être appariée est
+> pire qu'une image écartée, car le moyennage la cache — le résultat paraît simplement plus
+> mou. Chaque image revient donc avec une confiance, celles sous `--stabilise-min-confidence`
+> sont écartées plutôt que déformées au jugé, et `--report` consigne lesquelles. Attention :
+> la confiance n'est pas une échelle unique — pour `ecc` c'est le coefficient de corrélation,
+> pour `features` le taux d'inliers RANSAC. Les deux vont de 0 à 1 et plus c'est mieux, mais
+> un 0,7 de l'un n'est pas un 0,7 de l'autre.
+
+La sortie est **recadrée à la région couverte par toutes les images**. L'alignement décale et
+tourne chaque image, dont le bord opposé laisse une bande sans données ; moyenner sur cette
+bande mêle de vrais pixels à du noir et assombrit le bord, ce qui ressemble à un vignettage
+sans en être un. Ce bord est une donnée que la séquence ne possède pas.
+
+CLI : `--stabilise [MODÈLE] --stabilise-method auto|ecc|features --stabilise-reference N
+--stabilise-min-confidence C`. Les graphies `--stabilize` fonctionnent également.
+
+## Sortie vidéo — `--video`
+
+Tout ce qui précède réduit une vidéo à une seule image. `--video` fait l'inverse : la chaîne
+est appliquée à chaque image d'une plage, puis réécrite en vidéo. Une seule image est
+conservée en mémoire à la fois, ce qui permet de traiter des séquences plus longues que la
+mémoire disponible.
+
+Écarter des images abaisse d'autant la cadence : `--frame-step 5` sur du 25 im/s écrit du
+5 im/s, de sorte que le résultat se déroule toujours en temps réel. `--fps` permet de forcer
+une autre valeur.
+
+**Le codec est une décision de nature légale, pas un détail pratique.** Cette boîte à outils
+contient des filtres — `ela`, `ghost`, `compression_analysis` — dont le travail est justement
+de lire l'historique de compression. Écrire une pièce à conviction dans un codec avec perte
+ajoute une génération de ce qu'ils lisent. Mesuré sur cette version, dix images écrites puis
+relues :
+
+| Codec | Conteneur | Taille | Aller-retour |
+|---|---|---|---|
+| **FFV1** | `.avi` | 178 Ko | **exact** |
+| RGBA | `.avi` | 211 Ko | exact (non compressé) |
+| MJPG | `.avi` | 47 Ko | avec perte |
+| XVID | `.avi` | 41 Ko | avec perte |
+| mp4v | `.mp4` | 36 Ko | avec perte |
+
+`.avi` utilise donc FFV1 par défaut : sans perte, intra-image, et plus compact que du non
+compressé. `.mp4` n'offre aucune option sans perte qu'OpenCV écrive de façon fiable ; le
+demander revient donc à demander un fichier avec perte — et la CLI le signale plutôt que de
+laisser passer la chose sans commentaire. `avc1`/`H264` sont indisponibles dans cette version
+et échouent proprement au lieu de produire silencieusement un fichier vide.
+
+Une image dont la taille diffère de la première est une erreur, non un redimensionnement : une
+chaîne qui redimensionne certaines images et pas d'autres a produit une séquence qui ne veut
+pas dire une seule chose, et les étirer pour les faire correspondre masquerait précisément
+cela.
+
+CLI : `--video --video-frames N --frame DÉBUT --frame-step N --fps CADENCE --codec FOURCC`
 
 ---
 
@@ -689,6 +869,34 @@ La corrélation de phase pilote l'alignement, et elle nécessite du détail à l
 scène fortement périodique (carrelage, briques, une clôture) produit plusieurs pics de
 corrélation de hauteur similaire, et le décalage mesuré peut être dénué de sens plutôt que
 simplement imprécis.
+
+**Ce que cela rapporte.** Mesuré face à une vérité terrain, sur des images décalées de
+quantités connues puis sous-échantillonnées, en comparant la reconstruction ×2 à
+l'interpolation bicubique d'une seule image :
+
+| Mouvement des images | Gain sur l'interpolation |
+|---|---|
+| décalages couvrant la grille au demi-pixel | **+1,4 dB** |
+| pas entiers uniquement | +0,6 dB |
+| faible tremblement aléatoire (±0,3 px) | +1,0 dB |
+| fort tremblement aléatoire (±3 px) | −0,1 dB |
+
+Le gain vient de ce que les images échantillonnent *entre* les pixels les unes des autres :
+avoir du mouvement n'est pas avoir le bon mouvement. La dernière ligne est la mise en garde
+honnête — une séquence peut satisfaire le critère `usable` de `super_resolve_report`, qui
+demande seulement si ≥2 images portent un décalage fractionnaire, et ne pas mieux reconstruire
+qu'un simple agrandissement. Traiter `usable` comme nécessaire et non suffisant, et comparer
+à `--upscale` avant de se fier au résultat.
+
+> **`--stabilise` et `superres` se contrarient.** Aligner une pile au sous-pixel supprime
+> précisément le mouvement dont la reconstruction se nourrit. La combinaison est mesurée
+> plutôt qu'interdite : une pile stabilisée signale peu de mouvement infra-pixellaire et la
+> CLI avertit. Stabiliser pour *combiner* des images ; ne pas stabiliser pour *reconstruire* à
+> partir d'elles. Une séquence présentant à la fois un fort mouvement de caméra et du détail
+> infra-pixellaire récupérable exigerait un modèle de mouvement complet au sein de la
+> reconstruction, ce que `estimate_shifts` (translation seule) ne fournit pas.
+
+CLI : `--frames 12 --frame-method superres --sr-scale 2 --sr-sharpen 0.6 --sr-max-shift 8`
 
 **`detail_enhancement`** — `local_contrast` est un masque flou à grand rayon, ce qu'est la
 plupart des curseurs « clarté ». `enhance_detail` préserve les contours, il fait donc
@@ -755,18 +963,81 @@ déconvolution de Wiener de cette même boîte à outils peut l'annuler. **La pi
 réversible pour un texte court à alphabet connu** — rendre chaque plaque candidate et faire
 correspondre les moyennes de blocs est une attaque documentée et peu coûteuse. Seuls `fill` et
 `noise` écartent réellement les pixels d'origine ; `fill` est la méthode par défaut et la
-seule à utiliser pour un document destiné à être publié. `verify_redaction` corrèle chaque
+seule à utiliser pour un document destiné à être publié.
+
+`noise` tire un bruit neuf à chaque exécution sauf si `seed` est fourni : le même préréglage
+produit alors une image différente à chaque fois. L'occultation est aussi efficace dans les
+deux cas, mais un résultat qui ne peut pas être reproduit n'est pas une preuve — fixez
+`seed` lorsque la chaîne doit se rejouer à l'identique. Cela n'affaiblit rien : les pixels
+d'origine sont détruits quoi qu'il arrive, donc connaître le bruit n'en récupère aucun.
+
+`verify_redaction` corrèle chaque
 région avec l'original et indique si le contenu a réellement disparu.
 
 **`annotate`** — flèches, formes, texte, et mesure calibrée. `Scale` convertit des pixels en
-unités ; `measure_distance` (1D), `measure_area` (2D, formule du lacet), `draw_measurement`
-et `draw_scale_bar` les présentent.
+unités ; `measure_distance` (1D), `measure_area` (2D, formule du lacet), `draw_measurement`,
+`draw_area_measurement` et `draw_scale_bar` les présentent.
 
 Une échelle n'est valide que pour le plan dans lequel elle a été mesurée. Une règle posée au
 sol calibre les distances au sol et ne dit rien d'un panneau trois mètres plus loin, qui est
 plus éloigné de la caméra et donc plus petit par pixel. Corriger d'abord la perspective. Les
 annotations sont dessinées sur une copie — conserver l'original non annoté, car une image
 annotée est une figure, pas une preuve.
+
+## Mesure — `measure`, `measure_area`, `scale_bar`
+
+Les étapes de chaîne qui enveloppent `annotate`. Un `Scale` ne peut pas transiter par un
+préréglage JSON ; ces filtres prennent donc **les deux extrémités d'un objet dont la longueur
+est connue** — une plaque d'immatriculation, une porte, une règle laissée dans la scène —
+plutôt qu'un rapport pixels/unités qu'il faudrait calculer à la main, l'étape la plus sujette
+à l'erreur.
+
+| Paramètre | Signification |
+|---|---|
+| `point_a`, `point_b` | Ce qui est mesuré (`measure`) |
+| `points` | Trois sommets ou plus (`measure_area`), par paires ou en suite de coordonnées |
+| `reference_a`, `reference_b` | Les deux extrémités de la référence de longueur connue |
+| `reference_length` | La longueur réelle de cette référence, en `unit_name` |
+| `unit_name` | Unité de la longueur de référence, `mm` par défaut |
+
+Donner les trois paramètres `reference_a`, `reference_b` et `reference_length`, ou aucun ; une
+calibration à moitié énoncée est rejetée plutôt que devinée. Sans référence, le libellé est en
+pixels — honnête, mais rarement ce qu'exige une pièce à conviction. `scale_bar` en exige une :
+une barre sans calibration est une règle sans unités.
+
+En ligne de commande, la calibration est un *modificateur* partagé par toutes les mesures de
+la chaîne, car une échelle appartient à un plan de l'image et non à une mesure isolée :
+
+```bash
+cv-tools plaque.jpg \
+    --scale-ref 100,200,340,200 --scale-length 520 --scale-unit mm \
+    --measure 40,300,290,300 \
+    --measure-area 40,320,290,320,290,400,40,400 \
+    --scale-bar 200 -o mesure.jpg
+```
+
+**Une aire se convertit par le carré de l'échelle linéaire** : une calibration fausse de 5 %
+rend l'aire fausse d'environ 10 %. Utiliser plutôt `measure_3d` lorsque l'objet mesuré sort du
+plan calibré — la taille d'une personne ne peut pas se déduire d'une échelle posée sur le sol
+où elle se tient.
+
+## Annotation — `arrow`, `text`, `shape`
+
+De la présentation, pas de la mesure : ces filtres désignent quelque chose au lecteur sans rien
+affirmer à son sujet. `shape` dessine un `rectangle`, `circle`, `ellipse`, `line` ou `polygon` ;
+rectangles, lignes, cercles et ellipses prennent exactement deux points, les polygones trois ou
+plus. Les points s'écrivent par paires ou en suite de coordonnées : `10,10,60,50` et
+`[(10, 10), (60, 50)]` désignent la même chose.
+
+```bash
+cv-tools scene.jpg \
+    --arrow start=400,300 end=280,210 label=plaque \
+    --text text=Piece_A position=20,40 \
+    --shape shape=rectangle points=260,190,340,240 -o figure.jpg
+```
+
+Étant des étapes de chaîne ordinaires, elles sont consignées dans le préréglage et dans le
+rapport de traitement, ce qui rend reproductible une pièce annotée.
 
 **`measure_3d`** — la hauteur hors du plan du sol, que l'échelle ci-dessus ne peut pas
 atteindre. Étant donné l'horizon du plan du sol, le point de fuite des verticales de la scène,
@@ -785,7 +1056,29 @@ Metrology*, IJCV 40(2), 2000.
 | `unit_name` | `'mm'` | Libellé de l'unité |
 | `show_horizon` | `True` | Dessine l'horizon sur lequel repose l'estimation |
 
-`measure_height` renvoie le nombre sans dessiner, ainsi que `uncertainty_per_pixel` — de
+`measure_height` renvoie deux sensibilités : `uncertainty_per_pixel` pour une erreur
+d'un pixel sur les points cliqués, et `horizon_uncertainty_per_pixel` pour un
+décalage d'un pixel de l'horizon. Lisez la seconde d'abord : une base et un sommet se
+cliquent sur des détails visibles et sont rarement faux de plus d'un ou deux pixels,
+alors qu'un horizon se *déduit* et se trompe facilement de dix. Les deux sont écrites
+sous la hauteur, sauf `show_uncertainty=False`.
+
+`horizon_from_lines` évite d'avoir à le deviner : donnez-lui des droites *parallèles
+dans la scène* — l'arête sol/mur d'un couloir et son arête plafond/mur, les deux
+bordures d'une route — et elle renvoie l'horizon passant par leur point de fuite. Un
+jeu de droites suffit si la caméra n'a pas de roulis ; un second jeu dans une autre
+direction lève cette hypothèse. Le paramètre `horizon` accepte 8 nombres pour deux
+droites, 16 pour quatre, et **Choisir des points sur l'image** les collecte.
+
+Aucune des deux ne détecte un horizon simplement mal placé : ce sont des pentes
+locales. Placez l'horizon sur un plafond plutôt qu'au point de fuite et la
+sensibilité rapportée *diminue*, alors que l'erreur réelle explose. Vérifiez
+l'horizon sur la scène : il passe par le point où les parallèles convergent.
+
+Des bases de part et d'autre de l'horizon sont refusées : deux objets posés sur un
+même plan se projettent du même côté de l'horizon de ce plan.
+
+`measure_height` renvoie aussi le nombre sans dessiner, ainsi que `uncertainty_per_pixel` — de
 combien la réponse varie pour une erreur d'un pixel sur les points cliqués. À lire avant de
 citer une hauteur ; c'est le plancher de l'erreur, pas l'erreur totale. `vanishing_point`
 résout un point de fuite à partir de deux lignes parallèles de la scène ou plus, par moindres
@@ -805,6 +1098,69 @@ L'estimation ne vaut que ce que valent ses hypothèses, et chacune échoue silen
   synthétique à 2,5 m de hauteur avec une référence de 1,8 m, cette hypothèse a surestimé
   d'environ 16 mm pour 5° d'inclinaison et de 33 mm pour 18°. La plupart des caméras de
   vidéosurveillance sont inclinées, donc fournir le point de fuite vertical.
+
+---
+
+# Rapports d'analyse (pas des étapes de chaîne)
+
+Les mesures ci-dessus qui renvoient des chiffres plutôt qu'une image sont enregistrées
+ensemble dans `ANALYSIS_REGISTRY`, à côté du registre des filtres. Elles n'entrent jamais
+dans une chaîne : elles décrivent l'indice au lieu de le modifier, et en exécuter une laisse
+le pipeline intact.
+
+| Nom dans le registre | Fonction | Module | Lit | CLI |
+|---|---|---|---|---|
+| `noise` | `noise_report` | `cv_tools.filters.noise_analysis` | les pixels | `--noise-stats` |
+| `ela` | `ela_stats` | `cv_tools.filters.ela` | les pixels | `--ela-stats [QUALITÉ]` |
+| `clone` | `detect_copy_move` | `cv_tools.filters.clone_detection` | les pixels | `--clone-stats` |
+| `compression` | `compression_report` | `cv_tools.filters.compression_analysis` | pixels + fichier | `--compression-stats` |
+| `ghost` | `ghost_report` | `cv_tools.filters.jpeg_ghost` | les pixels | `--ghost-stats` |
+| `metadata` | `metadata_report` | `cv_tools.filters.metadata_forensics` | le fichier | `--metadata-stats` |
+
+Chaque entrée porte la présentation de son propre rapport — une ligne d'en-tête, ses lignes
+de contenu et la mise en garde qui le referme — si bien que la CLI affiche exactement ce que
+montrent l'onglet **Analysis** de l'interface graphique et celui du tableau de bord web. Les
+options de la dernière colonne sont engendrées à partir des mêmes entrées : c'est pourquoi
+un rapport ajouté au registre apparaît dans les trois interfaces sans qu'aucune ne soit
+modifiée. `--list-analyses` affiche l'ensemble enregistré.
+
+| Rapport | Paramètres |
+|---|---|
+| `noise` | `block_size=32` |
+| `ela` | `quality=90`, `block_size=16` |
+| `clone` | `block_size=16`, `step=1`, `coefficients=4`, `quantization=4.0`, `min_distance=0.0`, `min_matches=8`, `min_variance=12.0`, `search_window=3`, `max_blocks=300000` |
+| `compression` | `block_size=32` (plus le chemin du fichier source) |
+| `ghost` | `qualities=(50…100 par pas de 5)`, `block_size=16` |
+| `metadata` | aucun |
+
+**`compression` et `metadata` lisent le conteneur, pas le résultat de la chaîne.** Les tables
+de quantification et l'EXIF résident dans le fichier sur le disque : ces deux rapports
+décrivent donc l'image telle qu'elle a été ouverte, quel que soit le nombre de filtres
+appliqués depuis — et ils n'ont rien à lire du tout si l'image ne provient pas d'un fichier.
+L'interface graphique le signale au lieu d'échouer ; le tableau de bord écrit le fichier
+téléversé par le navigateur dans une copie temporaire portant son propre nom, pour que le
+rapport cite toujours le nom de fichier que vous reconnaissez.
+
+Chaque ligne porte une gravité : `flag` pour un constat qui mérite examen, `info` pour un
+constat qui mérite d'être connu, et rien pour une simple mesure. **Aucune des trois n'est une
+conclusion.** Chaque rapport se termine par une note indiquant ce que la mesure ne peut pas
+dire, et ces notes sont la forme courte des mises en garde détaillées sous chaque filtre
+ci-dessus.
+
+```python
+from cv_tools.filters import report_lines, resolve_analysis, run_analysis
+
+spec = resolve_analysis('ghost')
+report = run_analysis(spec, image=pipeline.current, params={'block_size': 8})
+print('\n'.join(report_lines(spec, report)))     # ce qu'affiche la CLI
+
+report['outlier_count']                          # ou lire le dict directement
+```
+
+`run_analysis` fournit l'image et/ou le chemin selon ce que le rapport demande, et lève
+`ValueError` au lieu de deviner lorsqu'il en manque un. `render_report` renvoie les mêmes
+lignes sous forme d'objets `Row(label, value, severity, indent)`, pour une interface qui les
+colore.
 
 ---
 

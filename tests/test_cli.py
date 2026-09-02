@@ -12,6 +12,7 @@ import numpy as np
 
 from cv_tools.cli import main, translate_step
 from cv_tools.core import ImageLoader
+from cv_tools.filters import ANALYSIS_REGISTRY
 from cv_tools.filters import estimate_noise
 from cv_tools.utils.parsing import (
     parse_float_list,
@@ -322,6 +323,21 @@ class TestCLIRun(CLITestCase):
         self.assertEqual(code, 0)
         self.assertIn('clahe', output)
         self.assertIn('roi_crop', output)
+
+    def test_list_analyses(self):
+        code, output = self.run_cli(['--list-analyses'])
+        self.assertEqual(code, 0)
+        for spec in ANALYSIS_REGISTRY.values():
+            self.assertIn(spec.cli_flag, output)
+
+    def test_every_registered_analysis_has_a_flag_that_runs_it(self):
+        # The flags are generated from the registry, so a report added there
+        # is reachable from the command line without the CLI being edited
+        for name, spec in ANALYSIS_REGISTRY.items():
+            with self.subTest(analysis=name):
+                code, output = self.run_cli([str(self.input), spec.cli_flag])
+                self.assertEqual(code, 0)
+                self.assertIn(spec.caveat[:30], output)
 
     def test_pdf_report_by_extension(self):
         report = self.dir / 'report.pdf'
@@ -666,8 +682,9 @@ class TestCLICatalogue(CLITestCase):
     def test_ghost_stats_printed(self):
         code, output = self.run_cli([str(self.input), '--ghost-stats'])
         self.assertEqual(code, 0)
-        self.assertIn('JPEG ghost detection', output)
-        self.assertIn('dominant quality', output)
+        self.assertIn('JPEG ghost', output)
+        # Without a region it says what it cannot do rather than guessing
+        self.assertIn('does not search for one', output)
 
     def test_metadata_stats_printed(self):
         code, output = self.run_cli([str(self.input), '--metadata-stats'])
@@ -720,6 +737,92 @@ class TestCLICatalogue(CLITestCase):
         self.assertEqual(code, 0)
         for name in FILTER_REGISTRY:
             self.assertIn(name, output)
+
+
+class TestCLIMeasurement(CLITestCase):
+    """
+    The measurement and annotation flags.
+
+    The calibration is a modifier shared by every measurement in the chain,
+    because a scale belongs to an image plane rather than to one measurement.
+    """
+
+    CALIBRATION = ['--scale-ref', '10,10,60,10', '--scale-length', '520']
+
+    def test_measure_draws_a_dimension_line(self):
+        out = self.dir / 'measured.png'
+        code, _ = self.run_cli([str(self.input), *self.CALIBRATION,
+                                '--measure', '10,30,60,30', '-o', str(out)])
+        self.assertEqual(code, 0)
+        result = self.read(out)
+        self.assertEqual(result.shape[:2], self.image.shape[:2])
+        self.assertFalse(np.array_equal(result, self.image))
+
+    def test_measure_works_without_a_calibration(self):
+        out = self.dir / 'pixels.png'
+        code, _ = self.run_cli([str(self.input), '--measure', '10,30,60,30',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_measure_area_accepts_more_than_four_vertices(self):
+        out = self.dir / 'area.png'
+        code, _ = self.run_cli([str(self.input), '--measure-area',
+                                '5,5,40,5,50,25,25,45,5,25', '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_scale_bar_needs_a_calibration(self):
+        with self.assertRaises(SystemExit):
+            self.run_cli([str(self.input), '--scale-bar', '100',
+                          '-o', str(self.dir / 'o.png')])
+
+    def test_scale_bar_draws_with_a_calibration(self):
+        out = self.dir / 'bar.png'
+        code, _ = self.run_cli([str(self.input), *self.CALIBRATION,
+                                '--scale-bar', '200',
+                                '--scale-bar-position', 'top_left',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_annotation_flags_draw(self):
+        cases = {
+            'arrow': ['--arrow', 'start=50,10', 'end=20,30', 'label=plate'],
+            'text': ['--text', 'text=Exhibit_A', 'position=5,15'],
+            'shape': ['--shape', 'shape=rectangle', 'points=5,5,40,30'],
+        }
+        for name, flags in cases.items():
+            with self.subTest(flag=name):
+                out = self.dir / f'{name}.png'
+                code, _ = self.run_cli([str(self.input), *flags, '-o', str(out)])
+                self.assertEqual(code, 0)
+                self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_one_calibration_serves_every_measurement_in_the_chain(self):
+        out = self.dir / 'both.png'
+        code, _ = self.run_cli([str(self.input), *self.CALIBRATION,
+                                '--measure', '10,30,60,30',
+                                '--measure-area', '5,40,40,40,40,55,5,55',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertFalse(np.array_equal(self.read(out), self.image))
+
+    def test_malformed_measurement_flags_are_rejected(self):
+        cases = [
+            ['--measure', '10,30,60'],                    # needs 4 numbers
+            ['--measure-area', '10,30,60,40'],            # only 2 vertices
+            ['--measure-area', '10,30,60,40,50'],         # odd count
+            ['--measure', '10,30,60,30', '--scale-ref', '1,2,3,4'],  # no length
+            ['--text', 'position=5,15'],                  # no text
+            ['--shape', 'points=5,5,40,30'],              # no shape
+            ['--shape', 'shape=rectangle'],               # no points
+        ]
+        for flags in cases:
+            with self.subTest(flags=' '.join(flags)):
+                with self.assertRaises(SystemExit):
+                    self.run_cli([str(self.input)] + flags
+                                 + ['-o', str(self.dir / 'o.png')])
 
 
 class TestCLIVideo(CLITestCase):
@@ -860,6 +963,326 @@ class TestCLIVideo(CLITestCase):
                 with self.subTest(kwargs=kwargs):
                     with self.assertRaises(ValueError):
                         loader.load_frames(**kwargs)
+
+
+class TestCLIStabilise(CLITestCase):
+    """
+    Aligning a stack of stills before combining it.
+
+    The frames are a known image moved by known amounts, so the assertion can
+    be that the motion was undone rather than that a file appeared.
+    """
+
+    def setUp(self):
+        super().setUp()
+        rng = np.random.default_rng(19)
+        noise = cv2.GaussianBlur(
+            rng.integers(0, 255, (120, 160), dtype=np.uint8), (5, 5), 2)
+        self.clean = cv2.cvtColor(noise, cv2.COLOR_GRAY2RGB)
+        cv2.rectangle(self.clean, (30, 30), (90, 75), (255, 80, 40), -1)
+        cv2.putText(self.clean, 'AB 123', (20, 108), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6, (250, 250, 250), 2, cv2.LINE_AA)
+
+        self.stack = self.dir / 'stack'
+        self.stack.mkdir()
+        for index in range(8):
+            dx = 4 * np.sin(index * 0.6) + rng.normal(0, 0.8)
+            dy = 3 * np.cos(index * 0.5) + rng.normal(0, 0.8)
+            matrix = cv2.getRotationMatrix2D((80, 60), 1.0 * np.sin(index * 0.4), 1.0)
+            matrix[0, 2] += dx
+            matrix[1, 2] += dy
+            frame = cv2.warpAffine(self.clean, matrix, (160, 120),
+                                   borderMode=cv2.BORDER_REFLECT)
+            frame = np.clip(frame.astype(np.float32)
+                            + rng.normal(0, 14, frame.shape), 0, 255).astype(np.uint8)
+            cv2.imwrite(str(self.stack / f'f{index:02d}.png'),
+                        cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+
+    def _psnr(self, a, b):
+        error = np.mean((a.astype(np.float64) - b.astype(np.float64)) ** 2)
+        return 99.0 if error == 0 else float(10 * np.log10(255 * 255 / error))
+
+    def test_stabilising_sharpens_the_average(self):
+        naive, stabilised = self.dir / 'naive.png', self.dir / 'stab.png'
+        self.run_cli([str(self.stack), '--frames', '8', '-o', str(naive)])
+        code, _ = self.run_cli([str(self.stack), '--frames', '8',
+                                '--stabilise', '-o', str(stabilised)])
+        self.assertEqual(code, 0)
+
+        aligned = self.read(stabilised)
+        # The output is cropped to the common region; locate it in the truth
+        match = cv2.matchTemplate(self.clean, aligned, cv2.TM_SQDIFF)
+        _, _, (x, y), _ = cv2.minMaxLoc(match)
+        height, width = aligned.shape[:2]
+        truth = self.clean[y:y + height, x:x + width]
+
+        raw = self.read(naive)[y:y + height, x:x + width]
+        self.assertGreater(self._psnr(aligned, truth),
+                           self._psnr(raw, truth) + 1.0)
+
+    def test_stabilising_crops_to_the_common_region(self):
+        out = self.dir / 'cropped.png'
+        self.run_cli([str(self.stack), '--frames', '8', '--stabilise',
+                      '-o', str(out)])
+        result = self.read(out)
+        self.assertLess(result.shape[0], 120)
+        self.assertLess(result.shape[1], 160)
+
+    def test_every_motion_model_is_accepted(self):
+        for model in ('translation', 'euclidean', 'affine', 'homography'):
+            with self.subTest(model=model):
+                out = self.dir / f'{model}.png'
+                code, _ = self.run_cli([str(self.stack), '--frames', '6',
+                                        '--stabilise', model, '-o', str(out)])
+                self.assertEqual(code, 0)
+                self.assertTrue(out.exists())
+
+    def test_the_american_spelling_works_too(self):
+        out = self.dir / 'z.png'
+        code, _ = self.run_cli([str(self.stack), '--frames', '6',
+                                '--stabilize', 'euclidean', '-o', str(out)])
+        self.assertEqual(code, 0)
+
+    def test_the_report_records_the_alignment(self):
+        out, report = self.dir / 'r.png', self.dir / 'r.md'
+        code, _ = self.run_cli([str(self.stack), '--frames', '8', '--stabilise',
+                                '--report', str(report), '-o', str(out)])
+        self.assertEqual(code, 0)
+
+        text = report.read_text(encoding='utf-8')
+        self.assertIn('Frame Alignment', text)
+        self.assertIn('euclidean motion model', text)
+        self.assertIn('| Frame | Method | Confidence |', text)
+        # The raw dict must not also be dumped into the metadata list
+        self.assertNotIn("'per_frame'", text)
+
+    def test_an_unknown_model_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            self.run_cli([str(self.stack), '--frames', '8', '--stabilise',
+                          'wobble', '-o', str(self.dir / 'o.png')])
+
+
+class TestCLISuperResolution(CLITestCase):
+    """
+    Multi-frame reconstruction from the command line.
+
+    The frames are made the way the method assumes: one high-resolution truth,
+    shifted by known sub-pixel amounts and downsampled. That gives a real
+    answer to compare against, so the test can assert reconstruction beat
+    interpolation rather than merely that a larger file appeared.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.truth = np.zeros((160, 240), dtype=np.uint8)
+        cv2.putText(self.truth, 'AB 12', (20, 95), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.4, 255, 4, cv2.LINE_AA)
+        for x in range(0, 240, 16):
+            cv2.line(self.truth, (x, 120), (x, 150), 200, 1)
+
+        # Offsets covering the half-pixel grid, which is the sampling pattern
+        # a 2x reconstruction actually needs
+        self.stack = self.dir / 'sr'
+        self.stack.mkdir()
+        for index, (dx, dy) in enumerate([(0, 0), (1, 0), (0, 1), (1, 1)] * 3):
+            matrix = np.float32([[1, 0, dx], [0, 1, dy]])
+            moved = cv2.warpAffine(self.truth, matrix, (240, 160),
+                                   flags=cv2.INTER_CUBIC,
+                                   borderMode=cv2.BORDER_REFLECT)
+            small = cv2.resize(moved, (120, 80), interpolation=cv2.INTER_AREA)
+            cv2.imwrite(str(self.stack / f'f{index:02d}.png'), small)
+
+        self.still = self.dir / 'still'
+        self.still.mkdir()
+        rng = np.random.default_rng(23)
+        flat = cv2.resize(self.truth, (120, 80), interpolation=cv2.INTER_AREA)
+        for index in range(6):
+            noisy = np.clip(flat.astype(np.float32) + rng.normal(0, 6, flat.shape),
+                            0, 255).astype(np.uint8)
+            cv2.imwrite(str(self.still / f'f{index}.png'), noisy)
+
+    def _psnr(self, a, b):
+        error = np.mean((a.astype(np.float64) - b.astype(np.float64)) ** 2)
+        return 99.0 if error == 0 else float(10 * np.log10(255 * 255 / error))
+
+    def test_reconstruction_enlarges_by_the_scale(self):
+        out = self.dir / 'sr.png'
+        code, _ = self.run_cli([str(self.stack), '--frames', '12',
+                                '--frame-method', 'superres', '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.read(out).shape[:2], (160, 240))
+
+    def test_scale_is_configurable(self):
+        out = self.dir / 'sr3.png'
+        code, _ = self.run_cli([str(self.stack), '--frames', '12',
+                                '--frame-method', 'superres',
+                                '--sr-scale', '3', '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.read(out).shape[:2], (240, 360))
+
+    def test_reconstruction_beats_interpolating_one_frame(self):
+        """The claim the method makes, against ground truth."""
+        reconstructed, interpolated = self.dir / 'sr.png', self.dir / 'up.png'
+        self.run_cli([str(self.stack), '--frames', '12', '--frame-method',
+                      'superres', '-o', str(reconstructed)])
+        self.run_cli([str(self.stack / 'f00.png'), '--upscale', 'scale=2',
+                      '-o', str(interpolated)])
+
+        truth = cv2.cvtColor(self.truth, cv2.COLOR_GRAY2RGB)
+        self.assertGreater(self._psnr(self.read(reconstructed), truth),
+                           self._psnr(self.read(interpolated), truth) + 0.5)
+
+    def test_a_sequence_without_sub_pixel_motion_is_flagged(self):
+        """
+        Reconstruction without motion is an upscale wearing its name.
+
+        The warning goes to stderr, which run_cli does not return, so this
+        checks the run still succeeds and asserts on the report instead.
+        """
+        from cv_tools.filters import super_resolve_report
+
+        frames = [self.read(path)
+                  for path in sorted(self.still.glob('*.png'))]
+        self.assertFalse(super_resolve_report(frames)['usable'])
+
+        out = self.dir / 'flat.png'
+        code, _ = self.run_cli([str(self.still), '--frames', '6',
+                                '--frame-method', 'superres', '-o', str(out)])
+        self.assertEqual(code, 0)
+
+    def test_stabilising_first_removes_what_reconstruction_needs(self):
+        """
+        The two features work against each other, and the guard notices.
+
+        Aligning to sub-pixel accuracy is exactly the motion reconstruction
+        feeds on, so a stabilised stack reports as unusable. Nothing forbids
+        the combination - it is measured rather than ruled out.
+        """
+        from cv_tools.filters import align_frames, super_resolve_report
+
+        frames = [self.read(path) for path in sorted(self.stack.glob('*.png'))]
+        self.assertTrue(super_resolve_report(frames)['usable'])
+
+        aligned, _ = align_frames(frames, model='translation', crop=False)
+        after = super_resolve_report(aligned)
+        self.assertLess(after['frames_with_subpixel_motion'],
+                        super_resolve_report(frames)['frames_with_subpixel_motion'])
+
+
+class TestCLIVideoOutput(CLITestCase):
+    """Applying the chain across a frame range and writing video back out."""
+
+    def setUp(self):
+        super().setUp()
+        self.clip = self.dir / 'clip.avi'
+        rng = np.random.default_rng(29)
+        base = np.zeros((64, 80, 3), dtype=np.uint8)
+        base[:, :40] = (60, 90, 140)
+        base[:, 40:] = (180, 150, 90)
+
+        writer = cv2.VideoWriter(str(self.clip),
+                                 cv2.VideoWriter_fourcc(*'MJPG'), 12, (80, 64))
+        if not writer.isOpened():
+            self.skipTest('MJPG video writer unavailable in this environment')
+        try:
+            for index in range(20):
+                frame = np.clip(base.astype(np.float32)
+                                + rng.normal(0, 12, base.shape), 0, 255).astype(np.uint8)
+                cv2.rectangle(frame, (2 + index * 3, 20), (10 + index * 3, 44),
+                              (255, 255, 255), -1)
+                writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+        finally:
+            writer.release()
+
+    def frames_of(self, path):
+        capture = cv2.VideoCapture(str(path))
+        out = []
+        try:
+            while True:
+                ok, frame = capture.read()
+                if not ok:
+                    break
+                out.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        finally:
+            capture.release()
+        return out
+
+    def test_the_chain_runs_over_every_frame(self):
+        out = self.dir / 'out.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '--clahe',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.frames_of(out)), 20)
+
+    def test_a_range_can_be_selected(self):
+        out = self.dir / 'range.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '--frame', '5',
+                                '--video-frames', '6', '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.frames_of(out)), 6)
+
+    def test_a_stride_thins_the_sequence(self):
+        out = self.dir / 'strided.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '--frame-step', '4',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.frames_of(out)), 5)
+
+    def test_the_output_is_lossless_by_default(self):
+        """
+        Writing a range with no filters must return the pixels unchanged.
+
+        This is the guarantee the FFV1 default exists for: passing an exhibit
+        through the tool should not add a compression generation.
+        """
+        out = self.dir / 'copy.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '-o', str(out)])
+        self.assertEqual(code, 0)
+
+        source, written = self.frames_of(self.clip), self.frames_of(out)
+        self.assertEqual(len(source), len(written))
+        for index, (before, after) in enumerate(zip(source, written)):
+            with self.subTest(frame=index):
+                np.testing.assert_array_equal(after, before)
+
+    def test_the_chain_actually_changed_the_frames(self):
+        plain, filtered = self.dir / 'p.avi', self.dir / 'f.avi'
+        self.run_cli([str(self.clip), '--video', '-o', str(plain)])
+        self.run_cli([str(self.clip), '--video', '--invert', '-o', str(filtered)])
+        self.assertFalse(np.array_equal(self.frames_of(plain)[0],
+                                        self.frames_of(filtered)[0]))
+
+    def test_a_codec_can_be_named(self):
+        out = self.dir / 'mjpg.avi'
+        code, _ = self.run_cli([str(self.clip), '--video', '--codec', 'MJPG',
+                                '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.frames_of(out)), 20)
+
+    def test_video_needs_an_output_path(self):
+        code, _ = self.run_cli([str(self.clip), '--video', '--clahe'])
+        self.assertEqual(code, 1)
+
+    def test_video_needs_a_video_input(self):
+        code, _ = self.run_cli([str(self.input), '--video', '--clahe',
+                                '-o', str(self.dir / 'x.avi')])
+        self.assertEqual(code, 1)
+
+    def test_a_start_past_the_end_is_refused(self):
+        code, _ = self.run_cli([str(self.clip), '--video', '--frame', '500',
+                                '-o', str(self.dir / 'y.avi')])
+        self.assertEqual(code, 1)
+
+    def test_the_report_describes_the_run(self):
+        out, report = self.dir / 'r.avi', self.dir / 'r.md'
+        code, _ = self.run_cli([str(self.clip), '--video', '--clahe',
+                                '--report', str(report), '-o', str(out)])
+        self.assertEqual(code, 0)
+
+        text = report.read_text(encoding='utf-8')
+        self.assertIn('frames_written', text)
+        self.assertIn('output_codec', text)
+        self.assertIn('clahe', text)
 
 
 if __name__ == '__main__':

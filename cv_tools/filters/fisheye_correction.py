@@ -57,6 +57,12 @@ def _distortion_maps(
     return map_x.astype(np.float32), map_y.astype(np.float32)
 
 
+# What to put where the corrected image has no pixels to read. No 'wrap':
+# wrapping the far edge of a frame into the corner of a corrected one invents
+# content that was never in view.
+BORDER_MODES = ('constant', 'replicate', 'reflect')
+
+
 def correct_barrel_distortion(
     image: np.ndarray,
     k1: float = -0.2,

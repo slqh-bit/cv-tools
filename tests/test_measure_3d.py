@@ -13,6 +13,7 @@ import numpy as np
 
 from cv_tools.filters import (
     draw_height_measurement,
+    horizon_from_lines,
     horizon_from_vanishing_points,
     line_through,
     measure_height,
@@ -98,6 +99,79 @@ class TestGeometryHelpers(unittest.TestCase):
                 resolve_horizon(bad)
 
 
+class TestHorizonFromLines(unittest.TestCase):
+    """Deriving the horizon from what is visible instead of from the answer."""
+
+    def test_two_receding_lines_give_the_row_they_converge_on(self):
+        # Both lines pass through (80, 30)
+        line = horizon_from_lines([(0, 10, 60, 25), (0, 50, 60, 35)])
+        self.assertAlmostEqual(-line[2] / line[1], 30.0, places=6)
+        self.assertAlmostEqual(line[0], 0.0, places=9)
+
+    def test_a_second_direction_handles_a_rolled_camera(self):
+        # Vanishing points at (80, 30) and (-40, 70): the horizon runs through
+        # both, so it is tilted rather than level
+        line = horizon_from_lines([(0, 10, 60, 25), (0, 50, 60, 35)],
+                                  [(0, 90, -20, 80), (0, 50, -20, 60)])
+        for point in ((80.0, 30.0), (-40.0, 70.0)):
+            self.assertAlmostEqual(
+                float(line @ np.array([point[0], point[1], 1.0])), 0.0, places=6)
+        self.assertNotAlmostEqual(line[0], 0.0, places=6)
+
+    def test_image_parallel_lines_have_no_level_horizon(self):
+        with self.assertRaises(ValueError) as ctx:
+            horizon_from_lines([(0, 10, 60, 10), (0, 50, 60, 50)])
+        self.assertIn('infinity', str(ctx.exception))
+
+    def test_one_line_is_not_enough(self):
+        with self.assertRaises(ValueError):
+            horizon_from_lines([(0, 10, 60, 25)])
+
+    def test_resolve_horizon_accepts_eight_numbers_as_two_lines(self):
+        direct = horizon_from_lines([(0, 10, 60, 25), (0, 50, 60, 35)])
+        viaflat = resolve_horizon([0, 10, 60, 25, 0, 50, 60, 35])
+        np.testing.assert_allclose(viaflat / viaflat[1], direct / direct[1], atol=1e-9)
+
+    def test_resolve_horizon_accepts_the_same_points_as_pairs(self):
+        """The parameter form re-pairs eight numbers; both shapes must work."""
+        flat = resolve_horizon([0, 10, 60, 25, 0, 50, 60, 35])
+        pairs = resolve_horizon([[0, 10], [60, 25], [0, 50], [60, 35]])
+        np.testing.assert_allclose(pairs / pairs[1], flat / flat[1], atol=1e-9)
+
+    def test_resolve_horizon_accepts_sixteen_numbers_as_four_lines(self):
+        line = resolve_horizon([0, 10, 60, 25, 0, 50, 60, 35,
+                                0, 90, -20, 80, 0, 50, -20, 60])
+        for point in ((80.0, 30.0), (-40.0, 70.0)):
+            self.assertAlmostEqual(
+                float(line @ np.array([point[0], point[1], 1.0])), 0.0, places=6)
+
+    def test_an_unusable_count_says_how_many_it_got(self):
+        with self.assertRaises(ValueError) as ctx:
+            resolve_horizon([1, 2, 3, 4, 5])
+        self.assertIn('5 numbers', str(ctx.exception))
+
+    def test_the_derived_horizon_measures_correctly(self):
+        """
+        End to end: recover the horizon from two lines lying along the ground
+        and measure with it, rather than being told where the horizon is.
+        """
+        camera = SyntheticCamera(pitch_degrees=0.0)
+        reference = camera.pole(-900, 9000, 1800.0)
+        base, top = camera.pole(600, 14000, 1650.0)
+
+        # Two rails running away from the camera, at different offsets
+        rails = []
+        for offset in (-1500, 1500):
+            near = camera.project((offset, 6000, 0.0))
+            far = camera.project((offset, 30000, 0.0))
+            rails.append((near[0], near[1], far[0], far[1]))
+
+        result = measure_height(base, top, reference[0], reference[1], 1800.0,
+                                horizon=horizon_from_lines(rails),
+                                vertical_point=camera.vertical_point)
+        self.assertAlmostEqual(result['height'], 1650.0, places=2)
+
+
 class TestMeasureHeight(unittest.TestCase):
 
     def setUp(self):
@@ -145,6 +219,56 @@ class TestMeasureHeight(unittest.TestCase):
         self.assertGreater(far, near)
         self.assertGreater(near, 0.0)
 
+    def test_horizon_sensitivity_is_reported(self):
+        result = self._measure(0, 12000, 1750.0)
+        self.assertIn('horizon_uncertainty_per_pixel', result)
+        self.assertGreater(result['horizon_uncertainty_per_pixel'], 0.0)
+
+    def test_horizon_sensitivity_grows_with_distance(self):
+        """
+        Far from the camera the base crowds the horizon, so a horizon shifted
+        by a pixel spans more real ground - the same reason the click
+        sensitivity grows, and the reason the number is worth printing.
+        """
+        near = self._measure(0, 7000, 1750.0)['horizon_uncertainty_per_pixel']
+        far = self._measure(0, 22000, 1750.0)['horizon_uncertainty_per_pixel']
+        self.assertGreater(far, near)
+
+    def test_horizon_sensitivity_does_not_depend_on_the_line_scaling(self):
+        # The horizon is homogeneous, so (a, b, c) and -37(a, b, c) are one
+        # line; a per-pixel figure that moved with the scaling would be junk
+        base, top = self.camera.pole(0, 12000, 1750.0)
+        args = (base, top, self.reference[0], self.reference[1], self.reference_height)
+        plain = measure_height(*args, self.camera.horizon, self.camera.vertical_point)
+        scaled = measure_height(*args, self.camera.horizon * -37.0,
+                                self.camera.vertical_point * 5.0)
+        self.assertAlmostEqual(plain['horizon_uncertainty_per_pixel'],
+                               scaled['horizon_uncertainty_per_pixel'], places=6)
+
+    def test_bases_straddling_the_horizon_are_refused(self):
+        """
+        Two objects on one ground plane image on one side of its horizon.
+        Bases either side of it is not a hard measurement but an impossible
+        one, and the usual cause is a horizon drawn along a ceiling.
+        """
+        base, top = self.camera.pole(0, 12000, 1750.0)
+        line = resolve_horizon(self.camera.horizon)
+
+        # Mirror the reference base across the horizon to put it on the far side
+        reference_base = list(self.reference[0])
+        y_horizon = -(line[0] * reference_base[0] + line[2]) / line[1]
+        reference_base[1] = y_horizon - (reference_base[1] - y_horizon)
+
+        with self.assertRaises(ValueError) as ctx:
+            measure_height(base, top, reference_base, self.reference[1],
+                           self.reference_height, self.camera.horizon,
+                           self.camera.vertical_point)
+        self.assertIn('opposite sides', str(ctx.exception))
+
+    def test_a_valid_pair_is_not_refused(self):
+        # The guard must not fire on ordinary geometry
+        self.assertGreater(self._measure(0, 12000, 1750.0)['height'], 0)
+
     def test_parallel_vertical_assumption_is_exact_for_a_level_camera(self):
         camera = SyntheticCamera(pitch_degrees=0.0)
         reference = camera.pole(-900, 9000, 1800.0)
@@ -186,6 +310,22 @@ class TestMeasure3dFilter(unittest.TestCase):
         self.assertEqual(result.dtype, np.uint8)
         # Something was drawn
         self.assertFalse(np.array_equal(result, self.image))
+
+    def test_the_uncertainty_is_drawn_not_just_computed(self):
+        """
+        The figure existed all along and never reached the operator: the label
+        showed only the height. A number with no error beside it reads as a
+        measurement rather than an estimate.
+        """
+        common = dict(base=(300, 400), top=(300, 250),
+                      reference_base=(150, 380), reference_top=(150, 250),
+                      horizon=200, reference_height=1800.0)
+        with_note = draw_height_measurement(self.image, **common)
+        without = draw_height_measurement(self.image, show_uncertainty=False, **common)
+
+        self.assertFalse(np.array_equal(with_note, without))
+        # The note sits below the height label, so the extra ink is lower down
+        self.assertGreater(int((with_note != without).sum()), 0)
 
     def test_does_not_modify_the_input(self):
         before = self.image.copy()

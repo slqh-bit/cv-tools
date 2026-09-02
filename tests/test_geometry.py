@@ -202,6 +202,77 @@ class TestSuperResolution(unittest.TestCase):
         self.assertAlmostEqual(dx, 2.0, delta=0.5)
         self.assertAlmostEqual(dy, -1.0, delta=0.5)
 
+    def test_estimate_shifts_against_an_exact_fourier_shift(self):
+        """
+        Ground truth that is actually true.
+
+        warpAffine with a fractional offset interpolates, and bilinear
+        interpolation is not an exact shift operator - it low-pass filters
+        asymmetrically, so the "0.25px shifted" image it produces is not
+        shifted by exactly 0.25px. A phase ramp in the frequency domain is.
+        Measuring against warpAffine made the upsampled estimator look worse
+        at quarter offsets than the biased one it replaced; against a real
+        shift it is better everywhere.
+        """
+        base = broadband(128, 128)
+        grey = cv2.cvtColor(base, cv2.COLOR_RGB2GRAY).astype(np.float64)             if base.ndim == 3 else base.astype(np.float64)
+
+        def fourier_shift(image, dx, dy):
+            height, width = image.shape
+            fy = np.fft.fftfreq(height)[:, None]
+            fx = np.fft.fftfreq(width)[None, :]
+            ramp = np.exp(-2j * np.pi * (fx * dx + fy * dy))
+            return np.real(np.fft.ifft2(np.fft.fft2(image) * ramp))
+
+        errors = []
+        for dx in (0.1, 0.25, 0.5, 0.75, 0.9, 1.25):
+            moved = fourier_shift(grey, dx, 0.0)
+            got = estimate_shifts([grey, moved])[1]
+            errors.append(min(abs(got[0] - dx), abs(got[0] + dx)))
+
+        # 1/20 of a pixel is the search grid; allow one step of it
+        self.assertLess(max(errors), 0.06,
+                        f'worst error {max(errors):.3f}px across {len(errors)} offsets')
+
+    def test_estimate_shifts_reads_half_pixel_offsets_exactly(self):
+        # The case that matters and the case a plain peak fit is worst at.
+        # Before the upsampled refinement, an applied 0.50 read back as 0.20 -
+        # and half-pixel offsets are exactly what a 2x reconstruction wants,
+        # so the bias landed where it did the most harm.
+        base = broadband(128, 128)
+        for dx, dy in ((0.5, 0.0), (0.0, 0.5), (0.5, 0.5), (1.5, 2.5)):
+            with self.subTest(shift=(dx, dy)):
+                matrix = np.float32([[1, 0, dx], [0, 1, dy]])
+                moved = cv2.warpAffine(base, matrix, (base.shape[1], base.shape[0]),
+                                       borderMode=cv2.BORDER_REFLECT)
+                got = estimate_shifts([base, moved])[1]
+                error = min(np.hypot(got[0] - dx, got[1] - dy),
+                            np.hypot(got[0] + dx, got[1] + dy))
+                self.assertLess(error, 0.1, f'read {got} for ({dx}, {dy})')
+
+    def test_more_frames_do_not_make_the_reconstruction_worse(self):
+        # Registration error used to accumulate: sixteen frames scored below a
+        # plain bicubic upscale while four scored above it
+        truth = broadband(128, 128)
+        frames = []
+        for index in range(12):
+            matrix = np.float32([[1, 0, (index * 0.5) % 2],
+                                 [0, 1, (index * 0.37) % 2]])
+            moved = cv2.warpAffine(truth, matrix, (128, 128),
+                                   borderMode=cv2.BORDER_REFLECT)
+            frames.append(cv2.resize(moved, (64, 64), interpolation=cv2.INTER_AREA))
+
+        def closeness(candidate):
+            resized = cv2.resize(candidate, (128, 128))
+            grey = cv2.cvtColor(resized, cv2.COLOR_RGB2GRAY).astype(float)                 if resized.ndim == 3 else resized.astype(float)
+            reference = cv2.cvtColor(truth, cv2.COLOR_RGB2GRAY).astype(float)                 if truth.ndim == 3 else truth.astype(float)
+            return -float(((grey - reference) ** 2).mean())
+
+        with_four = closeness(super_resolve(frames[:4], scale=2.0))
+        with_twelve = closeness(super_resolve(frames, scale=2.0))
+        self.assertGreater(with_twelve, with_four * 1.5,
+                           'twelve frames should not be far worse than four')
+
     def test_estimate_shifts_is_unreliable_on_periodic_content(self):
         # Documented limitation: a repeating pattern defeats the method
         yy, xx = np.mgrid[0:64, 0:80]
@@ -261,6 +332,30 @@ class TestSuperResolution(unittest.TestCase):
         report = super_resolve_report(identical)
         self.assertFalse(report['usable'])
         self.assertEqual(report['frames'], 4)
+
+    def test_report_agrees_with_what_super_resolve_will_accept(self):
+        # The report said "usable" for frames displaced 179px, which
+        # super_resolve then refused outright. A report that green-lights a
+        # sequence the reconstructor rejects is worse than no report.
+        base = textured()
+        far = np.roll(base, 60, axis=1)
+        frames = [base, far, np.roll(base, 55, axis=1)]
+
+        report = super_resolve_report(frames, max_shift=8.0)
+        self.assertFalse(report['usable'])
+        self.assertEqual(report['frames_within_max_shift'], 1)
+
+        with self.assertRaises(ValueError):
+            super_resolve(frames, scale=2.0, max_shift=8.0)
+
+    def test_report_counts_only_frames_close_enough_to_contribute(self):
+        base = textured()
+        frames = [base, np.roll(base, 40, axis=0), base]
+        report = super_resolve_report(frames, max_shift=8.0)
+
+        self.assertEqual(report['frames'], 3)
+        self.assertEqual(report['frames_within_max_shift'], 2)
+        self.assertEqual(report['max_shift_threshold'], 8.0)
 
     def test_report_detects_subpixel_motion(self):
         base = textured()

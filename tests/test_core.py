@@ -509,6 +509,42 @@ class TestReport(unittest.TestCase):
             data = json.loads(json_path.read_text(encoding='utf-8'))
             self.assertEqual(data['processing']['filter_count'], 1)
 
+    def test_describe_puts_a_plain_language_line_under_each_step(self):
+        """
+        A report is read by someone who is not an image analyst, so a name and
+        a parameter list do not tell them what was done.
+        """
+        from cv_tools.filters import filter_description
+
+        pipeline = Pipeline(sample_rgb())
+        pipeline.apply(apply_clahe, 'clahe', 'cv_tools.filters.clahe', {'clip_limit': 2.0})
+        markdown = ReportGenerator(pipeline.generate_report(), {'filename': 'test.png'},
+                                   describe=filter_description).to_markdown()
+
+        self.assertIn('Contrast Limited Adaptive Histogram Equalization', markdown)
+
+    def test_without_describe_the_report_is_unchanged(self):
+        self.assertNotIn('Contrast Limited Adaptive Histogram',
+                         self.report.to_markdown())
+
+    def test_describe_survives_a_step_it_cannot_name(self):
+        """
+        A report is written after the fact, sometimes about a chain built by
+        hand. An unrecognised step should cost its description, not the report.
+        """
+        from cv_tools.filters import filter_description
+
+        pipeline = Pipeline(sample_rgb())
+        pipeline.apply(apply_clahe, 'not_in_the_registry', 'somewhere', {})
+        report = ReportGenerator(pipeline.generate_report(), {'filename': 'test.png'},
+                                 describe=filter_description)
+
+        self.assertIn('not_in_the_registry', report.to_markdown())
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'r.pdf'
+            report.save(str(path), format='pdf')
+            self.assertTrue(path.exists())
+
     def test_unknown_format_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ValueError):

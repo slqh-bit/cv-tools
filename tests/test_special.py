@@ -18,6 +18,7 @@ from cv_tools.filters import (
     compression_report,
     deblock,
     deconvolve_colors,
+    draw_area_measurement,
     draw_arrow,
     draw_measurement,
     draw_scale_bar,
@@ -445,6 +446,32 @@ class TestRedaction(unittest.TestCase):
         self.assertEqual(int(result[20:60, 20:80].max()), 0)
 
 
+class TestRedactionReproducibility(unittest.TestCase):
+    """A chain that cannot replay identically cannot back a report."""
+
+    def test_noise_redaction_is_reproducible_when_seeded(self):
+        image = textured(96, 128) if 'textured' in globals() else np.full(
+            (96, 128, 3), 128, np.uint8)
+        first = redact_region(image, 10, 10, 60, 40, method='noise', seed=7)
+        again = redact_region(image, 10, 10, 60, 40, method='noise', seed=7)
+        np.testing.assert_array_equal(first, again)
+
+    def test_noise_redaction_varies_without_a_seed(self):
+        # The default has to stay random: a fixed default would make every
+        # redaction in the world identical, which is worse
+        image = np.full((96, 128, 3), 128, np.uint8)
+        first = redact_region(image, 10, 10, 60, 40, method='noise')
+        again = redact_region(image, 10, 10, 60, 40, method='noise')
+        self.assertFalse(np.array_equal(first, again))
+
+    def test_a_seeded_redaction_still_destroys_the_region(self):
+        image = np.tile(np.arange(128, dtype=np.uint8), (96, 1))
+        image = np.stack([image] * 3, axis=2)
+        redacted = redact_region(image, 10, 10, 60, 40, method='noise', seed=7)
+        report = verify_redaction(image, redacted, [(10, 10, 60, 40)])
+        self.assertTrue(report['safe'])
+
+
 class TestAnnotate(unittest.TestCase):
 
     def setUp(self):
@@ -585,6 +612,153 @@ class TestAnnotate(unittest.TestCase):
         draw_text(self.image, 'x', (10, 10))
         draw_shape(self.image, 'rectangle', [(5, 5), (40, 40)])
         np.testing.assert_array_equal(self.image, before)
+
+    # ---- Flat coordinate lists ----
+    # A form field and a command line both hand over "x1,y1,x2,y2" as a run of
+    # numbers, so the same points arrive in two shapes and must mean one thing.
+
+    def test_flat_coordinates_match_pairs_for_a_shape(self):
+        flat = draw_shape(self.image, 'rectangle', [10, 10, 60, 50])
+        pairs = draw_shape(self.image, 'rectangle', [(10, 10), (60, 50)])
+        np.testing.assert_array_equal(flat, pairs)
+
+    def test_flat_coordinates_match_pairs_for_an_area(self):
+        flat = measure_area([0, 0, 100, 0, 100, 50, 0, 50])
+        pairs = measure_area([(0, 0), (100, 0), (100, 50), (0, 50)])
+        self.assertAlmostEqual(flat['pixel_area'], pairs['pixel_area'])
+        self.assertAlmostEqual(flat['pixel_area'], 5000.0)
+
+    def test_odd_flat_coordinate_count_raises(self):
+        with self.assertRaises(ValueError):
+            measure_area([0, 0, 100, 0, 100])
+
+    def test_a_non_pair_point_raises(self):
+        with self.assertRaises(ValueError):
+            draw_shape(self.image, 'polygon', [(1, 2), (3, 4, 5), (6, 7)])
+
+    # ---- Area measurement drawing ----
+
+    def test_draw_area_measurement_labels_in_square_units(self):
+        # 10 px reference called 20 mm -> 2 mm/px, so 100 px^2 is 400 mm^2
+        scale = Scale(pixels=10, units=20, unit_name='mm')
+        result = draw_area_measurement(
+            self.image, [(10, 10), (20, 10), (20, 20), (10, 20)], scale)
+        self.assertEqual(result.shape[:2], self.image.shape[:2])
+        self.assertFalse(np.array_equal(result, self.image))
+
+    def test_draw_area_measurement_without_scale(self):
+        result = draw_area_measurement(
+            self.image, [(10, 10), (60, 10), (60, 40)])
+        self.assertFalse(np.array_equal(result, self.image))
+
+    def test_draw_area_measurement_needs_three_points(self):
+        with self.assertRaises(ValueError):
+            draw_area_measurement(self.image, [(10, 10), (60, 10)])
+
+    def test_draw_area_measurement_does_not_modify_the_original(self):
+        before = self.image.copy()
+        draw_area_measurement(self.image, [(10, 10), (60, 10), (60, 40)])
+        np.testing.assert_array_equal(self.image, before)
+
+
+class MeasurementAdapterTests(unittest.TestCase):
+    """
+    The registry's flat-parameter wrappers around annotate.
+
+    A Scale cannot travel through JSON, so these take the two ends of a
+    reference of known length instead. The arithmetic is the point: a 100 px
+    reference called 520 mm makes 150 px read 780 mm, and these check that
+    rather than only that an image came back.
+    """
+
+    def setUp(self):
+        self.image = detailed(200, 300)
+
+    def test_calibration_from_a_reference_span(self):
+        from cv_tools.filters.registry import _calibration
+
+        scale = _calibration([100, 200], [200, 200], 520.0, 'mm')
+        self.assertAlmostEqual(scale.pixels, 100.0)
+        self.assertAlmostEqual(scale.convert(150), 780.0)
+        self.assertEqual(scale.unit_name, 'mm')
+
+    def test_no_reference_means_no_calibration(self):
+        from cv_tools.filters.registry import _calibration
+
+        self.assertIsNone(_calibration(None, None, None, 'mm'))
+
+    def test_half_a_calibration_raises(self):
+        from cv_tools.filters.registry import _calibration
+
+        with self.assertRaises(ValueError):
+            _calibration([0, 0], [10, 0], None, 'mm')
+        with self.assertRaises(ValueError):
+            _calibration([0, 0], None, 520.0, 'mm')
+
+    def test_measure_matches_the_underlying_dimension_line(self):
+        from cv_tools.filters.registry import measure
+
+        adapted = measure(self.image, [20, 60], [120, 60],
+                          reference_a=[20, 30], reference_b=[70, 30],
+                          reference_length=260.0)
+        direct = draw_measurement(self.image, [20, 60], [120, 60],
+                                  Scale(pixels=50, units=260, unit_name='mm'))
+        np.testing.assert_array_equal(adapted, direct)
+
+    def test_measure_without_a_reference_falls_back_to_pixels(self):
+        from cv_tools.filters.registry import measure
+
+        adapted = measure(self.image, [20, 60], [120, 60])
+        direct = draw_measurement(self.image, [20, 60], [120, 60])
+        np.testing.assert_array_equal(adapted, direct)
+
+    def test_measure_area_adapter_accepts_flat_coordinates(self):
+        from cv_tools.filters.registry import measure_area_annotated
+
+        flat = measure_area_annotated(self.image, [10, 10, 90, 10, 90, 60, 10, 60])
+        pairs = measure_area_annotated(
+            self.image, [[10, 10], [90, 10], [90, 60], [10, 60]])
+        np.testing.assert_array_equal(flat, pairs)
+
+    def test_scale_bar_adapter_matches_a_hand_built_scale(self):
+        from cv_tools.filters.registry import scale_bar
+
+        adapted = scale_bar(self.image, [20, 30], [120, 30], 520.0,
+                            length_units=260.0)
+        direct = draw_scale_bar(self.image,
+                                Scale(pixels=100, units=520, unit_name='mm'),
+                                length_units=260.0)
+        np.testing.assert_array_equal(adapted, direct)
+
+    def test_registered_under_the_expected_names(self):
+        from cv_tools.filters.registry import FILTER_REGISTRY
+
+        for name in ('measure', 'measure_area', 'scale_bar', 'arrow', 'text',
+                     'shape'):
+            with self.subTest(name=name):
+                self.assertIn(name, FILTER_REGISTRY)
+                self.assertEqual(FILTER_REGISTRY[name].category, 'Special')
+
+    def test_every_measurement_filter_has_a_click_plan(self):
+        from cv_tools.filters.registry import POINT_PARAMETERS
+
+        for name in ('measure', 'measure_area', 'scale_bar', 'arrow', 'text',
+                     'shape'):
+            with self.subTest(name=name):
+                self.assertIn(name, POINT_PARAMETERS)
+
+    def test_click_plans_name_real_parameters(self):
+        """A plan that names a parameter the filter lacks fills nothing."""
+        import inspect
+
+        from cv_tools.filters.registry import FILTER_REGISTRY, POINT_PARAMETERS
+
+        for name, plan in POINT_PARAMETERS.items():
+            spec = FILTER_REGISTRY[name]
+            accepted = set(inspect.signature(spec.fn).parameters)
+            for parameter, _count, _prompt in plan:
+                with self.subTest(filter=name, parameter=parameter):
+                    self.assertIn(parameter, accepted)
 
 
 if __name__ == '__main__':

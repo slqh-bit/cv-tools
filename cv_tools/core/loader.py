@@ -147,7 +147,16 @@ class ImageLoader:
         return self._load_image()
 
     def _load_raw(self) -> np.ndarray:
-        """Decode a camera raw file via rawpy."""
+        """
+        Decode a camera raw file via rawpy.
+
+        ``postprocess`` returns RGB, which is this pipeline's colour order, so
+        unlike the still and video paths nothing is converted here. That is
+        the one loader path with no test behind it - there is no raw file in
+        the repository to test against - so it rests on rawpy's documented
+        output rather than on a measurement. See tests/test_colour_pipeline.py
+        for the paths that are measured.
+        """
         try:
             import rawpy
         except ImportError:
@@ -413,6 +422,24 @@ class ImageLoader:
             cap.release()
             return count
         return int(self._video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    def get_video_fps(self) -> float:
+        """
+        Frame rate of a video, or 0.0 for a still.
+
+        ``metadata['fps']`` carries the same number but only once a frame has
+        been read, since that is when the video metadata is filled in. A caller
+        that needs the rate in order to decide what to read cannot wait for
+        that, so this reads it the way ``get_video_frame_count`` does.
+        """
+        if not self._is_video:
+            return 0.0
+        if self._video_capture is None:
+            cap = cv2.VideoCapture(str(self.path))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            cap.release()
+            return float(fps or 0.0)
+        return float(self._video_capture.get(cv2.CAP_PROP_FPS) or 0.0)
 
     def close(self) -> None:
         """Release video resources."""

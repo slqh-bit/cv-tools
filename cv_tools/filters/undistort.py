@@ -267,5 +267,18 @@ def undistort_with_file(
 
     Returns:
         Corrected image
+
+    Raises:
+        ValueError: If no calibration path was given
+        FileNotFoundError: If the path does not exist
     """
+    # A blank field in a generated form arrives here as None, and passing that
+    # to open() raises a TypeError about os.PathLike that says nothing about
+    # what the user actually has to do
+    if not calibration_path:
+        raise ValueError(
+            "undistort needs a calibration file. Produce one with "
+            "calibrate_from_chessboard() over photos of a chessboard taken "
+            "on this camera, then save it with save_calibration().")
+
     return undistort(image, load_calibration(calibration_path), alpha=alpha, crop=crop)

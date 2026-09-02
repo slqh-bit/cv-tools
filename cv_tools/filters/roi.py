@@ -91,31 +91,95 @@ def extract_roi(image: np.ndarray, roi: ROI) -> np.ndarray:
     return image[roi.y:roi.y2, roi.x:roi.x2].copy()
 
 
+def feather_mask(height: int, width: int, feather: int) -> np.ndarray:
+    """
+    Build a blend weight that is 1 in the middle and falls to 0 at the border.
+
+    Args:
+        height: Region height
+        width: Region width
+        feather: Width of the ramp in pixels, clamped so the two ramps of an
+            edge pair cannot meet in the middle
+
+    Returns:
+        Float32 array of shape (height, width) with values in [0, 1]
+    """
+    weight = np.ones((height, width), dtype=np.float32)
+    feather = min(int(feather), (min(height, width) - 1) // 2)
+    if feather <= 0:
+        return weight
+
+    ramp = (np.arange(1, feather + 1, dtype=np.float32)) / (feather + 1)
+    for length, axis in ((height, 0), (width, 1)):
+        edge = np.ones(length, dtype=np.float32)
+        edge[:feather] = ramp
+        edge[length - feather:] = ramp[::-1]
+        weight = np.minimum(weight, edge[:, None] if axis == 0 else edge[None, :])
+
+    return weight
+
+
 def apply_to_roi(
     image: np.ndarray,
     roi: ROI,
     filter_fn,
     *args,
+    feather: int = 8,
     **kwargs
 ) -> np.ndarray:
     """
     Apply a filter function only to the ROI region, leaving the rest unchanged.
 
+    This is the selective filtering an exhibit calls for: the enhancement goes
+    on the part that carries the question - the plate, the face, the hand - and
+    the rest is left as it was, because the rest is not what is being shown.
+
+    The transition is ramped rather than cut. A visible seam around an enhanced
+    region is a question at the hearing, and answering it costs more than the
+    enhancement gained. Pass ``feather=0`` for the hard edge.
+
     Args:
         image: Source image
         roi: Region to process
         filter_fn: Function that takes (image, *args, **kwargs) and returns processed image
+        feather: Width in pixels of the blend ramp inside the region's border.
+            Clamped to the region, so a small ROI gets a proportionate ramp.
+            Keyword-only, so it cannot collide with a filter's own arguments.
         *args, **kwargs: Arguments passed to filter_fn
 
     Returns:
         Image with filter applied only within ROI
+
+    Raises:
+        ValueError: If filter_fn returns a region of a different shape, which
+            no amount of blending can put back where it came from
     """
     roi = roi.clip(image.shape)
     region = extract_roi(image, roi)
     processed_region = filter_fn(region, *args, **kwargs)
 
+    if processed_region.shape != region.shape:
+        raise ValueError(
+            f"filter changed the region from {region.shape} to "
+            f"{processed_region.shape}; a filter applied to an ROI has to give "
+            f"back the same region, so resizing and cropping cannot be used here")
+
     result = image.copy()
-    result[roi.y:roi.y2, roi.x:roi.x2] = processed_region
+    weight = feather_mask(roi.height, roi.width, feather)
+
+    if np.all(weight >= 1.0):
+        result[roi.y:roi.y2, roi.x:roi.x2] = processed_region
+        return result
+
+    if region.ndim == 3:
+        weight = weight[:, :, None]
+
+    blended = processed_region * weight + region * (1.0 - weight)
+    if np.issubdtype(image.dtype, np.integer):
+        info = np.iinfo(image.dtype)
+        blended = np.clip(np.rint(blended), info.min, info.max)
+
+    result[roi.y:roi.y2, roi.x:roi.x2] = blended.astype(image.dtype)
     return result
 
 

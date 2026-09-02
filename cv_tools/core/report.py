@@ -10,7 +10,7 @@ import json
 import hashlib
 import textwrap
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from datetime import datetime
 
 import numpy as np
@@ -34,9 +34,69 @@ _STYLES = {
 class ReportGenerator:
     """Generate scientific reports of image processing chains."""
 
-    def __init__(self, pipeline_report: Dict[str, Any], source_metadata: Dict[str, Any]):
+    def __init__(
+        self,
+        pipeline_report: Dict[str, Any],
+        source_metadata: Dict[str, Any],
+        describe: Optional[Callable[[str], str]] = None,
+    ):
+        """
+        Args:
+            pipeline_report: As returned by ``core.pipeline.Pipeline.generate_report``
+            source_metadata: Loader metadata for the source file
+            describe: Maps a step's ``name`` to a plain-language description of
+                what the filter does. A report is read by someone who is not an
+                image analyst, so a name and a parameter list do not tell them
+                what was done. This module cannot look descriptions up itself -
+                that would make ``core`` depend on the filters package it sits
+                underneath - so the caller supplies a resolver, exactly as
+                ``Pipeline.replace_chain`` takes one.
+                ``filters.registry.filter_description`` is one for every
+                registered filter. Omit it and the reports read as before.
+        """
         self.pipeline_report = pipeline_report
         self.source_metadata = source_metadata
+        self.describe = describe
+
+    def _description(self, step: Dict[str, Any]) -> str:
+        """Return the description for a step, or '' if there is none to give."""
+        if self.describe is None:
+            return ''
+        return self.describe(step['name']) or ''
+
+    def _alignment(self) -> Optional[Dict[str, Any]]:
+        """The frame-alignment record, if the source was a stabilised stack."""
+        alignment = self.source_metadata.get('alignment')
+        return alignment if isinstance(alignment, dict) else None
+
+    def _alignment_summary(self) -> str:
+        """One sentence on what the alignment did."""
+        alignment = self._alignment() or {}
+        return (
+            f"Aligned {alignment.get('aligned', 0)} of "
+            f"{alignment.get('frames', 0)} frames with the "
+            f"{alignment.get('model', '?')} motion model. Largest motion "
+            f"{alignment.get('max_shift_pixels', 0)} px, mean confidence "
+            f"{alignment.get('mean_confidence', 0):.2f}."
+        )
+
+    def _alignment_rows(self) -> List[Tuple[str, str, str, str, str]]:
+        """Per-frame alignment as (frame, method, confidence, shift, note)."""
+        alignment = self._alignment()
+        if alignment is None:
+            return []
+
+        rows = []
+        for record in alignment.get('per_frame', []):
+            shift = record.get('shift', [0, 0])
+            rows.append((
+                str(record.get('index', '?')),
+                str(record.get('method', '?')),
+                f"{record.get('confidence', 0):.3f}",
+                f"{shift[0]:+.2f}, {shift[1]:+.2f}",
+                str(record.get('note', '')),
+            ))
+        return rows
 
     def to_dict(self) -> Dict[str, Any]:
         """Return full report as dictionary."""
@@ -59,7 +119,28 @@ class ReportGenerator:
         ]
 
         for key, value in self.source_metadata.items():
+            # Rendered as its own section below: dumped inline it is a wall of
+            # matrices, and this is a document someone has to read
+            if key == 'alignment' and self._alignment() is not None:
+                continue
             lines.append(f"- **{key}:** {value}")
+
+        if self._alignment() is not None:
+            lines.extend([
+                "",
+                "## Frame Alignment",
+                "",
+                self._alignment_summary(),
+                "",
+                "A frame that could not be matched is left out rather than "
+                "warped on a guess.",
+                "",
+                "| Frame | Method | Confidence | Shift (x, y) | Note |",
+                "|---|---|---|---|---|",
+            ])
+            for frame, method, confidence, shift, note in self._alignment_rows():
+                lines.append(
+                    f"| {frame} | {method} | {confidence} | {shift} | {note} |")
 
         lines.extend([
             "",
@@ -70,8 +151,11 @@ class ReportGenerator:
         ])
 
         for i, step in enumerate(self.pipeline_report.get('filters', []), 1):
+            lines.append(f"### Step {i}: {step['name']}")
+            description = self._description(step)
+            if description:
+                lines.extend([description, ""])
             lines.extend([
-                f"### Step {i}: {step['name']}",
                 f"- **Module:** `{step['module']}`",
                 f"- **Timestamp:** {step['timestamp']}",
                 "- **Parameters:**",
@@ -107,6 +191,8 @@ class ReportGenerator:
         ]
 
         for key, value in self.source_metadata.items():
+            if key == 'alignment' and self._alignment() is not None:
+                continue        # its own section below
             if key == 'exif' and isinstance(value, dict):
                 lines.append(('exif:', 'body'))
                 for tag, tag_value in value.items():
@@ -119,6 +205,20 @@ class ReportGenerator:
             else:
                 lines.append((f"{key}: {value}", 'body'))
 
+        if self._alignment() is not None:
+            lines.extend([
+                ('', 'spacer'),
+                ('Frame Alignment', 'heading'),
+                (self._alignment_summary(), 'body'),
+                ('A frame that could not be matched is left out rather than '
+                 'warped on a guess.', 'body'),
+                (f"{'frame':>5}  {'method':<14}{'conf':>6}  "
+                 f"{'shift (x, y)':<16}note", 'mono'),
+            ])
+            for frame, method, confidence, shift, note in self._alignment_rows():
+                lines.append((f"{frame:>5}  {method:<14}{confidence:>6}  "
+                              f"{shift:<16}{note}", 'mono'))
+
         lines.extend([
             ('', 'spacer'),
             ('Processing Chain', 'heading'),
@@ -128,6 +228,9 @@ class ReportGenerator:
 
         for index, step in enumerate(self.pipeline_report.get('filters', []), 1):
             lines.append((f"Step {index}: {step['name']}", 'heading'))
+            description = self._description(step)
+            if description:
+                lines.append((description, 'body'))
             lines.append((f"Module: {step['module']}", 'body'))
             lines.append((f"Timestamp: {step['timestamp']}", 'body'))
             params = step.get('params', {})

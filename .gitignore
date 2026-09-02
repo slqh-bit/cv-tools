@@ -3,12 +3,18 @@ __pycache__/
 *.pyc
 .tools/
 
+# Validation campaign: the corpus is built from footage outside the repository
+# and is not redistributable, and its artefacts are regenerated per run.
+validation/artifacts/
+validation/corpus/
+validation/summary-partial.json
+
 # Artefacts of reproducing the CI steps locally (.github/workflows/tests.yml)
 requirements-ci.txt
 gallery-ci/
+validation-ci.md
 
 # Build artefacts
 build/
 dist/
 *.egg-info/
-validation-ci.md

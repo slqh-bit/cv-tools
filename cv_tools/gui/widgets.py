@@ -2,9 +2,10 @@
 Reusable widgets for the cv-tools GUI.
 
 ``ImageCanvas`` displays a processed image alongside its original, including
-the split view forensic work relies on. ``ParameterPanel`` builds its controls
-by introspecting a filter's signature, so every registered filter gets a usable
-parameter form without one being written by hand.
+the split view forensic work relies on, and reports the region dragged out on
+it. ``ParameterPanel`` builds its controls by introspecting a filter's
+signature, so every registered filter gets a usable parameter form without one
+being written by hand, and fills a dragged region into it.
 """
 
 import inspect
@@ -16,7 +17,9 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+from ..utils.compare import difference_map
 from ..utils.parsing import parse_value
+from .theme import DARK, FONT_BOLD
 
 # Parameter presentation metadata lives in utils, shared with the Streamlit
 # dashboard, which cannot import this module because it imports tkinter.
@@ -25,10 +28,38 @@ from ..utils.params import (          # noqa: F401
     CHOICES,
     SLIDER_RANGES,
     _dynamic_choices,
+    choices_for,
     to_display,
 )
 
-VIEW_MODES = ('processed', 'original', 'split', 'side by side')
+VIEW_MODES = ('processed', 'original', 'split', 'side by side', 'difference')
+
+# The rubber band drawn while dragging a region out of the image, and the
+# smallest drag that counts as one rather than as a click
+SELECTION_COLOR = '#ffc832'
+MIN_REGION = 4
+
+# Picked points are drawn on the canvas, so they need a colour that survives
+# both a dark frame and a blown-out window
+PICK_COLOR = '#4dd2ff'
+PICK_RADIUS = 6
+
+
+def side_by_side(original: np.ndarray, processed: np.ndarray, gap: int = 8) -> np.ndarray:
+    """Pad both images onto a common canvas and place them side by side."""
+    original = to_display(original)
+    processed = to_display(processed)
+
+    height = max(original.shape[0], processed.shape[0])
+    width = max(original.shape[1], processed.shape[1])
+
+    def padded(img: np.ndarray) -> np.ndarray:
+        canvas = np.zeros((height, width, 3), dtype=np.uint8)
+        canvas[:img.shape[0], :img.shape[1]] = img
+        return canvas
+
+    divider = np.full((height, gap, 3), 40, dtype=np.uint8)
+    return np.hstack([padded(original), divider, padded(processed)])
 
 
 class ImageCanvas(ttk.Frame):
@@ -40,9 +71,10 @@ class ImageCanvas(ttk.Frame):
     compares far better across an edge than across a gap.
     """
 
-    def __init__(self, master, **kwargs):
+    def __init__(self, master, palette: Optional[Dict[str, str]] = None, **kwargs):
         super().__init__(master, **kwargs)
 
+        self.palette = palette or DARK
         self._original: Optional[np.ndarray] = None
         self._processed: Optional[np.ndarray] = None
         self._photo: Optional[ImageTk.PhotoImage] = None
@@ -52,8 +84,15 @@ class ImageCanvas(ttk.Frame):
         self.fit_to_window = True
         self._split = 0.5
         self._dragging_split = False
+        self._display_size = (1, 1)
+        self._region_start = None
+        self._region_item = None
+        # Point picking: the labels still to be collected, and what has been
+        # collected so far. Empty means ordinary click-and-drag behaviour.
+        self._pick_queue = []
+        self._picked = []
 
-        self.canvas = tk.Canvas(self, bg='#1e1e20', highlightthickness=0,
+        self.canvas = tk.Canvas(self, bg=self.palette['canvas'], highlightthickness=0,
                                 cursor='crosshair')
         x_scroll = ttk.Scrollbar(self, orient='horizontal', command=self.canvas.xview)
         y_scroll = ttk.Scrollbar(self, orient='vertical', command=self.canvas.yview)
@@ -69,8 +108,22 @@ class ImageCanvas(ttk.Frame):
         self.canvas.bind('<Button-1>', self._on_press)
         self.canvas.bind('<B1-Motion>', self._on_drag)
         self.canvas.bind('<ButtonRelease-1>', self._on_release)
+        # Ctrl+wheel zooms, plain wheel scrolls - the convention every image
+        # viewer uses, and the only way to zoom without leaving the image
+        self.canvas.bind('<Control-MouseWheel>', self._on_wheel_zoom)
+        self.canvas.bind('<MouseWheel>', self._on_wheel_scroll)
+        self.canvas.bind('<Shift-MouseWheel>', self._on_wheel_pan)
 
         self.on_pixel: Optional[Callable[[int, int], None]] = None
+        self.on_zoom: Optional[Callable[[float], None]] = None
+        self.on_region: Optional[Callable[[int, int, int, int], None]] = None
+        # Called with (label, remaining) after each pick, and with the full
+        # list of (x, y) once the queue empties
+        self.on_pick_progress: Optional[Callable[[str, int], None]] = None
+        self.on_picks_complete: Optional[Callable[[List[Tuple[int, int]]], None]] = None
+        # Peak, mean and scale of the last difference view drawn, so the
+        # status bar can quote numbers the picture cannot carry
+        self.difference_stats: Optional[Dict[str, float]] = None
 
     # ---- content ----
 
@@ -122,9 +175,14 @@ class ImageCanvas(ttk.Frame):
 
         left, right = padded(original), padded(processed)
 
+        if mode == 'difference':
+            # The map carries its own scale factor and true peak, so the view
+            # cannot be read as showing more change than there was
+            composite, self.difference_stats = difference_map(left, right)
+            return composite
+
         if mode == 'side by side':
-            gap = np.full((height, 8, 3), 40, dtype=np.uint8)
-            return np.hstack([left, gap, right])
+            return side_by_side(left, right)
 
         # split
         divider = int(np.clip(self._split, 0.0, 1.0) * width)
@@ -143,7 +201,7 @@ class ImageCanvas(ttk.Frame):
                 self.canvas.winfo_width() // 2 or 200,
                 self.canvas.winfo_height() // 2 or 150,
                 text='Open an image to begin  (Ctrl+O)',
-                fill='#8a8a90', font=('Segoe UI', 11),
+                fill=self.palette['muted'], font=('Segoe UI', 11),
             )
             return
 
@@ -165,11 +223,81 @@ class ImageCanvas(ttk.Frame):
         self._photo = ImageTk.PhotoImage(Image.fromarray(scaled))
         self.canvas.create_image(0, 0, anchor='nw', image=self._photo)
         self.canvas.configure(scrollregion=(0, 0, display_w, display_h))
+        self._display_size = (display_w, display_h)
+
+        if self.on_zoom is not None:
+            self.on_zoom(self.zoom)
+
+        self._draw_picks()
 
         if self.mode.get() in ('split', 'side by side'):
             for text, x in (('ORIGINAL', 8), ('PROCESSED', display_w // 2 + 8)):
+                # Drawn on the image, so these stay white in either theme
+                self.canvas.create_text(x + 1, 9, text=text, anchor='nw',
+                                        fill='#000000', font=FONT_BOLD)
                 self.canvas.create_text(x, 8, text=text, anchor='nw',
-                                        fill='#ffffff', font=('Segoe UI', 9, 'bold'))
+                                        fill='#ffffff', font=FONT_BOLD)
+
+    # ---- point picking ----
+
+    @property
+    def picking(self) -> bool:
+        """Whether clicks are currently collecting points rather than dragging."""
+        return bool(self._pick_queue)
+
+    def start_picking(self, labels: List[str]) -> None:
+        """
+        Collect one point per label, in order, from clicks on the image.
+
+        Typing four corner coordinates read off a hover readout is the slowest
+        thing this window asks of anyone, and the numbers are on the image
+        already. The labels drive the prompt so the user is told which point
+        is wanted next rather than having to remember the order.
+        """
+        self._pick_queue = list(labels)
+        self._picked = []
+        self.canvas.configure(cursor='tcross')
+        self.redraw()
+        if self.on_pick_progress is not None and self._pick_queue:
+            self.on_pick_progress(self._pick_queue[0], len(self._pick_queue))
+
+    def cancel_picking(self) -> None:
+        """Abandon a pick in progress, keeping nothing."""
+        self._pick_queue = []
+        self._picked = []
+        self.canvas.configure(cursor='crosshair')
+        self.redraw()
+
+    def _record_pick(self, x: int, y: int) -> None:
+        """Take one point, and finish if it was the last one wanted."""
+        self._picked.append((x, y))
+        self._pick_queue.pop(0)
+        self.redraw()
+
+        if self._pick_queue:
+            if self.on_pick_progress is not None:
+                self.on_pick_progress(self._pick_queue[0], len(self._pick_queue))
+            return
+
+        picked = list(self._picked)
+        self.cancel_picking()
+        if self.on_picks_complete is not None:
+            self.on_picks_complete(picked)
+
+    def _draw_picks(self) -> None:
+        """Mark what has been picked, so the user can see it before applying."""
+        for index, (x, y) in enumerate(self._picked, start=1):
+            cx, cy = x * self.zoom, y * self.zoom
+            self.canvas.create_line(cx - PICK_RADIUS, cy, cx + PICK_RADIUS, cy,
+                                    fill=PICK_COLOR, width=1)
+            self.canvas.create_line(cx, cy - PICK_RADIUS, cx, cy + PICK_RADIUS,
+                                    fill=PICK_COLOR, width=1)
+            self.canvas.create_oval(cx - PICK_RADIUS, cy - PICK_RADIUS,
+                                    cx + PICK_RADIUS, cy + PICK_RADIUS,
+                                    outline=PICK_COLOR)
+            self.canvas.create_text(cx + PICK_RADIUS + 3, cy - PICK_RADIUS - 3,
+                                    text=str(index), anchor='nw',
+                                    fill=PICK_COLOR, font=FONT_BOLD)
 
     # ---- interaction ----
 
@@ -179,26 +307,133 @@ class ImageCanvas(ttk.Frame):
         return x, y
 
     def _on_press(self, event) -> None:
+        if self.picking:
+            if self._processed is not None:
+                x, y = self._to_image_coords(event)
+                height, width = self._processed.shape[:2]
+                self._record_pick(max(0, min(x, width - 1)),
+                                  max(0, min(y, height - 1)))
+            return
+
         if self.mode.get() == 'split':
             self._dragging_split = True
             self._on_drag(event)
             return
-        if self.on_pixel is not None and self._processed is not None:
-            x, y = self._to_image_coords(event)
+
+        if self._processed is None:
+            return
+
+        x, y = self._to_image_coords(event)
+        if self.on_pixel is not None:
             self.on_pixel(x, y)
+        if self._can_select_region():
+            self._region_start = (x, y)
 
     def _on_drag(self, event) -> None:
-        if not self._dragging_split or self._processed is None:
+        if self._dragging_split:
+            if self._processed is None:
+                return
+            composite = self._compose()
+            if composite is None:
+                return
+            width = composite.shape[1] * self.zoom
+            self._split = float(
+                np.clip(self.canvas.canvasx(event.x) / max(width, 1e-6), 0, 1))
+            self.redraw()
             return
-        composite = self._compose()
-        if composite is None:
-            return
-        width = composite.shape[1] * self.zoom
-        self._split = float(np.clip(self.canvas.canvasx(event.x) / max(width, 1e-6), 0, 1))
-        self.redraw()
 
-    def _on_release(self, _event) -> None:
+        if self._region_start is None:
+            return
+
+        # A rubber band drawn on the canvas rather than into the image: the
+        # pixels under it have to stay exactly as the filter will see them
+        start_x, start_y = self._region_start
+        current_x, current_y = self._to_image_coords(event)
+        box = (start_x * self.zoom, start_y * self.zoom,
+               current_x * self.zoom, current_y * self.zoom)
+
+        if self._region_item is None:
+            self._region_item = self.canvas.create_rectangle(
+                *box, outline=SELECTION_COLOR, width=1, dash=(4, 3))
+        else:
+            self.canvas.coords(self._region_item, *box)
+
+    def _on_release(self, event) -> None:
         self._dragging_split = False
+
+        if self._region_item is not None:
+            self.canvas.delete(self._region_item)
+            self._region_item = None
+
+        start, self._region_start = self._region_start, None
+        if start is None or self._processed is None:
+            return
+
+        region = self._region_between(start, self._to_image_coords(event))
+        if region is not None and self.on_region is not None:
+            self.on_region(*region)
+
+    def _can_select_region(self) -> bool:
+        """
+        Whether a drag maps onto one image.
+
+        Side by side puts two frames on the canvas, so a point past the
+        midpoint means something different from the same point before it;
+        split already spends the drag on its divider.
+
+        Difference is included on purpose. It is drawn on the processed
+        frame's own grid, so a drag maps straight through - and seeing where a
+        filter actually acted and then dragging that region out is the whole
+        point of having the view next to roi_filter.
+        """
+        return self.mode.get() in ('processed', 'original', 'difference')
+
+    def _region_between(self, start, end) -> Optional[Tuple[int, int, int, int]]:
+        """
+        The dragged rectangle as x, y, width, height in image pixels.
+
+        None for a drag too small to be one: a click that wanders a pixel is a
+        click, and a region that thin is no use to the filters that take one.
+        """
+        image = self._processed
+        if image is None:
+            return None
+
+        height, width = image.shape[:2]
+        x1, x2 = sorted((start[0], end[0]))
+        y1, y2 = sorted((start[1], end[1]))
+
+        # Clamped to the image: the canvas is usually larger than the frame
+        # drawn on it, and a drag that overshoots should stop at the edge
+        x1, x2 = max(0, min(x1, width - 1)), max(0, min(x2, width))
+        y1, y2 = max(0, min(y1, height - 1)), max(0, min(y2, height))
+
+        if x2 - x1 < MIN_REGION or y2 - y1 < MIN_REGION:
+            return None
+        return x1, y1, x2 - x1, y2 - y1
+
+    def _on_wheel_zoom(self, event) -> None:
+        """Zoom about the pointer, so the pixel under it stays put."""
+        if self._processed is None:
+            return
+        before_x = self.canvas.canvasx(event.x) / max(self.zoom, 1e-6)
+        before_y = self.canvas.canvasy(event.y) / max(self.zoom, 1e-6)
+
+        step = 1.25 if event.delta > 0 else 1 / 1.25
+        self.set_zoom(self.zoom * step)
+
+        display_w, display_h = self._display_size
+        self.canvas.xview_moveto(
+            max(0.0, before_x * self.zoom - event.x) / max(display_w, 1))
+        self.canvas.yview_moveto(
+            max(0.0, before_y * self.zoom - event.y) / max(display_h, 1))
+
+    def _on_wheel_scroll(self, event) -> None:
+        self.canvas.yview_scroll(-1 if event.delta > 0 else 1, 'units')
+
+    def _on_wheel_pan(self, event) -> None:
+        self.canvas.xview_scroll(-1 if event.delta > 0 else 1, 'units')
+
 
 
 class ParameterPanel(ttk.Frame):
@@ -209,14 +444,56 @@ class ParameterPanel(ttk.Frame):
     a usable panel, and a filter added later needs no GUI work at all.
     """
 
-    def __init__(self, master, on_change: Optional[Callable[[], None]] = None, **kwargs):
+    def __init__(self, master, on_change: Optional[Callable[[], None]] = None,
+                 palette: Optional[Dict[str, str]] = None, **kwargs):
         super().__init__(master, **kwargs)
         self._on_change = on_change
         self._entries: Dict[str, Dict[str, Any]] = {}
-        self._choices = dict(CHOICES)
-        self._choices.update(_dynamic_choices())
+        self._choices: Dict[str, List[str]] = dict(CHOICES)
         self._body: Optional[ttk.Frame] = None
+        self.palette = palette or DARK
+
+        # Scrolled, because the forms are generated: measure_3d has fourteen
+        # parameters and undistort's is longer still. Without this the tail of
+        # a long form is simply unreachable, and so is anything packed below
+        # the panel.
+        self._canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0,
+                                 background=self.palette['panel'])
+        self._scroll = ttk.Scrollbar(self, orient='vertical',
+                                     command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=self._scroll.set)
+
+        self._canvas.grid(row=0, column=0, sticky='nsew')
+        self._scroll.grid(row=0, column=1, sticky='ns')
+        self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
+
+        self._holder = ttk.Frame(self._canvas)
+        self._window = self._canvas.create_window((0, 0), window=self._holder,
+                                                  anchor='nw')
+        self._holder.bind('<Configure>', self._on_holder_resize)
+        self._canvas.bind('<Configure>', self._on_canvas_resize)
+        self._canvas.bind('<MouseWheel>', self._on_wheel)
+
+    def _on_holder_resize(self, _event=None) -> None:
+        self._canvas.configure(scrollregion=self._canvas.bbox('all'))
+
+    def _on_canvas_resize(self, event) -> None:
+        # The form tracks the canvas width, so entries fill it rather than
+        # keeping whatever width their contents asked for
+        self._canvas.itemconfigure(self._window, width=event.width)
+
+    def _on_wheel(self, event) -> None:
+        if self._canvas.bbox('all') is None:
+            return
+        _, top, _, bottom = self._canvas.bbox('all')
+        if bottom - top > self._canvas.winfo_height():
+            self._canvas.yview_scroll(-1 if event.delta > 0 else 1, 'units')
+
+    def set_palette(self, palette: Dict[str, str]) -> None:
+        """Follow a theme change; ttk cannot reach the scrolling canvas."""
+        self.palette = palette
+        self._canvas.configure(background=palette['panel'])
 
     def clear(self) -> None:
         """Remove every control."""
@@ -235,17 +512,27 @@ class ParameterPanel(ttk.Frame):
         """
         self.clear()
         values = values or {}
+        # Narrowed per filter, so the list never offers a value this one
+        # rejects
+        self._choices = choices_for(spec)
 
-        self._body = ttk.Frame(self)
+        self._body = ttk.Frame(self._holder)
         self._body.grid(row=0, column=0, sticky='nsew')
         self._body.columnconfigure(1, weight=1)
+        self._holder.columnconfigure(0, weight=1)
+        self._canvas.yview_moveto(0.0)
 
         ttk.Label(self._body, text=spec.description, wraplength=250,
-                  foreground='#4a4a52').grid(row=0, column=0, columnspan=2,
+                  style='Muted.TLabel').grid(row=0, column=0, columnspan=2,
                                              sticky='w', pady=(0, 8))
 
         signature = inspect.signature(spec.fn)
         parameters = list(signature.parameters.values())[1:]   # skip `image`
+
+        # An analysis spec can name parameters the form should not offer, such
+        # as the source path, which comes from the loaded file
+        skip = set(getattr(spec, 'skip_params', ()))
+        parameters = [p for p in parameters if p.name not in skip]
 
         if not parameters:
             ttk.Label(self._body, text='No parameters.').grid(
@@ -307,7 +594,7 @@ class ParameterPanel(ttk.Frame):
             scale.bind('<ButtonRelease-1>', lambda _e: self._changed())
 
             self._entries[name] = {'kind': 'int' if is_integer else 'float',
-                                   'var': variable}
+                                   'var': variable, 'readout': update_readout}
             return
 
         # Anything else - tuples, paths, unranged numbers, optional values
@@ -321,6 +608,51 @@ class ParameterPanel(ttk.Frame):
         entry.bind('<Return>', lambda _e: self._changed())
         entry.bind('<FocusOut>', lambda _e: self._changed())
         self._entries[name] = {'kind': 'text', 'var': variable, 'required': required}
+
+    def set_values(self, values: Dict[str, Any]) -> List[str]:
+        """
+        Fill any controls whose parameter names match, ignoring the rest.
+
+        This is how a region dragged on the image reaches the form: x, y,
+        width and height are the same four names on crop, roi_crop, roi_draw,
+        roi_filter, redact and white_balance_patch, so nothing here has to know which
+        filter is selected.
+
+        Args:
+            values: Parameter name to value
+
+        Returns:
+            The names that were filled, in the order given
+        """
+        filled = []
+        for name, value in values.items():
+            entry = self._entries.get(name)
+            if entry is None:
+                continue
+
+            if entry['kind'] == 'bool':
+                entry['var'].set(bool(value))
+            elif entry['kind'] in ('int', 'float'):
+                entry['var'].set(float(value))
+            elif isinstance(value, (tuple, list)):
+                # Flattened and comma-joined, which is how the entry parses
+                # back: str([[1, 2]]) would not survive the round trip
+                flat = []
+                for item in value:
+                    flat.extend(item if isinstance(item, (tuple, list)) else [item])
+                entry['var'].set(','.join(str(v) for v in flat))
+            else:
+                entry['var'].set(str(value))
+
+            # A slider's number beside it is redrawn by its own command, which
+            # setting the variable from here does not run
+            if 'readout' in entry:
+                entry['readout']()
+            filled.append(name)
+
+        if filled:
+            self._changed()
+        return filled
 
     def _changed(self) -> None:
         if self._on_change is not None:

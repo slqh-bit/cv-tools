@@ -1,0 +1,10 @@
+# Extra packages the validation campaign needs, on top of requirements.txt.
+# None of these are needed to run cv-tools itself - they are the independent
+# implementations the differential checks compare against, so that at least
+# some assertions in this suite come from code nobody here wrote.
+#
+#   pip install -r requirements.txt -r validation/requirements-validation.txt
+
+# scipy and scikit-image are already in requirements.txt; skimage's noise
+# estimator additionally needs PyWavelets, which the toolkit itself does not
+PyWavelets>=1.4

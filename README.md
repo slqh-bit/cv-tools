@@ -7,10 +7,6 @@ A modular Python image processing toolkit inspired by Amped FIVE forensic image 
 Filters are applied as an **ordered chain**, every step is recorded, and the chain can be
 exported as a JSON preset or a forensic-style processing report.
 
-67 registered filters across six families, reachable three ways over one engine: a
-[command line](#cli-usage), a [Tkinter GUI](#gui), and a [web dashboard](#web-dashboard).
-A preset saved in any of them replays in the other two.
-
 ## Filters
 
 **Sprint 1 — Adjust & Correct**
@@ -143,7 +139,7 @@ ghost detection), and a 24-frame video of a static scene with one moving object.
 
 ## CLI Usage
 
-Filters apply **in the order written on the command line**.
+Run from the project root. Filters apply **in the order written on the command line**.
 
 ```bash
 # CLAHE enhancement
@@ -253,6 +249,25 @@ Measuring needs a scale, and a scale is valid only for the plane it was measured
 Correct perspective first — a calibration taken on the ground says nothing about a sign
 further from the camera.
 
+Calibrate from the two ends of something whose length you know — an EU number plate is
+520 mm wide — and every measurement in the chain uses it:
+
+```bash
+# Distance (1D) and area (2D), both against the same reference
+cv-tools plate.jpg \
+    --scale-ref 100,200,340,200 --scale-length 520 --scale-unit mm \
+    --measure 40,300,290,300 \
+    --measure-area 40,320,290,320,290,400,40,400 -o measured.jpg
+
+# A calibrated scale bar, so a reader can judge sizes without a caption
+cv-tools plate.jpg --scale-ref 100,200,340,200 --scale-length 520 \
+    --scale-bar 200 --scale-bar-position bottom_left -o with_bar.jpg
+```
+
+Omit the calibration and the label reads in pixels. Give it in part and the command is
+rejected rather than guessed at. **Area converts by the square of the linear scale**, so a
+calibration 5% out makes an area about 10% out.
+
 ```python
 from cv_tools.filters import Scale, scale_from_reference, measure_distance, draw_measurement
 
@@ -262,6 +277,23 @@ scale = scale_from_reference((100, 200), (340, 200), 520, 'mm')   # EU plate wid
 measure_distance((100, 200), (220, 260), scale)['distance']
 marked = draw_measurement(flat, (100, 200), (220, 260), scale)
 ```
+
+### Annotation
+
+Arrows, labels and shapes point a reader at something without claiming anything about it.
+They are ordinary chain steps, so they land in the preset and the processing report —
+which is what makes an annotated exhibit reproducible.
+
+```bash
+cv-tools scene.jpg \
+    --arrow start=400,300 end=280,210 label=plate \
+    --text text=Exhibit_A position=20,40 \
+    --shape shape=rectangle points=260,190,340,240 -o figure.jpg
+```
+
+In both front ends these are click-driven: pick the filter, press *Pick points*, and the
+viewer names each point as it asks for it — "one end of what you are measuring", then "one
+end of something of KNOWN length".
 
 ### Measuring height (3D)
 
@@ -369,6 +401,84 @@ cv-tools clip.avi --frames 20 --frame-method sharpest -o sharpest.png
 cv-tools clip.avi --frames 12 --frame-step 5 --frame-method median -o bg.png
 ```
 
+**Every one of those assumes the frames line up, and none of them can tell that they
+don't** — a moving camera just returns something softer. `--stabilise` aligns the stack
+first. On a shaky sequence it is worth about **6 dB** over averaging the frames as they came,
+which is the difference between a smeared plate and a legible one:
+
+```bash
+# Handheld: rotation as well as shake
+cv-tools handheld.mp4 --frames 24 --stabilise -o clean.png
+
+# A locked-off camera on a shaky mount needs no more than translation
+cv-tools cctv.avi --frames 24 --stabilise translation -o clean.png
+
+# A pan across a flat scene
+cv-tools ptz.mp4 --frames 16 --stabilise homography -o clean.png
+```
+
+Pick the least freedom the camera actually had — a model with more will happily fit noise.
+The result is cropped to the area every frame covers, because the border is data the
+sequence does not have. A frame that cannot be matched is **left out rather than warped on a
+guess**: a misaligned frame in an average is exactly the blur stabilising exists to prevent,
+and it would be invisible in the result. `--report` records the per-frame confidence and
+motion, so which frames were used is on the record.
+
+### Multi-frame super-resolution
+
+Where averaging uses several frames to cancel noise, `superres` uses their *sub-pixel*
+offsets to reconstruct detail no single frame recorded:
+
+```bash
+cv-tools clip.avi --frames 12 --frame-method superres --sr-scale 2 -o plate.png
+```
+
+Measured against ground truth on frames sampling the half-pixel grid, this beats bicubic
+interpolation of one frame by **about 1.4 dB**. That gain is not automatic: it depends on the
+frames actually sampling *between* each other's pixels. Where the motion is large and random
+the gain measured **near zero** — no worse than an upscale, but no better either. cv-tools
+measures the sequence and says so before reconstructing:
+
+```
+warning: these 8 frames carry little sub-pixel motion (1 of 8 within range have any),
+so the result may be no better than --upscale. Compare the two before relying on it.
+```
+
+> **`--stabilise` and `superres` work against each other.** Aligning to sub-pixel accuracy
+> removes exactly the motion reconstruction feeds on. Nothing forbids the combination — it is
+> measured rather than ruled out, and you will get the warning above. Use `--stabilise` when
+> combining frames, not when reconstructing from them. If a sequence has *both* large camera
+> motion and sub-pixel detail worth recovering, it needs registration with a full motion
+> model inside the reconstruction, which this does not yet do.
+
+### Video in, video out
+
+Everything above reduces a video to one still. `--video` is the other direction: the chain
+applied to every frame of a range, written back out as video.
+
+```bash
+# Enhance a whole clip
+cv-tools clip.avi --video --clahe clip=2.0 --sharpen -o enhanced.avi
+
+# Just a range, every fourth frame
+cv-tools clip.avi --video --frame 300 --video-frames 200 --frame-step 4 -o cut.avi
+
+# No filters: extract a range losslessly
+cv-tools clip.avi --video --frame 1200 --video-frames 50 -o excerpt.avi
+```
+
+One frame is held at a time, so this works on footage longer than memory. Dropping frames
+drops the playback rate with them — `--frame-step 5` over 25 fps footage writes 5 fps, so the
+result still runs in real time. Override with `--fps`.
+
+> **The codec is a forensic decision.** `.avi` defaults to **FFV1**, which is lossless: the
+> pixels that go in come back out bit for bit, verified by round trip rather than assumed.
+> That matters because this toolkit contains filters — `ela`, `ghost`, `compression_analysis`
+> — whose whole job is reading compression history, and re-encoding lossily corrupts exactly
+> what they read. Measured on this build over ten frames: FFV1 178 KB **exact**, MJPG 47 KB
+> lossy, XVID 41 KB lossy, mp4v 36 KB lossy. Ask for `.mp4` or `--codec MJPG` and you get a
+> note saying the output now carries compression the input did not.
+
 ### Analysis and reporting
 
 ```bash
@@ -408,9 +518,14 @@ cv-tools frames/ --load-preset plate.json --batch -o enhanced/
 # Include subdirectories; the output mirrors the input tree
 cv-tools frames/ --load-preset plate.json --batch --recursive -o enhanced/
 
-# List every registered filter
+# List every registered filter, or every analysis report
 cv-tools --list-filters
+cv-tools --list-analyses
 ```
+
+The `--*-stats` flags are generated from the analysis registry, so a report added there is
+reachable from the command line, the GUI and the dashboard without any of the three being
+edited.
 
 Video input is supported for still extraction — use `--frame N` to pick the frame.
 
@@ -425,64 +540,119 @@ stretch**, so the exposure you see is the exposure that was recorded. Override w
 ## GUI
 
 ```bash
-cv-tools-gui                          # or: python -m cv_tools.gui
-cv-tools-gui samples/cctv_dark.png    # with a file open at startup
+cv-tools-gui
+```
+
+Optionally with a file to open at startup:
+
+```bash
+cv-tools-gui samples/cctv_dark.png
 ```
 
 | Panel | What it does |
 |---|---|
-| Left | The filter chain, with reorder and remove; below it a searchable list of all 67 filters |
-| Centre | Image viewer — processed, original, **split**, or side-by-side, with fit/100%/200%/400% zoom |
-| Right | Parameters for the selected filter, generated from its signature |
-| Bottom | Live histogram, source metadata with SHA-256, and per-channel clipping |
+| Left | The filter chain, with reorder, duplicate and remove; below it the filter picker, grouped by family and searchable |
+| Centre | Image viewer — processed, original, **split**, side-by-side, or **difference**, with fit/100%/200%/400% and Ctrl+wheel zoom; drag a rectangle to select a region |
+| Right | Parameters for the selected filter — or for the selected chain step, to correct it in place |
+| Bottom | **Statistics**: live histogram, source metadata with SHA-256, per-channel clipping. **Analysis**: the forensic reports |
 
 The split view puts the original left of a draggable divider and the processed image right
 of it — the eye compares far better across an edge than across a gap. Magnified views use
 nearest-neighbour so you see the actual pixels rather than a smoothed guess.
 
+The difference view is how you *see* what a filter did instead of measuring it. On a night
+scene it shows at once that most of a contrast filter's action landed in the sky — nowhere
+anyone wanted it — which no single noise figure conveys. The difference is per channel, so
+an operation that shifted colour reads as colour. A raw difference is too dark to read, so
+it is scaled to fill the range; because that makes a two-level change and a two-hundred-level
+one look alike, the true peak and mean are written on the image and repeated in the status
+bar. The dashboard offers the same view with the numbers in its caption.
+
 The parameter forms are built by introspecting each filter's signature, so every registered
 filter has a working panel and a filter added later needs no GUI work.
+
+Selecting a step in the chain loads its own parameters into the panel; **Update selected
+step** re-applies it and re-processes everything after it, so an early value can be
+corrected without rebuilding the chain by hand.
+
+Filters whose parameters are coordinates — `measure_3d`, `perspective` — are filled by
+clicking: **Pick points on the image** walks you through them one at a time, naming each
+point in the status bar and marking it on the frame. For `measure_3d` it asks for two
+*receding* lines rather than two points on the horizon, because the horizon is usually
+invisible indoors and eyeballing it is the largest error in a single-view height — the
+floor and ceiling edges that give it away are right there to click along. The dashboard offers the same sequence
+over its tap-to-pick. The order lives in `filters.registry.POINT_PARAMETERS`, so both front
+ends prompt for the same points.
+
+Dragging a rectangle on the image fills `x`, `y`, `width` and `height` into the parameter
+panel — the same four names `crop`, `roi_crop`, `roi_filter`, `roi_draw`, `redact` and
+`white_balance_patch` all take. The region is reported in the status bar either way, so it
+is still there to paste into the CLI when the selected filter takes no region. Dragging in
+split view moves the divider instead, and side-by-side offers no region at all: two frames
+on one canvas make a point past the midpoint mean something different from the same point
+before it. The difference view does allow it, and is the reason to want it: spot where the
+filter actually acted, drag that region out, and hand it to `roi_filter`.
+
+The window is dark by default — a bright surround biases the eye when judging shadow
+detail, which is most of what a CCTV frame is. *View → Theme* switches to light.
 
 Everything runs through the same `Pipeline` and registry the CLI uses, so undo/redo,
 reordering, presets and reports behave identically — **a preset saved in the GUI replays in
 the CLI and vice versa**.
 
-## Web dashboard
+### Analysis reports
 
-A Streamlit front end over the same engine, for working from a browser or a phone where a
-Tkinter window is not available.
+The bottom **Analysis** tab runs the measurements that describe an image without changing
+it — the same six the CLI prints, from the same registry:
+
+| Report | Reads | What it measures |
+|---|---|---|
+| `noise` | pixels | Noise sigma, SNR, and how evenly noise is spread across the frame |
+| `ela` | pixels | Block-level recompression error and its outliers |
+| `clone` | pixels | Duplicated regions and the shifts relating them |
+| `compression` | pixels + file | Blocking measures, plus the quality read from the JPEG's own tables |
+| `ghost` | pixels | Per-block prior JPEG quality, and the blocks that disagree |
+| `metadata` | file | EXIF tags, JPEG segments, and the contradictions between them |
+
+Reports run on a worker thread — copy-move detection on a full frame is seconds to
+minutes, and a window that freezes for the duration cannot be looked away from. The work
+reads a copy of the image, so the chain can carry on underneath it.
+
+Findings worth investigating are coloured; every report ends with a note saying what it
+cannot tell you. `compression` and `metadata` read the container rather than the pixels, so
+they describe the file that was opened, not the chain's output.
+
+Adding an entry to `filters.analysis.ANALYSIS_REGISTRY` makes it appear in the CLI, the GUI
+and the dashboard at once — none of the three front ends names the reports individually.
+
+## Dashboard
+
+The same tool in a browser, for a phone or a machine without a display:
 
 ```bash
-pip install ".[dashboard]"
-cv-tools-dashboard --server.address=0.0.0.0
+pip install -r requirements.txt -r requirements-dashboard.txt
+streamlit run cv_tools/dashboard.py
 ```
 
-`cv-tools-dashboard` resolves `dashboard.py` inside the installed package and hands it to
-Streamlit, passing your options through, so it works the same from a wheel as from a clone.
-From a source tree you can still run Streamlit directly:
-
-```bash
-streamlit run cv_tools/dashboard.py --server.address=0.0.0.0
-```
-
-| Area | What it does |
+| Tab | What it does |
 |---|---|
-| Sidebar — Source | Upload an image, or pick one of the generated samples |
-| Sidebar — Filter chain | The applied chain, with reorder, remove, undo/redo and reset |
-| Sidebar — Add filter | Search or browse by family; the parameter form is generated from the filter's signature |
-| Sidebar — Presets | Load a preset JSON and apply it on top of the current chain |
-| Main — Viewer | Processed, original, or side by side, with a PNG download of the result |
-| Main — Coordinates | A coordinate grid overlay, or tap-to-pick, for filters that take pixel positions |
-| Main — Analysis | Live histogram, source metadata with SHA-256, and the processing report |
+| Viewer | Processed / original / side-by-side, coordinate grid or guided tap-to-pick, histogram and stat tiles |
+| Analysis | The reports above, run on demand |
+| Export | Processed PNG, preset JSON, and the processing report as Markdown or JSON |
 
-Nothing here reimplements a filter. The dashboard drives `core.pipeline.Pipeline` through
-`filters.registry` exactly as the CLI and GUI do, and shares the parameter metadata in
-`utils/params.py` with the Tkinter GUI, so a filter added to the registry appears in all
-three surfaces with no dashboard work.
+The sidebar holds the source, the chain (reorder, remove, undo/redo) and the filter picker,
+grouped by family exactly as the desktop GUI groups it.
 
-It needs no Tkinter. The shared parameter metadata lives in `utils` precisely so that the
-dashboard depends on neither the GUI package nor a toolkit the headless box it is served
-from will not have installed.
+A browser hands over bytes rather than a file, so the dashboard writes the upload to a
+temporary copy under its own name — `metadata` and `compression` need the container, and a
+report headed `tmp8f3a1.jpg` is no use as a record of what was examined.
+
+Since a browser cannot report the pixel under the cursor the way the desktop viewer does,
+the coordinate grid draws the numbers into the displayed image, and tap-to-pick reads them
+off a tap. Both are display-only; the download stays clean.
+
+Set `CVTOOLS_PASSWORD` to put a password gate in front of the app before publishing it over
+a tunnel.
 
 **Picking coordinates.** `crop`, `roi_crop`, `redact`, `perspective` and `measure_3d` take
 pixel positions, which are awkward to guess from a scaled browser image. Tap-to-pick reads
@@ -579,33 +749,45 @@ To append a preset on top of the current chain instead of replacing it, use
 python -m unittest discover -s tests -t .
 ```
 
-785 tests, in about five seconds. Run one file or one case:
+1,022 tests. Run one file or one case:
 
 ```bash
 python -m unittest tests.test_forensic
 python -m unittest tests.test_filters.TestClahe.test_increases_contrast -v
 ```
 
-Two groups skip rather than fail where their optional dependency is absent: the 40 GUI
-tests where Tkinter has no display, and the 54 dashboard tests without Streamlit. A plain
-headless run therefore reports `OK (skipped=40)`, and installing
-`requirements-dashboard.txt` brings the dashboard tests in.
+The GUI tests skip automatically where Tkinter has no display, and the dashboard tests
+where Streamlit is not installed. CI runs the suite on Linux and Windows
+(`.github/workflows/tests.yml`).
 
-The dashboard tests drive the real functions with Streamlit in bare mode, where widgets
-return their defaults — including the `CVTOOLS_PASSWORD` gate, which is checked to halt the
-script and not merely to leave `authed` unset.
+### The validation campaign
 
-Every push and pull request runs [.github/workflows/tests.yml](.github/workflows/tests.yml):
-the suite on Python 3.10, 3.11 and 3.12; the filter gallery as a smoke test, since a filter
-can pass its unit tests and still fail on a real image; and an import of the dashboard in a
-`python:3.12-slim` container, which has no Tkinter, so the dashboard cannot regain a
-dependency that would stop it starting on a headless server. CI installs
-`opencv-python-headless` in place of `opencv-python` — the same library without the GUI
-bindings, which the runner has no display for.
+Beyond the unit tests there is a separate campaign that runs every filter and report over a
+real corpus — nine CCTV frames chosen by measurement from two hundred, published reference
+images with a known property, and forgeries built here so the answer is known. It checks the
+invariants the toolkit rests on (a real uint8 image, no NaN, the same answer twice, the
+parameters actually doing something) plus what each filter specifically promises, and some
+assertions come from independent implementations so they are not this code marking its own
+homework.
+
+```bash
+python validation/regress.py          # run it, and diff against the last recorded run
+python validation/regress.py --no-run # just diff what is already on disk
+```
+
+`regress.py` exits non-zero when something got worse, so it can gate a push. It reports more
+than pass/fail: a filter that ran **fewer cases** than before, or **lost checks**, counts as a
+regression too, because a campaign that quietly stopped exercising something reads exactly
+like one where that thing is fine.
+
+This does not run in CI, and cannot: the corpus is real footage from the author's camera,
+read from outside the repository and not redistributable, so a hosted runner has no way to
+assemble the images that make the campaign worth running. It runs where the evidence is.
+See [validation/RESULTS.md](validation/RESULTS.md) for the last run.
 
 ## Trying every filter
 
-The tests prove the filters are correct; this shows what they look like. It runs all 67
+The tests prove the filters are correct; this shows what they look like. It runs all 75
 with their default parameters, writes one PNG each, and tiles them into a labelled contact
 sheet.
 
@@ -673,25 +855,30 @@ real footage drops in unchanged the moment a labelled corpus exists.
 ```
 cv-tools/
 ├── cv_tools/
-│   ├── core/          # Pipeline engine, loader, report
-│   ├── filters/       # 36 filter modules + the name registry
+│   ├── core/          # Pipeline engine, loader, report, video writer
+│   ├── filters/       # Filters + the filter and analysis registries
 │   ├── gui/           # Optional Tkinter interface
-│   ├── utils/         # Parsing, comparison rendering, shared parameter metadata
+│   ├── utils/         # Parsing, comparison, shared palette and parameter metadata
 │   ├── validation/    # Degradation model and benchmark harness
 │   ├── cli.py         # Command-line interface
-│   └── dashboard.py   # Optional Streamlit web dashboard
+│   └── dashboard.py   # Optional Streamlit web interface
+├── validation/        # The campaign: corpus builder, checks, mutation, results
 ├── tests/             # Unit tests
 ├── samples/           # Sample image and video generator
 ├── scripts/           # Filter gallery, filter-reference PDF build
 ├── gallery/           # Rendered gallery output and contact sheet
 ├── docs/              # Filter parameter reference, EN and FR, md and pdf
+├── .streamlit/        # Dashboard theme
 ├── .github/workflows/ # CI: tests, gallery, headless import, packaging
 ├── pyproject.toml     # Package metadata, extras, console entry points
 └── LICENSE            # MIT
 ```
 
-Three front ends — CLI, Tkinter GUI, Streamlit dashboard — over one `Pipeline` and one
-registry. A filter is written once, registered once, and appears in all three.
+Two things share the name "validation" and are not the same. `cv_tools/validation/`
+is a *library*: it degrades a clean image and measures whether a filter moves it back,
+and it ships in the wheel. `validation/` at the root is the *campaign*: it runs every
+filter over the real corpus, checks invariants, and gates a push. The first asks whether
+a filter's defaults help; the second asks whether the filter does what it claims.
 
 ## Roadmap
 
@@ -730,31 +917,47 @@ registry. A filter is written once, registered once, and appears in all three.
   exactly the environment it is served from; the shared parameter metadata moved to
   `utils/params.py` and the two front ends no longer depend on each other
 
-**Where that leaves it.** 36 filter modules exposing **67 registered chain filters** across
-six families — Adjust 28, Enhance 12, Correct 7, Analyze 6, Forensic 9, Special 5 — with
+**Where that leaves it.** 38 filter modules exposing **75 registered chain filters** across
+six families — Adjust 29, Enhance 12, Correct 7, Analyze 7, Forensic 9, Special 11 — with
 the core engine, three front ends, preset and report systems, batch and multi-frame
-processing, EN/FR documentation, a validation harness, and **785 tests**.
+processing, EN/FR documentation, both validation layers, and **1,022 tests**.
 
-**Phase 3 — in progress**
+**Phase 3 — front ends, packaging and validation (done)**
 
-- **Packaging (done)** — `pyproject.toml` with three console entry points and optional
-  extras for raw decoding, the dashboard and the PDF build; MIT licensed. The importable
-  package was renamed from `src` to `cv_tools`, since a top-level package called `src`
-  collides with every other project and cannot be published. Presets saved before the
-  rename still load: filters resolve by registry name, and the module string a step
-  records is informational.
-- **Validation harness (done)** — `cv_tools/validation` degrades a clean image with a
-  physically-motivated model of camera and recorder behaviour, then measures whether a
-  filter moves it back. 102 measurements across 17 repair filters and 6 presets, written
-  up in [docs/validation.md](docs/validation.md), which found that a dark frame's exposure
-  error hides denoising entirely, that enhancement filters flip sign with input quality,
-  and that filter order depends on the degradation rather than following one rule.
-- **Validation against *real* footage (not started).** The degradation above is simulated:
-  it reproduces the mechanisms, with the physics written into each function, but not any
-  particular recorder's proprietary encoder, denoiser and sharpener. Closing that needs a
-  labelled corpus with a known clean reference — footage of one scene recorded by a good
-  camera and a bad one, or a recorder exposing both its raw and encoded output. The
-  harness takes any clean/degraded pair, so such a corpus drops in unchanged.
+- **Analysis reports and front-end work** — the six forensic reports given to the CLI, the
+  GUI and the dashboard from one registry; reports on a worker thread; drag-a-region
+  instead of typed corners; a difference view; per-region filtering with a softened edge;
+  16-bit equalization; `measure_3d`'s horizon derived from visible lines and its error bar
+  surfaced where the operator reads it; stack alignment, frame-stack reconstruction, and
+  lossless video write-out.
+- **Packaging** — `pyproject.toml` with three console entry points and optional extras for
+  raw decoding, the dashboard and the PDF build; MIT licensed. The importable package was
+  renamed from `src` to `cv_tools`, since a top-level package called `src` collides with
+  every other project and cannot be published. Presets saved before the rename still load:
+  filters resolve by registry name, and the module string a step records is informational.
+- **Two validation layers, answering different questions.**
+  `cv_tools/validation` degrades a clean image with a physically-motivated model of camera
+  and recorder behaviour and measures whether a filter moves it back — 102 measurements
+  written up in [docs/validation.md](docs/validation.md), which found that a dark frame's
+  exposure error hides denoising entirely, that enhancement filters flip sign with input
+  quality, and that filter order depends on the degradation rather than following one rule.
+  The `validation/` campaign runs every filter and report over a corpus of **real CCTV
+  footage** — nine frames chosen by measurement from two hundred, published references, and
+  forgeries built so the answer is known — checking invariants and each filter's specific
+  promises. `validation/regress.py` gates a push on it. See
+  [validation/RESULTS.md](validation/RESULTS.md).
+
+**What is left**
+
+- **A published corpus.** The campaign's evidence is real footage from the author's camera,
+  read from outside the repository and not redistributable, so the campaign cannot run in
+  CI and its results cannot be reproduced by anyone else. A releasable corpus — or a
+  documented procedure for building an equivalent one — is what would turn a private gate
+  into a public claim.
+- **A recorder-matched degradation model.** The simulated degradations reproduce the
+  mechanisms, not any particular recorder's proprietary encoder, denoiser and sharpener.
+  Footage of one scene recorded simultaneously by a good camera and a bad one would let the
+  two layers be calibrated against each other.
 
 ## Licence
 

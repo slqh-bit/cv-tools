@@ -1,5 +1,6 @@
 """Unit tests for the Sprint 3 forensic filters."""
 
+import io
 import struct
 import tempfile
 import unittest
@@ -10,8 +11,10 @@ import numpy as np
 from PIL import Image
 
 from cv_tools.filters import (
+    check_thumbnail_mismatch,
     check_timestamps,
     detect_editing_software,
+    extract_thumbnail,
     metadata_report,
     parse_exif_datetime,
     read_exif,
@@ -34,8 +37,10 @@ from cv_tools.filters import (
     fft_magnitude_spectrum,
     focus_score,
     frame_difference,
+    GHOST_REGION_SEPARATION,
     ghost_map,
     ghost_report,
+    ghost_sweep,
     highlight_clones,
     integrate_frames,
     median_frames,
@@ -271,38 +276,109 @@ class TestJpegGhost(unittest.TestCase):
         with self.assertRaises(ValueError):
             ghost_map(textured(64, 64), block_size=128)
 
-    def test_report_finds_the_prior_compression_quality(self):
-        # Requantising an already-JPEG'd image at its own quality is nearly
-        # lossless, so that quality should stand out as the block minimum.
-        image = recompress(textured(256, 256), quality=70)
-        report = ghost_report(image, qualities=(50, 60, 70, 80, 90, 100), block_size=16)
-        self.assertEqual(report['dominant_quality'], 70)
+    def test_sweep_is_normalised_per_block(self):
+        # Every block's curve is scaled to 0-1 across the sweep, so a flat
+        # wall and a detailed doorway become comparable
+        sweep = ghost_sweep(textured(128, 128), qualities=(50, 70, 90), block_size=16)
+        self.assertEqual(sweep.shape, (3, 8, 8))
+        self.assertGreaterEqual(float(sweep.min()), 0.0)
+        self.assertLessEqual(float(sweep.max()), 1.0)
+        # Each block hits both ends of its own range
+        np.testing.assert_allclose(sweep.min(axis=0), 0.0, atol=1e-6)
+        np.testing.assert_allclose(sweep.max(axis=0), 1.0, atol=1e-6)
 
-    def test_report_flags_a_spliced_region(self):
-        # A patch pasted straight in from a differently-compressed source,
-        # with no unifying resave afterwards - each region keeps its own
-        # single-generation quantisation history intact.
-        background = recompress(textured(128, 128, seed=2), quality=60)
-        patch_source = recompress(textured(128, 128, seed=11), quality=95)
+    def test_report_recovers_a_named_regions_prior_quality(self):
+        # A patch pasted in from a differently-compressed source, with no
+        # unifying resave: the region keeps its own quantisation history
+        background = recompress(textured(160, 160, seed=2), quality=90)
+        patch_source = recompress(textured(160, 160, seed=2), quality=50)
         composite = background.copy()
-        composite[48:96, 48:96] = patch_source[48:96, 48:96]
+        composite[48:112, 48:112] = patch_source[48:112, 48:112]
 
-        report = ghost_report(composite, qualities=(40, 50, 60, 70, 80, 90, 100), block_size=16)
-        dominant_index = report['qualities'].index(report['dominant_quality'])
-        patch_index = report['block_grid'][48 // 16, 48 // 16]
-        self.assertEqual(report['dominant_quality'], 60)
-        self.assertNotEqual(int(patch_index), dominant_index)
+        report = ghost_report(composite, qualities=(50, 60, 70, 80, 90, 100),
+                              block_size=16, region=(48, 48, 64, 64))
+        self.assertTrue(report['detected'])
+        self.assertEqual(report['ghost_quality'], 50)
+        self.assertLess(report['separation'], -GHOST_REGION_SEPARATION)
 
-    def test_outlier_blocks_include_coordinates(self):
-        background = recompress(textured(128, 128, seed=2), quality=60)
-        patch_source = recompress(textured(128, 128, seed=11), quality=95)
+    def test_report_claims_nothing_without_a_region(self):
+        # Searching for the region rather than being given one does not work
+        # on real frames, so it is not offered: an untouched frame's most
+        # separated cluster scores stronger than a genuine paste's
+        report = ghost_report(textured(128, 128), block_size=16)
+        self.assertFalse(report['detected'])
+        self.assertIsNone(report['ghost_quality'])
+        self.assertIsNone(report['region'])
+        self.assertIn('sweep', report)
+
+    def test_an_untouched_region_does_not_separate(self):
+        image = recompress(textured(160, 160), quality=90)
+        report = ghost_report(image, qualities=(50, 60, 70, 80, 90, 100),
+                              block_size=16, region=(48, 48, 64, 64))
+        self.assertFalse(report['detected'])
+
+    def test_report_says_when_the_sweep_is_not_the_calibrated_one(self):
+        # The threshold was measured against DEFAULT_QUALITIES. Each block's
+        # curve is normalised across whatever sweep it is given, so a changed
+        # range rescales every dip and the number stops meaning what it was
+        # measured to mean - the report has to say so rather than imply the
+        # calibration still holds.
+        image = textured(160, 160)
+        default = ghost_report(image, block_size=16, region=(48, 48, 64, 64))
+        self.assertTrue(default['calibrated_sweep'])
+
+        narrowed = ghost_report(image, block_size=16, region=(48, 48, 64, 64),
+                                qualities=(60, 70, 80, 90))
+        self.assertFalse(narrowed['calibrated_sweep'])
+
+    def test_report_rejects_a_region_outside_the_image(self):
+        with self.assertRaises(ValueError):
+            ghost_report(textured(128, 128), block_size=16,
+                         region=(5000, 5000, 64, 64))
+
+    def test_every_quality_is_scored_so_the_verdict_can_be_checked(self):
+        background = recompress(textured(160, 160, seed=2), quality=90)
+        patch = recompress(textured(160, 160, seed=2), quality=50)
         composite = background.copy()
-        composite[48:96, 48:96] = patch_source[48:96, 48:96]
+        composite[48:112, 48:112] = patch[48:112, 48:112]
 
-        report = ghost_report(composite, qualities=(40, 50, 60, 70, 80, 90, 100), block_size=16)
-        self.assertGreater(report['outlier_count'], 0)
-        self.assertIn('x', report['outliers'][0])
-        self.assertIn('y', report['outliers'][0])
+        qualities = (50, 60, 70, 80, 90, 100)
+        report = ghost_report(composite, qualities=qualities, block_size=16,
+                              region=(48, 48, 64, 64))
+        self.assertEqual(set(report['separations']), set(qualities))
+        # The reported quality is the most separated of them
+        best = min(report['separations'], key=report['separations'].get)
+        self.assertEqual(best, report['ghost_quality'])
+
+
+def build_thumbnail_exif(thumbnail_jpeg: bytes) -> bytes:
+    """
+    Hand-roll a minimal little-endian TIFF/EXIF blob with an IFD1 thumbnail
+    pointer, appended after the IFDs (empty IFD0, three-tag IFD1).
+
+    Pillow's own ``Exif.tobytes()`` cannot serialize a populated IFD1 (see
+    ``metadata_forensics.extract_thumbnail``'s docstring), so there is no
+    library path to attach a real thumbnail to a fixture. Writing the TIFF
+    structure by hand avoids adding a dependency for one test fixture.
+    """
+    ifd0_offset = 8
+    ifd1_offset = ifd0_offset + 2 + 0 * 12 + 4  # count + 0 entries + next-IFD ptr
+    thumb_offset = ifd1_offset + 2 + 3 * 12 + 4  # count + 3 entries + next-IFD ptr
+
+    tiff_header = b'II' + struct.pack('<HL', 42, ifd0_offset)
+    ifd0 = struct.pack('<H', 0) + struct.pack('<L', ifd1_offset)
+
+    entries = [
+        (0x0103, 3, 1, 6),                     # Compression: SHORT, JPEG
+        (0x0201, 4, 1, thumb_offset),           # JPEGInterchangeFormat: LONG, offset
+        (0x0202, 4, 1, len(thumbnail_jpeg)),    # JPEGInterchangeFormatLength: LONG
+    ]
+    ifd1 = struct.pack('<H', len(entries))
+    for tag, kind, count, value in entries:
+        ifd1 += struct.pack('<HHL', tag, kind, count) + struct.pack('<L', value)
+    ifd1 += struct.pack('<L', 0)  # no further IFDs
+
+    return b'Exif\x00\x00' + tiff_header + ifd0 + ifd1 + thumbnail_jpeg
 
 
 class TestMetadataForensics(unittest.TestCase):
@@ -345,6 +421,15 @@ class TestMetadataForensics(unittest.TestCase):
             sub[40962], sub[40963] = claimed_size
 
         image.save(path, 'JPEG', exif=tags, quality=90)
+        return path
+
+    def write_jpeg_with_thumbnail(self, name, main_array, thumb_array):
+        """Write a JPEG whose embedded IFD1 thumbnail is ``thumb_array``."""
+        path = self.dir / name
+        thumb_buf = io.BytesIO()
+        Image.fromarray(thumb_array).save(thumb_buf, 'JPEG', quality=80)
+        exif_blob = build_thumbnail_exif(thumb_buf.getvalue())
+        Image.fromarray(main_array).save(path, 'JPEG', exif=exif_blob, quality=90)
         return path
 
     def checks(self, report):
@@ -468,6 +553,43 @@ class TestMetadataForensics(unittest.TestCase):
         for finding in metadata_report(path)['findings']:
             self.assertIn(finding['severity'], ('info', 'flag'))
             self.assertTrue(finding['detail'])
+
+    def test_extracts_a_real_thumbnail(self):
+        thumb_array = cv2.resize(self.array, (40, 30))
+        path = self.write_jpeg_with_thumbnail('thumb.jpg', self.array, thumb_array)
+        thumbnail = extract_thumbnail(path)
+        self.assertIsNotNone(thumbnail)
+        self.assertEqual(thumbnail[:2], b'\xff\xd8')
+
+    def test_no_thumbnail_extracts_nothing(self):
+        path = self.write_jpeg('bare3.jpg', exif=False)
+        self.assertIsNone(extract_thumbnail(path))
+
+    def test_thumbnail_matching_the_image_is_not_flagged(self):
+        # The way a camera actually builds one: a downscaled, recompressed
+        # copy of the same pixels.
+        thumb_array = cv2.resize(self.array, (40, 30))
+        path = self.write_jpeg_with_thumbnail('match.jpg', self.array, thumb_array)
+        self.assertEqual(check_thumbnail_mismatch(path), [])
+
+    def test_thumbnail_disagreeing_with_the_image_is_flagged(self):
+        unrelated = textured(30, 40, seed=99)
+        path = self.write_jpeg_with_thumbnail('mismatch.jpg', self.array, unrelated)
+        findings = check_thumbnail_mismatch(path)
+        self.assertEqual({f['check'] for f in findings}, {'thumbnail_mismatch'})
+        self.assertEqual(findings[0]['severity'], 'flag')
+
+    def test_report_reflects_thumbnail_presence(self):
+        thumb_array = cv2.resize(self.array, (40, 30))
+        with_thumb = self.write_jpeg_with_thumbnail('present.jpg', self.array, thumb_array)
+        without_thumb = self.write_jpeg('absent.jpg')
+        self.assertTrue(metadata_report(with_thumb)['has_thumbnail'])
+        self.assertFalse(metadata_report(without_thumb)['has_thumbnail'])
+
+    def test_report_includes_thumbnail_mismatch_finding(self):
+        unrelated = textured(30, 40, seed=99)
+        path = self.write_jpeg_with_thumbnail('report_mismatch.jpg', self.array, unrelated)
+        self.assertIn('thumbnail_mismatch', self.checks(metadata_report(path)))
 
 
 class TestNoiseAnalysis(unittest.TestCase):
