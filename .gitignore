@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 .tools/
+
+# Artefacts of reproducing the CI steps locally (.github/workflows/tests.yml)
+requirements-ci.txt
+gallery-ci/

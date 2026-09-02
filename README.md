@@ -1,9 +1,15 @@
 # cv-tools
 
+[![Tests](https://github.com/slqh-bit/cv-tools/actions/workflows/tests.yml/badge.svg)](https://github.com/slqh-bit/cv-tools/actions/workflows/tests.yml)
+
 A modular Python image processing toolkit inspired by Amped FIVE forensic image enhancement.
 
 Filters are applied as an **ordered chain**, every step is recorded, and the chain can be
 exported as a JSON preset or a forensic-style processing report.
+
+67 registered filters across six families, reachable three ways over one engine: a
+[command line](#cli-usage), a [Tkinter GUI](#gui), and a [web dashboard](#web-dashboard).
+A preset saved in any of them replays in the other two.
 
 ## Filters
 
@@ -84,6 +90,14 @@ pip install -r requirements.txt
 Camera raw support needs `rawpy`, which is in `requirements.txt` but is a large binary
 dependency — everything except raw decoding works without it, and raw files give a clear
 install message if it is missing.
+
+Two optional requirement files sit on top of that base, neither needed by the CLI, the
+library or the Tkinter GUI:
+
+| File | For |
+|---|---|
+| `requirements-dashboard.txt` | The Streamlit web dashboard (`src/dashboard.py`) |
+| `requirements-docs.txt` | Rebuilding the filter-reference PDFs in `docs/` |
 
 Generate the sample test images and video:
 
@@ -391,7 +405,7 @@ python -m src.gui samples/cctv_dark.png
 
 | Panel | What it does |
 |---|---|
-| Left | The filter chain, with reorder and remove; below it a searchable list of all 66 filters |
+| Left | The filter chain, with reorder and remove; below it a searchable list of all 67 filters |
 | Centre | Image viewer — processed, original, **split**, or side-by-side, with fit/100%/200%/400% zoom |
 | Right | Parameters for the selected filter, generated from its signature |
 | Bottom | Live histogram, source metadata with SHA-256, and per-channel clipping |
@@ -406,6 +420,47 @@ filter has a working panel and a filter added later needs no GUI work.
 Everything runs through the same `Pipeline` and registry the CLI uses, so undo/redo,
 reordering, presets and reports behave identically — **a preset saved in the GUI replays in
 the CLI and vice versa**.
+
+## Web dashboard
+
+A Streamlit front end over the same engine, for working from a browser or a phone where a
+Tkinter window is not available.
+
+```bash
+pip install -r requirements.txt -r requirements-dashboard.txt
+streamlit run src/dashboard.py --server.address=0.0.0.0
+```
+
+| Area | What it does |
+|---|---|
+| Sidebar — Source | Upload an image, or pick one of the generated samples |
+| Sidebar — Filter chain | The applied chain, with reorder, remove, undo/redo and reset |
+| Sidebar — Add filter | Search or browse by family; the parameter form is generated from the filter's signature |
+| Sidebar — Presets | Load a preset JSON and apply it on top of the current chain |
+| Main — Viewer | Processed, original, or side by side, with a PNG download of the result |
+| Main — Coordinates | A coordinate grid overlay, or tap-to-pick, for filters that take pixel positions |
+| Main — Analysis | Live histogram, source metadata with SHA-256, and the processing report |
+
+Nothing here reimplements a filter. The dashboard drives `core.pipeline.Pipeline` through
+`filters.registry` exactly as the CLI and GUI do, and reuses the GUI's parameter metadata,
+so a filter added to the registry appears in all three surfaces with no dashboard work.
+
+**Picking coordinates.** `crop`, `roi_crop`, `redact`, `perspective` and `measure_3d` take
+pixel positions, which are awkward to guess from a scaled browser image. Tap-to-pick reads
+them off the image directly; it needs `streamlit-image-coordinates`, and without that
+package the coordinate grid overlay covers the same need. The overlay is drawn on the
+displayed copy only — the download stays clean.
+
+**Publishing it.** Set `CVTOOLS_PASSWORD` and the dashboard puts a password gate in front of
+everything, compared with `hmac.compare_digest`:
+
+```bash
+CVTOOLS_PASSWORD='...' streamlit run src/dashboard.py --server.address=0.0.0.0
+```
+
+Unset, there is no gate and local use stays frictionless. The gate is meant for an instance
+published over a tunnel; it is a single shared password over whatever transport you put in
+front of it, not an account system, so terminate TLS at the tunnel and treat it as such.
 
 ## Library Usage
 
@@ -485,14 +540,21 @@ To append a preset on top of the current chain instead of replacing it, use
 python -m unittest discover -s tests -t .
 ```
 
-623 tests. Run one file or one case:
+677 tests, in about five seconds. Run one file or one case:
 
 ```bash
 python -m unittest tests.test_forensic
 python -m unittest tests.test_filters.TestClahe.test_increases_contrast -v
 ```
 
-The GUI tests skip automatically where Tkinter has no display.
+The 40 GUI tests skip automatically where Tkinter has no display, which is why a headless
+run reports `OK (skipped=40)` rather than failing.
+
+Every push and pull request runs the suite on Python 3.10, 3.11 and 3.12 through
+[.github/workflows/tests.yml](.github/workflows/tests.yml). CI installs
+`opencv-python-headless` in place of `opencv-python` — the same library without the GUI
+bindings, which the runner has no display for — and runs the filter gallery as a smoke test,
+since a filter can pass its unit tests and still fail on a real image.
 
 ## Trying every filter
 
@@ -517,31 +579,68 @@ history, and comes out uniformly white on a never-compressed PNG.
 ```
 cv-tools/
 ├── src/
-│   ├── core/         # Pipeline engine, loader, report
-│   ├── filters/      # Image processing filters + name registry
-│   ├── gui/          # Optional Tkinter interface
-│   ├── utils/        # Argument parsing, comparison rendering
-│   └── cli.py        # Command-line interface
-├── tests/            # Unit tests
-├── samples/          # Sample image and video generator
-└── docs/             # Filter parameter reference
+│   ├── core/          # Pipeline engine, loader, report
+│   ├── filters/       # 36 filter modules + the name registry
+│   ├── gui/           # Optional Tkinter interface
+│   ├── utils/         # Argument parsing, comparison rendering
+│   ├── cli.py         # Command-line interface
+│   └── dashboard.py   # Optional Streamlit web dashboard
+├── tests/             # Unit tests
+├── samples/           # Sample image and video generator
+├── scripts/           # Filter gallery, filter-reference PDF build
+├── gallery/           # Rendered gallery output and contact sheet
+├── docs/              # Filter parameter reference, EN and FR, md and pdf
+└── .github/workflows/ # CI: the test suite on Python 3.10-3.12
 ```
+
+Three front ends — CLI, Tkinter GUI, Streamlit dashboard — over one `Pipeline` and one
+registry. A filter is written once, registered once, and appears in all three.
 
 ## Roadmap
 
-- **Sprint 1 (done)** — CLAHE, ROI, contrast/brightness, levels, histogram equalization,
+**Phase 1 — the filter catalogue and the engine (done)**
+
+- **Sprint 1** — CLAHE, ROI, contrast/brightness, levels, histogram equalization,
   crop/resize, pipeline with undo/redo, presets, reports, CLI, batch mode
-- **Sprint 2 (done)** — sharpen/unsharp mask, gaussian/median/bilateral smoothing,
+- **Sprint 2** — sharpen/unsharp mask, gaussian/median/bilateral smoothing,
   edge detection, histogram display and tonal analysis
-- **Sprint 3 (done)** — ELA, FFT analysis and periodic noise removal, noise analysis,
+- **Sprint 3** — ELA, FFT analysis and periodic noise removal, noise analysis,
   clone detection, Wiener deblurring, multi-frame video integration
-- **Remaining catalogue (done)** — curves, white balance, saturation, colour balance,
+- **Remaining catalogue** — curves, white balance, saturation, colour balance,
   invert; non-local means, super-resolution, detail enhancement; perspective, fisheye,
   aspect ratio, calibration-based undistort; compression analysis; colour deconvolution,
   component separation, redaction, annotation and measurement
+- **GUI** — the Phase 5 Tkinter interface
 
-- **GUI (done)** — the Phase 5 Tkinter interface
+**Phase 2 — surfaces, documentation and further forensics (done)**
 
-**The plan is complete**: all 40 catalogue filters across 66 registered chain filters, the
-core engine, CLI, preset and report systems, batch and multi-frame processing, and the
-optional GUI.
+- **Web dashboard** — Streamlit front end over the same engine, with tap-to-pick
+  coordinates and an optional password gate
+- **Filter reference** — every filter documented with its parameters, in English and
+  French, as Markdown and as PDF, built by `scripts/build_filters_pdf.py`
+- **Filter gallery** — every filter rendered at its defaults into a labelled contact
+  sheet, non-zero exit on failure so it doubles as a smoke test
+- **Function-family grouping** — filters ordered by what they do (Adjust, Enhance,
+  Correct, Analyze, Forensic, Special) rather than alphabetically
+- **JPEG ghost detection** — per-block prior compression quality from pixel evidence
+- **Metadata forensics** — EXIF and JPEG segment inconsistencies, read from the file
+  header rather than the pixels
+- **CI** — the suite on Python 3.10, 3.11 and 3.12, plus a gallery smoke test
+
+**Where that leaves it.** 36 filter modules exposing **67 registered chain filters** across
+six families — Adjust 28, Enhance 12, Correct 7, Analyze 6, Forensic 9, Special 5 — with
+the core engine, three front ends, preset and report systems, batch and multi-frame
+processing, EN/FR documentation, and **677 tests**.
+
+**Phase 3 — not started**
+
+- **Dashboard tests.** The CLI, engine, filters and GUI are covered; `src/dashboard.py`
+  is not. The password gate in particular should not be the one piece of this repo whose
+  behaviour rests on having been tried by hand.
+- **Packaging.** No `pyproject.toml`, so the toolkit runs as `python -m src.cli` from a
+  clone rather than installing as a package with a console entry point. A LICENSE has to
+  land with it.
+- **Validation against real footage.** Every filter is verified against synthetic ground
+  truth, published algorithms, and OpenCV as a numerical baseline — which says the
+  arithmetic is right, not that the defaults are useful on heavily compressed night-time
+  CCTV at 12 fps. Closing that needs a labelled real-world corpus, not more unit tests.
