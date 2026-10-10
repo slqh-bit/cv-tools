@@ -16,6 +16,7 @@ here without this file being touched.
 import ctypes
 import queue
 import sys
+import textwrap
 import threading
 import tkinter as tk
 import traceback
@@ -32,10 +33,13 @@ from ..filters import (
     CATEGORY_ORDER,
     Row,
     FILTER_REGISTRY,
+    chain_warnings,
     dynamic_range_used,
     filter_description,
     filter_function,
     histogram_stats,
+    parameter_preview,
+    parameters_from_points,
     render_histogram,
     render_report,
     resolve_analysis,
@@ -99,8 +103,9 @@ class CVToolsApp(tk.Tk):
         # The last rectangle dragged on the image, as x, y, width, height
         self.last_region: Optional[Tuple[int, int, int, int]] = None
         self._selected_filter: Optional[str] = None
-        # The (parameter, count, prompt) plan a pick in progress is filling
-        self._pick_plan: tuple = ()
+        # The filter a pick in progress is collecting points for. Held apart
+        # from the selection, which can move while the clicks are being made.
+        self._picking_for: Optional[str] = None
         # Index of the chain step being edited, when the parameter panel is
         # showing an applied step rather than a filter about to be added
         self._editing_step: Optional[int] = None
@@ -333,10 +338,40 @@ class CVToolsApp(tk.Tk):
                                        command=self.apply_filter)
         self.apply_button.pack(side='bottom', fill='x', pady=(8, 0))
 
-        self.parameters = ParameterPanel(frame, palette=self.palette)
+        # A picture of what the numbers describe, for the filters that have
+        # one - a deblur's point spread function. Empty, and so no height at
+        # all, for every other filter.
+        self._preview_photo = None
+        self.preview_label = ttk.Label(frame, compound='top', anchor='center',
+                                       style='Muted.TLabel')
+        self.preview_label.pack(side='bottom', fill='x')
+
+        self.parameters = ParameterPanel(frame, palette=self.palette,
+                                         on_change=self._refresh_preview)
         self.parameters.pack(fill='both', expand=True, pady=(8, 0))
 
         return frame
+
+    def _refresh_preview(self) -> None:
+        """Redraw the picture of the selected filter's parameters, if any."""
+        preview = None
+        if self._selected_filter is not None:
+            try:
+                params = self.parameters.get_params()
+            except (ValueError, tk.TclError):
+                params = None       # a field mid-edit; the picture waits
+            if params is not None:
+                preview = parameter_preview(self._selected_filter, params)
+
+        if preview is None:
+            self._preview_photo = None
+            self.preview_label.configure(image='', text='')
+            return
+
+        from PIL import Image, ImageTk
+        caption, picture = preview
+        self._preview_photo = ImageTk.PhotoImage(Image.fromarray(picture))
+        self.preview_label.configure(image=self._preview_photo, text=caption)
 
     def _build_bottom_panel(self, master) -> ttk.Frame:
         frame = ttk.Frame(master, style='Window.TFrame')
@@ -498,6 +533,7 @@ class CVToolsApp(tk.Tk):
         spec = resolve_filter(name)
         self.parameter_title.configure(text=f'Parameters - {name}')
         self.parameters.build(spec)
+        self._refresh_preview()
         self._refresh_buttons()
 
     # ---- chain steps ----
@@ -520,6 +556,7 @@ class CVToolsApp(tk.Tk):
         self._editing_step = index
         self.parameter_title.configure(text=f'Step {index + 1} - {step.name}')
         self.parameters.build(spec, values=step.params)
+        self._refresh_preview()
         self._refresh_buttons()
 
     # ---- actions ----
@@ -930,7 +967,7 @@ class CVToolsApp(tk.Tk):
         if not picks:
             return
 
-        self._pick_plan = picks
+        self._picking_for = self._selected_filter
         # One label per click, so the viewer can prompt for each in turn
         labels = []
         for parameter, count, prompt in picks:
@@ -945,15 +982,14 @@ class CVToolsApp(tk.Tk):
 
     def _on_picks_complete(self, points: List[Tuple[int, int]]) -> None:
         """Distribute the collected points across the parameters that wanted them."""
-        values: Dict[str, Any] = {}
-        index = 0
-        for parameter, count, _prompt in self._pick_plan:
-            taken = points[index:index + count]
-            index += count
-            # One point stays a pair; several flatten, which is how the entry
-            # parses them back - four corners become eight numbers
-            values[parameter] = list(taken[0]) if count == 1 else [
-                coordinate for point in taken for coordinate in point]
+        try:
+            values = parameters_from_points(self._picking_for, points)
+        except ValueError as exc:
+            # A measurement the clicks cannot give, such as a motion line
+            # whose two ends are the same pixel
+            self._set_status(str(exc))
+            self._refresh_buttons()
+            return
 
         filled = self.parameters.set_values(values)
         self._set_status(f"Picked {len(points)} points into {', '.join(filled)}")
@@ -1078,6 +1114,16 @@ class CVToolsApp(tk.Tk):
                 )
         except ValueError:
             pass
+
+        # Last, and in full: an order that works against a step. The status
+        # bar only points here, because the next action overwrites it.
+        warnings = chain_warnings([step.name for step in self.pipeline.chain])
+        for warning in warnings:
+            lines.append('')
+            # Wrapped by hand: the panel does not, so its columns stay aligned
+            lines.extend(textwrap.wrap(f'ORDER  {warning}', width=76))
+        if warnings:
+            self._set_status('The chain order works against a step - see Info')
 
         self.info_text.insert('end', '\n'.join(lines))
         self.info_text.configure(state='disabled')

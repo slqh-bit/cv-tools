@@ -1,7 +1,8 @@
 {
-  "when": "2026-09-01T16:37:29",
+  "when": "2026-10-10T14:19:26",
   "python": "3.12.10",
   "opencv": "4.14.0",
+  "partial": false,
   "results": [
     {
       "name": "clahe",
@@ -19,7 +20,7 @@
       "failures": 0,
       "checks": 8,
       "failed_checks": 0,
-      "seconds": 1.2
+      "seconds": 1.1
     },
     {
       "name": "auto_contrast",
@@ -37,7 +38,7 @@
       "failures": 0,
       "checks": 10,
       "failed_checks": 0,
-      "seconds": 1.6
+      "seconds": 1.3
     },
     {
       "name": "auto_levels",
@@ -55,7 +56,7 @@
       "failures": 0,
       "checks": 7,
       "failed_checks": 0,
-      "seconds": 0.5
+      "seconds": 0.3
     },
     {
       "name": "roi_filter",
@@ -172,7 +173,7 @@
       "failures": 0,
       "checks": 16,
       "failed_checks": 0,
-      "seconds": 0.5
+      "seconds": 0.6
     },
     {
       "name": "vibrance",
@@ -208,7 +209,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 0.6
+      "seconds": 0.5
     },
     {
       "name": "cmyk",
@@ -271,7 +272,7 @@
       "failures": 0,
       "checks": 11,
       "failed_checks": 0,
-      "seconds": 3.3
+      "seconds": 3.1
     },
     {
       "name": "sharpen_laplacian",
@@ -289,7 +290,7 @@
       "failures": 0,
       "checks": 8,
       "failed_checks": 0,
-      "seconds": 3.0
+      "seconds": 3.1
     },
     {
       "name": "median_filter",
@@ -298,7 +299,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 0.2
+      "seconds": 0.1
     },
     {
       "name": "bilateral_filter",
@@ -307,7 +308,7 @@
       "failures": 0,
       "checks": 5,
       "failed_checks": 0,
-      "seconds": 0.8
+      "seconds": 0.7
     },
     {
       "name": "nl_means",
@@ -325,7 +326,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 14.3
+      "seconds": 14.1
     },
     {
       "name": "upscale",
@@ -334,7 +335,7 @@
       "failures": 0,
       "checks": 3,
       "failed_checks": 0,
-      "seconds": 6.5
+      "seconds": 5.8
     },
     {
       "name": "local_contrast",
@@ -343,7 +344,7 @@
       "failures": 0,
       "checks": 11,
       "failed_checks": 0,
-      "seconds": 4.3
+      "seconds": 4.1
     },
     {
       "name": "detail_enhance",
@@ -352,7 +353,7 @@
       "failures": 0,
       "checks": 5,
       "failed_checks": 0,
-      "seconds": 2.8
+      "seconds": 2.4
     },
     {
       "name": "multiscale_detail",
@@ -370,7 +371,7 @@
       "failures": 0,
       "checks": 3,
       "failed_checks": 0,
-      "seconds": 1.0
+      "seconds": 0.9
     },
     {
       "name": "perspective",
@@ -397,7 +398,7 @@
       "failures": 0,
       "checks": 1,
       "failed_checks": 0,
-      "seconds": 2.5
+      "seconds": 2.0
     },
     {
       "name": "fisheye",
@@ -406,7 +407,7 @@
       "failures": 0,
       "checks": 4,
       "failed_checks": 0,
-      "seconds": 1.8
+      "seconds": 1.7
     },
     {
       "name": "pixel_aspect",
@@ -460,7 +461,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 0.2
+      "seconds": 0.3
     },
     {
       "name": "laplacian",
@@ -478,7 +479,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 0.7
+      "seconds": 0.6
     },
     {
       "name": "blocking_map",
@@ -487,7 +488,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 0.7
+      "seconds": 0.6
     },
     {
       "name": "deblock",
@@ -496,7 +497,25 @@
       "failures": 0,
       "checks": 1,
       "failed_checks": 0,
-      "seconds": 0.5
+      "seconds": 0.4
+    },
+    {
+      "name": "deblur_motion_grid",
+      "kind": "filter",
+      "runs": 90,
+      "failures": 0,
+      "checks": 2,
+      "failed_checks": 0,
+      "seconds": 171.9
+    },
+    {
+      "name": "deblur_defocus_grid",
+      "kind": "filter",
+      "runs": 72,
+      "failures": 0,
+      "checks": 2,
+      "failed_checks": 0,
+      "seconds": 110.0
     },
     {
       "name": "ela",
@@ -505,7 +524,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 1.0
+      "seconds": 0.9
     },
     {
       "name": "fft_spectrum",
@@ -514,7 +533,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 1.0
+      "seconds": 0.9
     },
     {
       "name": "fft_filter",
@@ -523,7 +542,7 @@
       "failures": 0,
       "checks": 3,
       "failed_checks": 0,
-      "seconds": 3.8
+      "seconds": 3.5
     },
     {
       "name": "remove_periodic",
@@ -532,7 +551,7 @@
       "failures": 0,
       "checks": 2,
       "failed_checks": 0,
-      "seconds": 13.6
+      "seconds": 11.6
     },
     {
       "name": "noise_map",
@@ -550,25 +569,25 @@
       "failures": 0,
       "checks": 2,
       "failed_checks": 0,
-      "seconds": 31.9
+      "seconds": 24.0
     },
     {
       "name": "deblur_motion",
       "kind": "filter",
-      "runs": 70,
+      "runs": 100,
       "failures": 0,
-      "checks": 2,
+      "checks": 6,
       "failed_checks": 0,
-      "seconds": 11.8
+      "seconds": 31.1
     },
     {
       "name": "deblur_defocus",
       "kind": "filter",
-      "runs": 50,
+      "runs": 80,
       "failures": 0,
-      "checks": 1,
+      "checks": 5,
       "failed_checks": 0,
-      "seconds": 10.5
+      "seconds": 17.1
     },
     {
       "name": "ghost",
@@ -577,7 +596,7 @@
       "failures": 0,
       "checks": 7,
       "failed_checks": 0,
-      "seconds": 3.2
+      "seconds": 3.0
     },
     {
       "name": "stain",
@@ -586,7 +605,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 1.1
+      "seconds": 1.0
     },
     {
       "name": "component",
@@ -604,7 +623,7 @@
       "failures": 0,
       "checks": 9,
       "failed_checks": 0,
-      "seconds": 0.2
+      "seconds": 0.1
     },
     {
       "name": "redact",
@@ -649,7 +668,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 0.4
+      "seconds": 0.3
     },
     {
       "name": "arrow",
@@ -658,7 +677,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 0.2
+      "seconds": 0.1
     },
     {
       "name": "text",
@@ -694,7 +713,7 @@
       "failures": 0,
       "checks": 3,
       "failed_checks": 0,
-      "seconds": 0.2
+      "seconds": 0.1
     },
     {
       "name": "clone",
@@ -703,7 +722,7 @@
       "failures": 0,
       "checks": 0,
       "failed_checks": 0,
-      "seconds": 4.4
+      "seconds": 4.0
     },
     {
       "name": "compression",
@@ -721,7 +740,7 @@
       "failures": 0,
       "checks": 7,
       "failed_checks": 0,
-      "seconds": 1.3
+      "seconds": 1.1
     },
     {
       "name": "metadata",
@@ -739,7 +758,7 @@
       "failures": 0,
       "checks": 10,
       "failed_checks": 0,
-      "seconds": 0.6
+      "seconds": 0.3
     },
     {
       "name": "differential_denoise",
@@ -748,7 +767,7 @@
       "failures": 0,
       "checks": 3,
       "failed_checks": 0,
-      "seconds": 1.3
+      "seconds": 1.1
     },
     {
       "name": "per_channel",

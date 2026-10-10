@@ -1,7 +1,7 @@
 # undistort - validation result
 
 **Calibration-based lens correction**  
-`cv_tools.filters.undistort` | family: Correct | 2026-09-01T16:35:57
+`cv_tools.filters.undistort` | family: Correct | 2026-10-10T14:12:59
 
 ## Verdict
 

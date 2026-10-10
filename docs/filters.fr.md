@@ -47,6 +47,7 @@ regroupées à part, sous [Rapports d'analyse](#rapports-danalyse-pas-des-étape
 | `ghost` | `ghost_map` | `cv_tools.filters.jpeg_ghost` | 3 |
 | `deblur_motion` | `deblur_motion` | `cv_tools.filters.motion_deblur` | 3 |
 | `deblur_defocus` | `deblur_defocus` | `cv_tools.filters.motion_deblur` | 3 |
+| `deblur_motion_grid` / `deblur_defocus_grid` | `deblur_motion_grid` / `deblur_defocus_grid` | `cv_tools.filters.motion_deblur` | — |
 | `curves` / `s_curve` | `apply_curve` / `s_curve` | `cv_tools.filters.curves` | — |
 | `white_balance` / `white_balance_patch` / `temperature` | `auto_white_balance` / `white_balance_from_patch` / `adjust_temperature` | `cv_tools.filters.white_balance` | — |
 | `saturation` / `vibrance` / `desaturate` / `selective_saturation` | voir le module | `cv_tools.filters.saturation` | — |
@@ -664,7 +665,7 @@ CLI : `--metadata-stats`
 en main. `extract_thumbnail` renvoie les octets JPEG bruts de la miniature intégrée, ou
 `None`.
 
-## Défloutage de Wiener — `deblur_motion`, `deblur_defocus`
+## Défloutage — `deblur_motion`, `deblur_defocus`
 
 Inverse un flou connu. L'inversion naïve divise par la réponse fréquentielle du flou, qui est
 proche de zéro à certaines fréquences, ce qui amplifie le bruit à ces fréquences sans limite.
@@ -673,29 +674,181 @@ Le filtre de Wiener tempère cela : `F = G · conj(H) / (|H|² + K)`, où `K` es
 
 | Paramètre | Type | Défaut | Remarques |
 |---|---|---|---|
-| `length` | float | `15.0` | Étendue du mouvement en pixels (`deblur_motion`) |
-| `angle` | float | `0.0` | Direction du mouvement en degrés, 0 = horizontal (`deblur_motion`) |
-| `radius` | float | `5.0` | Rayon du cercle de défocalisation (`deblur_defocus`) |
-| `noise_power` | float | `0.01` | Augmenter sur des images bruitées pour échanger de la netteté contre de la stabilité |
+| `length` | float | `15.0` | Étendue du mouvement en pixels : la distance entre les deux images fantômes d'un même point. Les fractions comptent (`deblur_motion`) |
+| `angle` | float | `0.0` | Direction du mouvement en degrés, 0 = horizontal, sens antihoraire (`deblur_motion`) |
+| `thickness` | float | `1.0` | Largeur de la traînée en pixels ; à augmenter quand l'image est aussi légèrement floue (`deblur_motion`) |
+| `radius` | float | `5.0` | Rayon du cercle de défocalisation, à partir de 0,5. Les fractions comptent (`deblur_defocus`) |
+| `noise_power` | float | `0.01` | Augmenter sur des images bruitées pour échanger de la netteté contre de la stabilité. Même sens pour les deux solveurs |
+| `solver` | str | `wiener` | `wiener` ou `richardson_lucy` ; voir *Solveur* ci-dessous |
+| `iterations` | int | `40` | Nombre de passes de correction, `richardson_lucy` uniquement |
 
-L'entrée est complétée en miroir (reflect-padding) avant la transformée puis recadrée après,
-ce qui écarte du résultat le repliement (wraparound) de la FFT — où le bord gauche est convolué
-avec le bord droit.
+Les deux PSF sont échantillonnées en surface : un pixel que la ligne ou le cercle ne couvre
+qu'en partie porte cette fraction de son poids, si bien que `length=15.4` et `angle=17` ne sont
+pas arrondis au pixel entier le plus proche. Ce n'est pas cosmétique : une PSF trop longue de
+deux pixels, ou décalée de cinq degrés, restaure moins bien que de laisser l'image floue.
+
+La FFT traite l'image comme un motif qui pave le plan : son bord droit rejoint son bord gauche.
+Là où ils diffèrent, c'est une marche que la scène n'a jamais contenue, et la déconvolution
+produit des oscillations qui s'étendent à toute l'image. L'entrée est donc prolongée par une
+marge dans laquelle chaque bord se fond dans le bord opposé, puis recadrée. La bande située à
+environ une longueur de flou du bord reste la partie la moins fiable du résultat : ce qui se
+trouvait hors champ y a été mélangé par le flou, et rien ne permet de le retrouver.
+
+La luminosité moyenne de l'image est conservée quelle que soit la valeur de `noise_power`.
+
+### Solveur
+
+`wiener` est le solveur par défaut, celui que décrit la formule ci-dessus : un seul filtre
+linéaire, appliqué une fois. Chaque pixel de sortie est une somme pondérée fixe de pixels
+d'entrée, les poids ne dépendent que de la PSF et de `noise_power`, et c'est une phrase que
+l'on peut écrire dans un rapport.
+
+`richardson_lucy` est l'alternative pour les images bruitées et compressées, c'est-à-dire la
+plupart des images de vidéosurveillance. Il part d'une image uniforme et la corrige de façon
+répétée : flouter l'estimation, la comparer à l'image enregistrée, rapprocher l'estimation de
+celle-ci. Il fait mieux dans ce cas pour trois raisons.
+
+- **L'estimation ne peut pas devenir négative.** L'essentiel des oscillations d'un résultat de
+  Wiener vient du filtre qui descend sous le noir à côté d'un élément lumineux — un phare, une
+  fenêtre éclairée. Cela ne peut pas se produire ici.
+- **Il travaille en lumière linéaire**, là où un flou s'additionne réellement. Les valeurs
+  enregistrées sont codées en gamma ; elles sont décodées en sRGB, déconvoluées puis recodées.
+  Une caméra dont la courbe de tons s'éloigne du sRGB profite moins de cet avantage, sans que
+  le résultat soit faux pour autant.
+- **Ce qui se trouvait hors champ est estimé**, et non supposé ; la bande de bord est donc
+  meilleure.
+
+Un terme de variation totale (Dey et al., 2006), proportionnel à `noise_power`, contient le
+bruit à l'échelle du pixel que Richardson–Lucy accumule au fil des itérations.
+
+Mesuré sur des captures de vidéosurveillance simulées — des images nettes floutées à une
+résolution inférieure au pixel en lumière linéaire, auxquelles sont ajoutés du bruit de
+capteur et une compression JPEG, de sorte que l'image réelle est connue. Gain moyen de PSNR
+par rapport à l'image floue, douze cas par colonne, pire cas entre parenthèses :
+
+| | propre | bruit + JPEG 70 | bruit + JPEG 45 | bruit + JPEG 25 |
+|---|---|---|---|---|
+| `wiener`, `noise_power` 0,01 | 2,9 dB (2,0) | 1,8 (0,2) | 1,3 (−0,6) | 0,6 (−1,6) |
+| `wiener`, `noise_power` 0,03 | 2,2 (1,3) | 1,7 (0,8) | 1,5 (0,4) | 1,2 (−0,1) |
+| `richardson_lucy`, valeurs par défaut | 3,8 (2,3) | 3,3 (2,1) | 2,9 (1,5) | 2,4 (0,8) |
+
+Il tolère aussi mieux une PSF légèrement fausse : avec une longueur erronée de 1,5 pixel ou un
+angle erroné de 4 degrés sur les captures JPEG 45, il conservait 2,8 à 3,1 dB de gain là où
+Wiener en conservait 1,2 à 1,6.
+
+**Tout cela dépend de l'endroit où le flou s'est produit.** Un objectif ou un sujet en
+mouvement floute la lumière sur le capteur, avant que la caméra ne la code en gamma, et les
+chiffres ci-dessus valent pour un flou produit de cette façon. Un flou appliqué aux valeurs
+enregistrées — par un logiciel de retouche, ou par un test qui floute un JPEG — est une autre
+opération, et c'est celle que `wiener` suppose. Sur un flou produit ainsi, l'ordre s'inverse
+pour des images propres : `wiener` gagnait 3,1 dB et `richardson_lucy` 2,0, et à JPEG 60 les
+deux étaient à moins de 0,2 dB l'un de l'autre. Avec du bruit ajouté ou à JPEG 40,
+`richardson_lucy` repassait devant. Un flou que vous avez fabriqué vous-même pour essayer le
+filtre favorisera donc `wiener` ; des images réelles ne le devraient pas. Aucune séquence dont
+l'original soit connu n'était disponible pour le confirmer sur une vraie caméra, dont la
+courbe de tons n'est pas exactement le sRGB ; les deux cas ci-dessus sont les limites entre
+lesquelles elle se situe.
+
+**Ce que cela coûte.** Le résultat n'est plus une somme pondérée fixe de l'entrée. Il est
+entièrement déterminé par l'image et les paramètres enregistrés et se reproduit à l'identique,
+mais c'est le produit d'une itération, et un expert doit être prêt à le dire. Il est aussi des
+dizaines de fois plus lent — environ 1,6 s sur une image de 640×362 contre 0,03 s, environ
+11 s en 1920×1080 — donc recadrez d'abord. Les planches de comparaison acceptent aussi
+`solver`, mais la PSF qui convient à un solveur convient à l'autre : cherchez avec `wiener`,
+puis changez.
+
+Les hautes lumières écrêtées ne demandent aucun réglage. Un traitement particulier des pixels
+écrêtés a été essayé — les ignorer, ou les considérer comme « au moins aussi lumineux » — et
+aucun des deux n'a donné de meilleure mesure que le solveur seul ; les ignorer creusait les
+grandes zones surexposées. Aucun n'a été conservé.
+
+Le traitement en lumière linéaire a aussi été essayé pour `wiener`. Il gagnait 0,8 dB sur les
+captures propres, peu ou rien sur les captures compressées, et aggravait les pires cas ;
+`wiener` travaille donc sur les valeurs enregistrées, comme il l'a toujours fait.
+
+Amped FIVE ne publie pas l'algorithme de ses filtres de défloutage. Les deux solveurs sont ici
+le choix, propre à cette boîte à outils, de méthodes classiques.
 
 **Limites.** Il faut fournir la PSF correcte ; une longueur ou un angle devinés produisent un
 détail d'apparence confiante qui n'a jamais été enregistré. La déconvolution suppose aussi un
 flou uniforme sur toute l'image, donc une scène où un seul objet a bougé nécessite d'isoler
 d'abord cet objet avec `--roi`.
 
-CLI : `--deblur length=15 angle=30 noise=0.01`, `--deblur-defocus radius=5 noise=0.01`
+### Trouver la PSF
+
+L'ordre de travail suit celui des filtres Motion Deblurring et Optical Deblurring d'Amped
+FIVE : recadrer sur le sujet, mesurer le flou, déflouter, et seulement ensuite ajuster les
+niveaux, accentuer ou corriger la perspective.
+
+1. **Recadrer** sur la plaque, le visage ou le panneau. La déconvolution suppose un seul flou
+   sur toute l'image, et les planches ci-dessous n'affichent leurs vignettes en taille réelle
+   que tant que la planche tient dans la limite.
+2. **Mesurer un flou de mouvement en traçant sa ligne.** Trouvez un point de la scène que le
+   flou a dessiné deux fois — les deux images fantômes d'un coin de plaque, les deux
+   extrémités de la traînée laissée par un point lumineux — et reliez-les. Dans l'une ou
+   l'autre interface, sélectionnez `deblur_motion`, appuyez sur *Pick points on the image* et
+   cliquez sur les deux fantômes : `length` et `angle` sont remplis. En ligne de commande,
+   `--deblur line=X1,Y1,X2,Y2` fait la même chose. La ligne elle-même n'est pas conservée ; le
+   préréglage et le rapport enregistrent la longueur et l'angle obtenus, c'est-à-dire la PSF
+   réellement utilisée.
+3. **Vérifier la fonction d'étalement du point.** Les deux interfaces dessinent la PSF à côté
+   du formulaire pour chaque filtre de défloutage. Elle doit ressembler à la traînée visible
+   dans l'image. `psf_preview(psf)` renvoie la même image.
+4. **Affiner avec une planche de comparaison.** Une ligne tracée à la main est juste à un ou
+   deux pixels et quelques degrés près, ce qui ne suffit pas. `deblur_motion_grid` présente
+   l'estimation à côté de ses voisines — un pas plus court et plus long selon les lignes, un
+   pas d'angle de part et d'autre selon les colonnes. Prenez les valeurs de la meilleure
+   vignette, divisez les pas par deux et recommencez.
+   La défocalisation ne laisse aucune ligne à tracer ; c'est donc avec `deblur_defocus_grid`
+   que l'on trouve son rayon : le rayon selon les lignes, et le terme de bruit à un tiers, une
+   fois et trois fois sa valeur selon les colonnes, car les deux se compensent.
+5. **Déflouter**, puis ajuster.
+
+| Paramètre | Type | Défaut | Remarques |
+|---|---|---|---|
+| `length_step` | float | `2.0` | Pixels entre les lignes (`deblur_motion_grid`) |
+| `angle_step` | float | `5.0` | Degrés entre les colonnes (`deblur_motion_grid`) |
+| `radius_step` | float | `1.0` | Pixels entre les lignes (`deblur_defocus_grid`) |
+
+Les planches acceptent aussi les paramètres du filtre qu'elles comparent. Les vignettes sont
+les résultats eux-mêmes, non des miniatures, tant que la planche ne dépasse pas 2400 pixels de
+côté : les oscillations et le bruit amplifié sont ce qui distingue la bonne PSF d'une PSF
+presque bonne, et réduire une vignette les fait disparaître. Chaque étiquette est placée dans
+une bande au-dessus de sa vignette, et non par-dessus.
+
+**Ordre.** Les défauts se corrigent dans l'ordre inverse de celui où la caméra les a
+introduits ; deux ordres font donc l'objet d'un avertissement — en ligne de commande, sous la
+chaîne dans le tableau de bord, et dans le panneau Info de l'interface de bureau. La chaîne
+s'exécute quand même.
+
+- *Un défloutage de défocalisation après `perspective`, `auto_perspective`, `barrel`,
+  `fisheye` ou `undistort`.* La défocalisation se produit dans l'objectif, sur l'image telle
+  qu'elle est enregistrée, où le flou est un même cercle partout. Une déformation étire
+  chaque partie de l'image différemment et plus aucun rayon unique ne convient ensuite. Le
+  flou de mouvement est volontairement exclu : le sujet se déplace dans la scène, et sa
+  traînée peut être plus rectiligne après redressement qu'avant.
+- *Tout défloutage après un filtre d'accentuation.* L'accentuation modifie les contours d'une
+  manière que la PSF ne décrit pas, et la déconvolution transforme cet écart en oscillations.
+
+Tracer la ligne et prévisualiser la PSF reprennent la méthode d'Amped FIVE. Les planches de
+comparaison et l'avertissement sur l'ordre sont propres à cette boîte à outils.
+
+CLI : `--deblur length=15.5 angle=30 thickness=1 noise=0.01`, `--deblur line=412,300,455,268`,
+`--deblur-defocus radius=5 noise=0.01`, `--deblur line=412,300,455,268
+solver=richardson_lucy iterations=40`, `--deblur-grid line=412,300,455,268 length_step=1
+angle_step=3`, `--deblur-defocus-grid radius=3 radius_step=0.5`
 
 `motion_blur_psf` et `defocus_psf` construisent les PSF ; `apply_psf` en applique une vers
-l'avant, utile pour prévisualiser ce que signifie une PSF. `wiener_deconvolution` accepte une
-PSF arbitraire.
+l'avant, utile pour prévisualiser ce que signifie une PSF. `wiener_deconvolution` et
+`richardson_lucy_deconvolution` acceptent une PSF arbitraire ; `deconvolve` choisit entre eux
+par leur nom.
 
-Comme la véritable PSF ne peut être lue de manière fiable sur une image, `deblur_sweep(image,
-lengths, angles)` génère une grille annotée sur l'espace des paramètres pour juger à l'œil, et
-`focus_score(image)` classe les résultats selon la variance du laplacien.
+`deblur_sweep(image, lengths, angles)` est la planche de comparaison pour des longueurs et des
+angles quelconques, quand les candidats ne sont pas à un pas de part et d'autre d'une même
+estimation. `motion_from_line(start, end)` est la mesure que font les deux clics.
+`focus_score(image)` est la variance du laplacien ; elle augmente avec les oscillations autant
+qu'avec le détail retrouvé, de sorte qu'une mauvaise PSF peut obtenir un meilleur score que la
+bonne. Ne choisissez pas une PSF d'après elle.
 
 ---
 

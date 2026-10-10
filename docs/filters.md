@@ -45,6 +45,7 @@ compression, JPEG ghost and metadata — are not chain steps and are listed sepa
 | `ghost` | `ghost_map` | `cv_tools.filters.jpeg_ghost` | 3 |
 | `deblur_motion` | `deblur_motion` | `cv_tools.filters.motion_deblur` | 3 |
 | `deblur_defocus` | `deblur_defocus` | `cv_tools.filters.motion_deblur` | 3 |
+| `deblur_motion_grid` / `deblur_defocus_grid` | `deblur_motion_grid` / `deblur_defocus_grid` | `cv_tools.filters.motion_deblur` | — |
 | `curves` / `s_curve` | `apply_curve` / `s_curve` | `cv_tools.filters.curves` | — |
 | `white_balance` / `white_balance_patch` / `temperature` | `auto_white_balance` / `white_balance_from_patch` / `adjust_temperature` | `cv_tools.filters.white_balance` | — |
 | `saturation` / `vibrance` / `desaturate` / `selective_saturation` | see module | `cv_tools.filters.saturation` | — |
@@ -634,7 +635,7 @@ CLI: `--metadata-stats`
 `check_timestamps` are the individual checks, usable on an EXIF dict you already hold.
 `extract_thumbnail` returns the embedded thumbnail's raw JPEG bytes, or `None`.
 
-## Wiener Deblurring — `deblur_motion`, `deblur_defocus`
+## Deblurring — `deblur_motion`, `deblur_defocus`
 
 Inverts a known blur. Naive inversion divides by the blur's frequency response, which is
 near zero at some frequencies, so noise there is amplified without limit. The Wiener filter
@@ -642,27 +643,165 @@ tempers this: `F = G · conj(H) / (|H|² + K)`, where `K` is `noise_power`.
 
 | Param | Type | Default | Notes |
 |---|---|---|---|
-| `length` | float | `15.0` | Motion extent in pixels (`deblur_motion`) |
-| `angle` | float | `0.0` | Motion direction in degrees, 0 = horizontal (`deblur_motion`) |
-| `radius` | float | `5.0` | Defocus circle radius (`deblur_defocus`) |
-| `noise_power` | float | `0.01` | Raise on noisy footage to trade sharpness for stability |
+| `length` | float | `15.0` | Motion extent in pixels: the distance between the two ghosts of one point. Fractions count (`deblur_motion`) |
+| `angle` | float | `0.0` | Motion direction in degrees, 0 = horizontal, counter-clockwise (`deblur_motion`) |
+| `thickness` | float | `1.0` | Width of the streak in pixels; raise it when the frame is also slightly soft (`deblur_motion`) |
+| `radius` | float | `5.0` | Defocus circle radius, from 0.5. Fractions count (`deblur_defocus`) |
+| `noise_power` | float | `0.01` | Raise on noisy footage to trade sharpness for stability. Same meaning for both solvers |
+| `solver` | str | `wiener` | `wiener` or `richardson_lucy`; see *Solver* below |
+| `iterations` | int | `40` | Correction passes, `richardson_lucy` only |
 
-The input is reflect-padded before the transform and cropped afterwards, which keeps the
-FFT's wraparound — where the left edge convolves with the right — out of the result.
+Both PSFs are area-sampled: a pixel the line or circle only partly covers carries that
+fraction of its weight, so `length=15.4` and `angle=17` are not rounded to the nearest whole
+pixel. That is not cosmetic. A PSF two pixels too long, or five degrees off, restores worse
+than leaving the frame blurred.
+
+The FFT treats the frame as tiling the plane, so its right edge runs into its left one. Where
+they differ that is a step the scene never had, and deconvolution rings off it across the
+whole frame. The input is therefore extended with a margin in which each edge fades into the
+opposite one, and cropped afterwards. The band within about one blur length of the border is
+still the least reliable part of the result: what was outside the frame was blurred into it,
+and nothing recovers that.
+
+The frame's mean brightness is preserved whatever `noise_power` is.
+
+### Solver
+
+`wiener` is the default and is what the formula above describes: one linear filter, applied
+once. Every output pixel is a fixed weighted sum of input pixels, the weights depend only on
+the PSF and `noise_power`, and that is a sentence that can be written in a report.
+
+`richardson_lucy` is the alternative for noisy, compressed footage, which is to say most
+CCTV. It starts from a flat frame and repeatedly corrects it: blur the estimate, compare with
+the recorded frame, push the estimate towards agreement. It does better there for three
+reasons.
+
+- **The estimate cannot go negative.** Most of a Wiener result's ringing is the filter
+  overshooting below black beside something bright — a headlight, a lit window. That cannot
+  happen here.
+- **It works in linear light**, where a blur actually adds up. Recorded values are
+  gamma-encoded; they are decoded as sRGB, deconvolved and encoded again. A camera whose tone
+  curve is far from sRGB gets less of this benefit, not a wrong result.
+- **What lay outside the frame is estimated**, not assumed, so the border band is better.
+
+A total-variation term (Dey et al., 2006), scaled from `noise_power`, holds down the
+pixel-scale noise that plain Richardson–Lucy builds up as it iterates.
+
+Measured on simulated CCTV captures — sharp frames blurred at sub-pixel resolution in linear
+light, with sensor noise and JPEG compression added, so the true image is known. Mean gain in
+PSNR over the blurred input, twelve cases a column, worst case in brackets:
+
+| | clean | noise + JPEG 70 | noise + JPEG 45 | noise + JPEG 25 |
+|---|---|---|---|---|
+| `wiener`, `noise_power` 0.01 | 2.9 dB (2.0) | 1.8 (0.2) | 1.3 (−0.6) | 0.6 (−1.6) |
+| `wiener`, `noise_power` 0.03 | 2.2 (1.3) | 1.7 (0.8) | 1.5 (0.4) | 1.2 (−0.1) |
+| `richardson_lucy`, defaults | 3.8 (2.3) | 3.3 (2.1) | 2.9 (1.5) | 2.4 (0.8) |
+
+It is also more forgiving of a PSF that is slightly wrong: with the length 1.5 pixels out or
+the angle 4 degrees out on the JPEG 45 captures, it kept 2.8 to 3.1 dB of gain where Wiener
+kept 1.2 to 1.6.
+
+**This rests on where the blur happened.** A lens or a moving subject blurs light on the
+sensor, before the camera gamma-encodes it, and the figures above are for blur made that way.
+A blur applied to the stored values instead — by an image editor, or by a test that blurs a
+JPEG — is a different operation, and it is the one `wiener` assumes. On blur made that way
+the order reverses for clean footage: `wiener` gained 3.1 dB and `richardson_lucy` 2.0, and
+at JPEG 60 they were within 0.2 dB. With noise added or at JPEG 40, `richardson_lucy` was
+ahead again. So a blur you made yourself to try the filter out will favour `wiener`; real
+footage should not. No footage with a known original was available to confirm that on a real
+camera, whose tone curve is not exactly sRGB; the two cases above are the limits it lies
+between.
+
+**What it costs.** The result is no longer one fixed weighted sum of the input. It is fully
+determined by the frame and the recorded parameters and repeats exactly, but it is the output
+of an iteration, and an examiner should be ready to say so. It also takes tens of times as
+long — about 1.6 s on a 640×362 frame against 0.03 s, about 11 s at 1920×1080 — so crop first.
+The contact sheets accept `solver` too, but the PSF that is right for one solver is right for
+the other: search with `wiener`, then switch.
+
+Clipped highlights need no setting. Treating clipped pixels specially was tried — ignoring
+them, and treating them as "at least this bright" — and neither measured any better than the
+solver alone; ignoring them hollowed out large blown-out areas. Neither was kept.
+
+Processing in linear light was also tried for `wiener`. It gained 0.8 dB on clean captures,
+little or nothing on compressed ones, and made the worst cases worse, so `wiener` works on the recorded
+values as it always has.
+
+Amped FIVE does not publish the algorithm behind its deblurring filters. Both solvers here are
+this toolkit's own choice of standard methods.
 
 **Limits.** You must supply the correct PSF; a guessed length or angle produces
 confident-looking detail that was never recorded. Deconvolution also assumes one uniform
 blur across the frame, so a scene where only one object moved needs that object isolated
 first with `--roi`.
 
-CLI: `--deblur length=15 angle=30 noise=0.01`, `--deblur-defocus radius=5 noise=0.01`
+### Finding the PSF
+
+The order of work follows Amped FIVE's Motion Deblurring and Optical Deblurring filters:
+crop to the subject, measure the blur, deblur, and only then adjust levels, sharpen or
+correct perspective.
+
+1. **Crop** to the plate, face or sign. Deconvolution assumes one blur across the frame, and
+   the contact sheets below show their tiles at full size only while the board fits.
+2. **Measure a motion blur by drawing its line.** Find one point of the scene the blur drew
+   twice — the two ghosts of a plate corner, the two ends of the streak a point light left —
+   and join them. In either front end select `deblur_motion`, press *Pick points on the
+   image* and click the two ghosts: `length` and `angle` are filled in. On the command line,
+   `--deblur line=X1,Y1,X2,Y2` does the same. The line itself is not kept; the preset and the
+   report record the length and angle it gave, which is the PSF that was used.
+3. **Check the point spread function.** Both front ends draw the PSF beside the form for
+   every deblur filter. It should look like the streak in the frame. `psf_preview(psf)`
+   returns the same picture.
+4. **Close in with a contact sheet.** A hand-drawn line is good to a pixel or two and a few
+   degrees, which is not close enough. `deblur_motion_grid` lays the estimate out beside its
+   neighbours — a step shorter and longer down the rows, a step either way in angle across
+   the columns. Take the best tile's values, halve the steps and run it again.
+   Defocus leaves nothing to draw a line along, so `deblur_defocus_grid` is how its radius is
+   found: radius down the rows, and the noise term at a third, one and three times its value
+   across the columns, because the two trade against each other.
+5. **Deblur**, then adjust.
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `length_step` | float | `2.0` | Pixels between rows (`deblur_motion_grid`) |
+| `angle_step` | float | `5.0` | Degrees between columns (`deblur_motion_grid`) |
+| `radius_step` | float | `1.0` | Pixels between rows (`deblur_defocus_grid`) |
+
+The grids take the parameters of the filter they are a sheet of as well. Tiles are the
+results themselves, not thumbnails, until the board would pass 2400 pixels a side: ringing
+and amplified noise are what separate the right PSF from a nearly right one, and shrinking a
+tile averages both away. Each label sits in a strip above its tile, not over it.
+
+**Order.** Defects are undone in the reverse of the order the camera introduced them, so two
+orders are warned about — on the command line, under the chain in the dashboard, and in the
+desktop GUI's Info panel. The chain still runs.
+
+- *A defocus deblur after `perspective`, `auto_perspective`, `barrel`, `fisheye` or
+  `undistort`.* Defocus happens in the lens, to the frame as recorded, where the blur is one
+  circle everywhere. A warp stretches each part of the frame differently and no single radius
+  fits afterwards. Motion blur is deliberately not warned about: the subject moves in the
+  scene, and its streak can be straighter after rectifying than before.
+- *Any deblur after a sharpening filter.* Sharpening reshapes edges in a way the PSF does not
+  describe, and deconvolution turns the mismatch into ringing.
+
+Drawing the line and previewing the PSF are Amped FIVE's workflow. The contact sheets and the
+order warning are this toolkit's own.
+
+CLI: `--deblur length=15.5 angle=30 thickness=1 noise=0.01`, `--deblur line=412,300,455,268`,
+`--deblur-defocus radius=5 noise=0.01`, `--deblur line=412,300,455,268
+solver=richardson_lucy iterations=40`, `--deblur-grid line=412,300,455,268 length_step=1
+angle_step=3`, `--deblur-defocus-grid radius=3 radius_step=0.5`
 
 `motion_blur_psf` and `defocus_psf` build the PSFs; `apply_psf` applies one forward, which
-is useful for previewing what a PSF means. `wiener_deconvolution` takes an arbitrary PSF.
+is useful for previewing what a PSF means. `wiener_deconvolution` and
+`richardson_lucy_deconvolution` take an arbitrary PSF; `deconvolve` chooses between them by
+name.
 
-Because the true PSF cannot be read off an image reliably, `deblur_sweep(image, lengths,
-angles)` renders a labelled grid across the parameter space to judge by eye, and
-`focus_score(image)` ranks results by the variance of the Laplacian.
+`deblur_sweep(image, lengths, angles)` is the contact sheet over any lengths and angles, for
+when the candidates are not a step either side of one estimate. `motion_from_line(start,
+end)` is the measurement the two clicks make.
+`focus_score(image)` is the variance of the Laplacian; it rises with ringing as readily as
+with recovered detail, so a wrong PSF can outscore the right one. Do not pick a PSF by it.
 
 ---
 

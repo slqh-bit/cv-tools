@@ -1,7 +1,7 @@
 # roi_crop - validation result
 
 **Crop to a region of interest**  
-`cv_tools.filters.roi` | family: Adjust | 2026-09-01T16:34:48
+`cv_tools.filters.roi` | family: Adjust | 2026-10-10T14:11:53
 
 ## Verdict
 
@@ -20,7 +20,7 @@
 | `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 138.63 | ok |
 | `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 119.01 | ok |
 | `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 126.91 | ok |
-| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [140, 200, 3] uint8 mean 158.93 | ok |
+| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 158.93 | ok |
 | `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 123.72 | ok |
 | `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 165.09 | ok |
 | `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 150.2 | ok |

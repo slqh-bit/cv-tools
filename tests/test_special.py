@@ -748,17 +748,44 @@ class MeasurementAdapterTests(unittest.TestCase):
                 self.assertIn(name, POINT_PARAMETERS)
 
     def test_click_plans_name_real_parameters(self):
-        """A plan that names a parameter the filter lacks fills nothing."""
+        """
+        A plan that fills a parameter the filter lacks fills nothing.
+
+        Checked on what the clicks turn into rather than on the plan's own
+        names, because a plan can ask for a measurement: a motion line is not
+        a parameter of ``deblur_motion``, but the length and angle it gives
+        are.
+        """
         import inspect
 
-        from cv_tools.filters.registry import FILTER_REGISTRY, POINT_PARAMETERS
+        from cv_tools.filters.registry import (
+            FILTER_REGISTRY,
+            POINT_PARAMETERS,
+            parameters_from_points,
+        )
 
         for name, plan in POINT_PARAMETERS.items():
             spec = FILTER_REGISTRY[name]
             accepted = set(inspect.signature(spec.fn).parameters)
-            for parameter, _count, _prompt in plan:
+            points = [(10 + 9 * index, 20 + 5 * index)
+                      for index in range(sum(count for _p, count, _t in plan))]
+            produced = parameters_from_points(name, points)
+
+            self.assertTrue(produced, f'{name}: the click plan fills nothing')
+            for parameter in produced:
                 with self.subTest(filter=name, parameter=parameter):
                     self.assertIn(parameter, accepted)
+
+    def test_every_conversion_belongs_to_a_click_plan(self):
+        """A conversion nothing asks for is a measurement nobody can take."""
+        from cv_tools.filters.registry import POINT_CONVERSIONS, POINT_PARAMETERS
+
+        for name, conversions in POINT_CONVERSIONS.items():
+            planned = {parameter for parameter, _count, _prompt
+                       in POINT_PARAMETERS.get(name, ())}
+            for measurement in conversions:
+                with self.subTest(filter=name, measurement=measurement):
+                    self.assertIn(measurement, planned)
 
 
 if __name__ == '__main__':

@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from cv_tools.filters import motion_deblur
 from cv_tools.filters import (
     check_thumbnail_mismatch,
     check_timestamps,
@@ -22,10 +23,18 @@ from cv_tools.filters import (
 from cv_tools.filters import (
     apply_psf,
     average_frames,
+    chain_warnings,
     deblur_defocus,
+    deblur_defocus_grid,
     deblur_motion,
+    deblur_motion_grid,
     deblur_sweep,
     defocus_psf,
+    motion_from_line,
+    parameter_preview,
+    parameters_from_points,
+    psf_preview,
+    richardson_lucy_deconvolution,
     detect_copy_move,
     detect_periodic_peaks,
     draw_clone_regions,
@@ -769,6 +778,48 @@ class TestMotionDeblur(unittest.TestCase):
         with self.assertRaises(ValueError):
             defocus_psf(radius=0)
 
+    def test_motion_psf_along_an_axis_is_an_even_run_of_pixels(self):
+        psf = motion_blur_psf(length=15, angle=0)
+        self.assertEqual(psf.shape, (15, 15))
+        np.testing.assert_allclose(psf[7], np.full(15, 1 / 15), rtol=1e-5)
+
+    def test_motion_psf_resolves_a_fraction_of_a_pixel(self):
+        # Rounding the line's ends to whole pixels made these two identical
+        longer = motion_blur_psf(15.4, 0)
+        centre = longer.shape[0] // 2
+        # 15 whole pixels and 0.2 of one at each end
+        np.testing.assert_allclose(longer[centre, 1:-1], np.full(15, 1 / 15.4), rtol=1e-4)
+        np.testing.assert_allclose(longer[centre, [0, -1]], 0.2 / 15.4, rtol=1e-4)
+
+    def test_motion_psf_resolves_a_few_degrees(self):
+        # At length 15 the rounded line could not tell 15 degrees from 20
+        self.assertGreater(
+            float(np.abs(motion_blur_psf(15, 15) - motion_blur_psf(15, 20)).max()), 1e-3)
+
+    def test_motion_psf_angle_is_counter_clockwise(self):
+        psf = motion_blur_psf(21, 45)
+        # Rows run downwards, so up-and-right is the top-right corner
+        self.assertGreater(psf[:8, -8:].sum(), psf[:8, :8].sum())
+
+    def test_motion_psf_thickness_widens_the_streak(self):
+        thin, thick = motion_blur_psf(15, 0, thickness=1), motion_blur_psf(15, 0, thickness=3)
+        self.assertEqual(int((thin.sum(axis=1) > 0).sum()), 1)
+        self.assertEqual(int((thick.sum(axis=1) > 0).sum()), 3)
+        self.assertAlmostEqual(float(thick.sum()), 1.0, places=5)
+
+    def test_motion_psf_rejects_bad_thickness(self):
+        with self.assertRaises(ValueError):
+            motion_blur_psf(15, 0, thickness=0)
+
+    def test_defocus_psf_resolves_a_fraction_of_a_pixel(self):
+        # A hard-edged disc lit the same five pixels for both
+        small, large = defocus_psf(1.0), defocus_psf(1.4)
+        self.assertEqual(small.shape, large.shape)
+        self.assertGreater(float(np.abs(small - large).max()), 1e-2)
+
+    def test_defocus_psf_accepts_a_sub_pixel_radius(self):
+        self.assertAlmostEqual(float(defocus_psf(0.7).sum()), 1.0, places=5)
+
     def test_apply_psf_blurs(self):
         image = textured()
         blurred = apply_psf(image, motion_blur_psf(15, 0))
@@ -812,6 +863,40 @@ class TestMotionDeblur(unittest.TestCase):
         aggressive = deblur_motion(blurred, 11, 0, noise_power=0.001)
         self.assertLess(focus_score(gentle), focus_score(aggressive))
 
+    def test_the_right_fraction_of_a_pixel_restores_best(self):
+        image = detailed()
+        blurred = apply_psf(image, motion_blur_psf(11.5, 0))
+        error = lambda a, b: float(np.abs(a.astype(float) - b.astype(float)).mean())
+
+        exact = deblur_motion(blurred, length=11.5, angle=0, noise_power=0.005)
+        rounded = deblur_motion(blurred, length=11, angle=0, noise_power=0.005)
+        self.assertLess(error(exact, image), error(rounded, image))
+
+    def test_noise_power_does_not_darken_the_frame(self):
+        # The noise term used to scale the mean by 1 / (1 + K)
+        blurred = apply_psf(detailed(), motion_blur_psf(11, 0))
+        restored = deblur_motion(blurred, 11, 0, noise_power=0.5)
+        self.assertAlmostEqual(float(restored.mean()), float(blurred.mean()), delta=1.0)
+
+    def test_opposite_edges_that_differ_do_not_ring(self):
+        # Dark on the left, bright on the right: tiled, that is a step the
+        # scene never had. The middle of the frame is flat and must stay flat.
+        image = np.full((96, 192), 40, dtype=np.uint8)
+        image[:, 96:] = 215
+        blurred = apply_psf(image, motion_blur_psf(15, 0))
+        restored = deblur_motion(blurred, length=15, angle=0, noise_power=0.002)
+
+        for flat, value in ((restored[:, 24:72], 40), (restored[:, 120:168], 215)):
+            self.assertLess(float(np.abs(flat.astype(float) - value).max()), 12)
+
+    def test_thickness_reaches_the_filter(self):
+        blurred = apply_psf(detailed(), motion_blur_psf(11, 0, thickness=3))
+        error = lambda a, b: float(np.abs(a.astype(float) - b.astype(float)).mean())
+
+        matched = deblur_motion(blurred, 11, 0, noise_power=0.005, thickness=3)
+        thin = deblur_motion(blurred, 11, 0, noise_power=0.005)
+        self.assertLess(error(matched, detailed()), error(thin, detailed()))
+
     def test_deconvolution_preserves_shape_and_alpha(self):
         rgb = textured()
         alpha = np.full((*rgb.shape[:2], 1), 200, dtype=np.uint8)
@@ -841,6 +926,105 @@ class TestMotionDeblur(unittest.TestCase):
     def test_sweep_rejects_empty_parameters(self):
         with self.assertRaises(ValueError):
             deblur_sweep(textured(), lengths=[], angles=[0])
+
+    def test_sweep_tiles_are_the_results_themselves(self):
+        # Not thumbnails: ringing is what tells two settings apart, and
+        # shrinking a tile averages it away
+        image = textured()
+        height, width = image.shape[:2]
+        grid = deblur_sweep(image, lengths=[9, 15], angles=[0, 45])
+        strip = grid.shape[0] // 2 - height
+
+        self.assertEqual(grid.shape, (2 * (height + strip), 2 * width, 3))
+        np.testing.assert_array_equal(
+            grid[strip:strip + height, width:],
+            deblur_motion(image, length=9, angle=45))
+
+    def test_a_sheet_too_large_to_show_is_scaled_down(self):
+        grid = deblur_defocus_grid(np.full((900, 1600, 3), 90, dtype=np.uint8))
+        self.assertLessEqual(max(grid.shape[:2]), 2400 + 3 * 18)
+
+    def test_motion_grid_surrounds_the_estimate(self):
+        image = textured()
+        height, width = image.shape[:2]
+        grid = deblur_motion_grid(image, length=12, angle=20, length_step=1,
+                                  angle_step=4)
+        strip = grid.shape[0] // 3 - height
+
+        self.assertEqual(grid.shape[1], 3 * width)
+        # The estimate itself is the middle tile
+        top = (height + strip) + strip
+        np.testing.assert_array_equal(
+            grid[top:top + height, width:2 * width],
+            deblur_motion(image, length=12, angle=20))
+
+    def test_motion_grid_drops_a_row_shorter_than_one_pixel(self):
+        image = textured()
+        full = deblur_motion_grid(image, length=5, length_step=2)
+        clipped = deblur_motion_grid(image, length=2, length_step=2)
+        self.assertEqual(clipped.shape[0] * 3, full.shape[0] * 2)
+
+    def test_grids_reject_a_step_of_nothing(self):
+        with self.assertRaises(ValueError):
+            deblur_motion_grid(textured(), length_step=0)
+        with self.assertRaises(ValueError):
+            deblur_motion_grid(textured(), angle_step=-1)
+        with self.assertRaises(ValueError):
+            deblur_defocus_grid(textured(), radius_step=0)
+
+    def test_defocus_grid_crosses_radius_with_noise(self):
+        image = textured()
+        height, width = image.shape[:2]
+        grid = deblur_defocus_grid(image, radius=3, radius_step=1, noise_power=0.03)
+        strip = grid.shape[0] // 3 - height
+
+        self.assertEqual(grid.shape[1], 3 * width)
+        # Bottom-left: one step larger, a third of the noise term
+        top = 2 * (height + strip) + strip
+        np.testing.assert_array_equal(
+            grid[top:top + height, :width],
+            deblur_defocus(image, radius=4, noise_power=0.01))
+
+    def test_a_line_gives_its_length_and_angle(self):
+        self.assertEqual(motion_from_line((10, 50), (40, 50)),
+                         {'length': 30.0, 'angle': 0.0})
+        # Up and to the right on screen is a positive angle
+        self.assertEqual(motion_from_line((10, 40), (40, 10))['angle'], 45.0)
+        self.assertEqual(motion_from_line((10, 10), (10, 40))['angle'], 90.0)
+
+    def test_a_line_drawn_either_way_is_the_same_blur(self):
+        self.assertEqual(motion_from_line((12, 80), (70, 31)),
+                         motion_from_line((70, 31), (12, 80)))
+
+    def test_a_line_measures_the_blur_it_was_drawn_along(self):
+        # Blur a point, join the ends of its streak, and deblur with that
+        image = np.zeros((64, 96), dtype=np.uint8)
+        image[32, 48] = 255
+        streak = apply_psf(image, motion_blur_psf(21, 30))
+        ys, xs = np.nonzero(streak > streak.max() * 0.5)
+        left, right = int(np.argmin(xs)), int(np.argmax(xs))
+
+        measured = motion_from_line((xs[left], ys[left]), (xs[right], ys[right]))
+        self.assertAlmostEqual(measured['length'], 21, delta=2.5)
+        self.assertAlmostEqual(measured['angle'], 30, delta=4)
+
+    def test_a_line_with_no_length_is_refused(self):
+        with self.assertRaises(ValueError):
+            motion_from_line((20, 20), (20, 20))
+
+    def test_psf_preview_is_a_picture_of_the_kernel(self):
+        picture = psf_preview(motion_blur_psf(15, 0), size=160)
+        self.assertEqual(picture.shape, (160, 160, 3))
+        self.assertEqual(picture.dtype, np.uint8)
+        self.assertEqual(int(picture.max()), 255)
+        # A horizontal streak: lit across the middle row, dark above and below
+        self.assertGreater(int(picture[80].sum()), 0)
+        self.assertEqual(int(picture[20].sum()), 0)
+
+    def test_psf_preview_fits_a_kernel_larger_than_the_picture(self):
+        picture = psf_preview(defocus_psf(120), size=96)
+        self.assertEqual(picture.shape, (96, 96, 3))
+        self.assertEqual(int(picture.max()), 255)
 
     def test_focus_score_ranks_blur_correctly(self):
         image = textured()
@@ -945,6 +1129,243 @@ class TestFrameAveraging(unittest.TestCase):
     def test_sharpest_frames_on_empty_raises(self):
         with self.assertRaises(ValueError):
             sharpest_frames([])
+
+
+class TestRichardsonLucy(unittest.TestCase):
+    """The opt-in solver. Wiener stays the default and must stay untouched."""
+
+    RL = dict(solver='richardson_lucy', iterations=30)
+
+    @staticmethod
+    def _error(a, b):
+        return float(np.abs(a.astype(float) - b.astype(float)).mean())
+
+    @staticmethod
+    def _camera(image, psf, sigma=0.0, quality=None, seed=0):
+        """Blur in linear light, add sensor noise, encode, compress."""
+        linear = motion_deblur._TO_LINEAR[image]
+        blurred = cv2.filter2D(linear, -1, psf, borderType=cv2.BORDER_REFLECT)
+        if sigma:
+            blurred = blurred + np.random.default_rng(seed).normal(
+                0, sigma, blurred.shape).astype(np.float32)
+        frame = np.clip(np.rint(motion_deblur._to_display(blurred)), 0, 255).astype(np.uint8)
+        if quality is not None:
+            ok, encoded = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+            frame = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+        return frame
+
+    def test_wiener_is_the_default(self):
+        blurred = apply_psf(detailed(), motion_blur_psf(11, 0))
+        np.testing.assert_array_equal(
+            deblur_motion(blurred, 11, 0),
+            deblur_motion(blurred, 11, 0, solver='wiener'))
+        np.testing.assert_array_equal(
+            deblur_defocus(blurred, 3),
+            wiener_deconvolution(blurred, defocus_psf(3)))
+
+    def test_an_unknown_solver_is_refused(self):
+        with self.assertRaises(ValueError):
+            deblur_motion(detailed(), 11, 0, solver='lucy')
+        with self.assertRaises(ValueError):
+            deblur_defocus(detailed(), 3, solver='')
+
+    def test_recovers_detail(self):
+        image = detailed()
+        for name, psf, restore in (
+                ('motion', motion_blur_psf(11, 0),
+                 lambda frame: deblur_motion(frame, 11, 0, **self.RL)),
+                ('defocus', defocus_psf(3),
+                 lambda frame: deblur_defocus(frame, 3, **self.RL))):
+            with self.subTest(blur=name):
+                frame = self._camera(image, psf)
+                self.assertLess(self._error(restore(frame), image),
+                                self._error(frame, image))
+
+    def test_beats_wiener_on_a_noisy_compressed_frame(self):
+        # The case it is there for. Both at the default noise_power.
+        image = cv2.resize(detailed(), None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+        frame = self._camera(image, motion_blur_psf(13, 20), sigma=0.01, quality=50)
+
+        iterative = deblur_motion(frame, 13, 20, **self.RL)
+        linear = deblur_motion(frame, 13, 20)
+        self.assertLess(self._error(iterative, image), self._error(linear, image))
+        self.assertLess(self._error(iterative, image), self._error(frame, image))
+
+    def test_does_not_ring_below_black_beside_a_light(self):
+        # A bright spot on a dark ground: Wiener overshoots into the dark
+        # around it, where there is nothing below zero to overshoot into
+        image = np.full((80, 120), 12, dtype=np.uint8)
+        cv2.circle(image, (60, 40), 5, 255, -1)
+        frame = self._camera(image, motion_blur_psf(15, 0))
+
+        ground = np.ones(image.shape, bool)
+        ground[25:55, 35:85] = False
+        iterative = deblur_motion(frame, 15, 0, noise_power=0.002, **self.RL)
+        linear = deblur_motion(frame, 15, 0, noise_power=0.002)
+        self.assertLess(float(iterative[ground].astype(float).std()),
+                        float(linear[ground].astype(float).std()))
+        self.assertLess(float(iterative[ground].astype(float).std()), 2.0)
+
+    def test_a_flat_frame_stays_flat(self):
+        for value in (0, 37, 128, 255):
+            with self.subTest(value=value):
+                frame = np.full((48, 64, 3), value, dtype=np.uint8)
+                restored = deblur_motion(frame, 9, 30, **self.RL)
+                self.assertLessEqual(int(np.abs(restored.astype(int) - value).max()), 1)
+
+    def test_a_large_blown_out_area_is_not_hollowed(self):
+        # Sky, a lit wall: clipped, and wider than the blur
+        image = np.full((80, 120, 3), 60, dtype=np.uint8)
+        image[:, 50:] = 255
+        frame = self._camera(image, motion_blur_psf(11, 0))
+        restored = deblur_motion(frame, 11, 0, **self.RL)
+        self.assertGreaterEqual(int(restored[10:70, 75:110].min()), 250)
+
+    def test_noise_power_holds_noise_down_as_it_does_for_wiener(self):
+        image = cv2.resize(detailed(), None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+        frame = self._camera(image, motion_blur_psf(13, 20), sigma=0.02)
+
+        gentle = deblur_motion(frame, 13, 20, noise_power=0.05, **self.RL)
+        aggressive = deblur_motion(frame, 13, 20, noise_power=0.0005, **self.RL)
+        self.assertLess(focus_score(gentle), focus_score(aggressive))
+
+    def test_more_iterations_recover_more_of_a_clean_frame(self):
+        image = detailed()
+        frame = self._camera(image, motion_blur_psf(11, 0))
+        few = deblur_motion(frame, 11, 0, solver='richardson_lucy', iterations=5)
+        many = deblur_motion(frame, 11, 0, solver='richardson_lucy', iterations=40)
+        self.assertLess(self._error(many, image), self._error(few, image))
+
+    def test_the_same_inputs_give_the_same_pixels(self):
+        frame = apply_psf(textured(), motion_blur_psf(9, 40))
+        np.testing.assert_array_equal(deblur_motion(frame, 9, 40, **self.RL),
+                                      deblur_motion(frame, 9, 40, **self.RL))
+
+    def test_preserves_shape_alpha_and_grayscale(self):
+        rgb = textured()
+        alpha = np.full((*rgb.shape[:2], 1), 200, dtype=np.uint8)
+        rgba = np.concatenate([rgb, alpha], axis=2)
+        result = richardson_lucy_deconvolution(rgba, motion_blur_psf(9, 0), iterations=5)
+        self.assertEqual(result.shape, rgba.shape)
+        np.testing.assert_array_equal(result[:, :, 3], alpha[:, :, 0])
+
+        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+        self.assertEqual(
+            richardson_lucy_deconvolution(gray, motion_blur_psf(9, 0), iterations=5).shape,
+            gray.shape)
+
+    def test_rejects_bad_arguments(self):
+        psf = motion_blur_psf(9, 0)
+        with self.assertRaises(ValueError):
+            richardson_lucy_deconvolution(textured(), psf, noise_power=0)
+        with self.assertRaises(ValueError):
+            richardson_lucy_deconvolution(textured(), psf, iterations=0)
+        with self.assertRaises(ValueError):
+            richardson_lucy_deconvolution(textured(16, 16), motion_blur_psf(51, 0))
+
+    def test_the_contact_sheets_use_the_solver_asked_for(self):
+        image = textured()
+        height, width = image.shape[:2]
+        grid = deblur_motion_grid(image, length=9, angle=0, solver='richardson_lucy',
+                                  iterations=5)
+        strip = grid.shape[0] // 3 - height
+        top = (height + strip) + strip
+        np.testing.assert_array_equal(
+            grid[top:top + height, width:2 * width],
+            deblur_motion(image, 9, 0, solver='richardson_lucy', iterations=5))
+
+    def test_the_form_offers_exactly_the_solvers_there_are(self):
+        from cv_tools.utils.params import CHOICES
+        self.assertEqual(tuple(CHOICES['solver']), motion_deblur.SOLVERS)
+
+
+class TestDeblurWorkflow(unittest.TestCase):
+    """
+    What surrounds the deconvolution: measuring the blur, seeing the point
+    spread function, comparing candidates, and being told when the chain is
+    in an order that defeats it.
+    """
+
+    def test_the_grids_are_registered_beside_the_other_contact_sheet(self):
+        from cv_tools.filters import FILTER_REGISTRY
+
+        for name in ('deblur_motion_grid', 'deblur_defocus_grid'):
+            with self.subTest(name=name):
+                self.assertEqual(FILTER_REGISTRY[name].category,
+                                 FILTER_REGISTRY['clahe_grid'].category)
+
+    def test_two_clicks_fill_length_and_angle(self):
+        for name in ('deblur_motion', 'deblur_motion_grid'):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    parameters_from_points(name, [(100, 200), (160, 155)]),
+                    {'length': 75.0, 'angle': 36.9})
+
+    def test_a_filter_with_plain_points_is_distributed_as_before(self):
+        self.assertEqual(
+            parameters_from_points('perspective', [(1, 2), (3, 4), (5, 6), (7, 8)]),
+            {'corners': [1, 2, 3, 4, 5, 6, 7, 8]})
+        self.assertEqual(parameters_from_points('arrow', [(1, 2), (3, 4)]),
+                         {'start': [1, 2], 'end': [3, 4]})
+
+    def test_too_few_clicks_fill_nothing_they_do_not_cover(self):
+        self.assertEqual(parameters_from_points('deblur_motion', [(100, 200)]), {})
+        self.assertEqual(parameters_from_points('arrow', [(1, 2)]), {'start': [1, 2]})
+
+    def test_a_deblur_shows_its_point_spread_function(self):
+        for name in ('deblur_motion', 'deblur_motion_grid', 'deblur_defocus',
+                     'deblur_defocus_grid'):
+            with self.subTest(name=name):
+                caption, picture = parameter_preview(name)
+                self.assertIn('spread', caption)
+                self.assertEqual(picture.ndim, 3)
+                self.assertEqual(picture.dtype, np.uint8)
+
+    def test_the_preview_follows_the_parameters(self):
+        _, flat = parameter_preview('deblur_motion', {'length': 30, 'angle': 0})
+        _, steep = parameter_preview('deblur_motion', {'length': 30, 'angle': 60})
+        self.assertFalse(np.array_equal(flat, steep))
+
+    def test_no_preview_for_a_filter_without_one_or_a_value_mid_edit(self):
+        self.assertIsNone(parameter_preview('clahe'))
+        self.assertIsNone(parameter_preview('deblur_defocus', {'radius': 0.1}))
+        self.assertIsNone(parameter_preview('deblur_motion', {'length': 'abc'}))
+
+    def test_defocus_after_a_warp_is_warned_about(self):
+        for warp in ('perspective', 'auto_perspective', 'barrel', 'fisheye',
+                     'undistort'):
+            with self.subTest(warp=warp):
+                warnings = chain_warnings(['crop', warp, 'deblur_defocus'])
+                self.assertEqual(len(warnings), 1)
+                self.assertIn('deblur_defocus (step 3)', warnings[0])
+                self.assertIn(f'{warp} (step 2)', warnings[0])
+
+    def test_motion_after_a_warp_is_not(self):
+        # A subject moves in the scene, so its streak can be straighter after
+        # rectifying; the certain case is defocus, which happens in the lens
+        self.assertEqual(chain_warnings(['perspective', 'deblur_motion']), [])
+
+    def test_any_deblur_after_sharpening_is_warned_about(self):
+        for name in ('deblur_motion', 'deblur_defocus', 'deblur_motion_grid'):
+            with self.subTest(name=name):
+                warnings = chain_warnings(['sharpen', name])
+                self.assertEqual(len(warnings), 1)
+                self.assertIn('sharpen (step 1)', warnings[0])
+
+    def test_the_recommended_order_is_silent(self):
+        self.assertEqual(
+            chain_warnings(['crop', 'deblur_defocus', 'perspective', 'levels',
+                            'sharpen']), [])
+        self.assertEqual(chain_warnings([]), [])
+
+    def test_every_step_a_warning_knows_is_a_registered_filter(self):
+        # A renamed filter would otherwise stop being warned about in silence
+        from cv_tools.filters import FILTER_REGISTRY, registry
+
+        for group in (registry._DEBLUR_STEPS, registry._WARPS, registry._SHARPENERS):
+            for name in group:
+                with self.subTest(name=name):
+                    self.assertIn(name, FILTER_REGISTRY)
 
 
 if __name__ == '__main__':

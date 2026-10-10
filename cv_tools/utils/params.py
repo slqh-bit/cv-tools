@@ -44,9 +44,10 @@ SLIDER_RANGES: Dict[str, Tuple[float, float]] = {
     'high_threshold': (0.0, 255.0),
     'hue_center': (0.0, 360.0),
     'hue_range': (1.0, 180.0),
+    'iterations': (5.0, 100.0),
     'k1': (-1.0, 1.0),
     'k2': (-1.0, 1.0),
-    'length': (1.0, 64.0),
+    'length': (1.0, 200.0),
     'length_units': (1.0, 1000.0),
     'low_threshold': (0.0, 255.0),
     'noise_power': (0.0001, 0.5),
@@ -86,6 +87,7 @@ CHOICES: Dict[str, List[str]] = {
     'position': ['bottom_right', 'bottom_left', 'top_right', 'top_left'],
     'scale_axis': ['width', 'height'],
     'shape': ['rectangle', 'circle', 'ellipse', 'line', 'polygon'],
+    'solver': ['wiener', 'richardson_lucy'],
 }
 
 

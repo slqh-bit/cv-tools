@@ -187,6 +187,60 @@ class TestDashboard(unittest.TestCase):
         app.selectbox(key='selected_filter').select('clahe').run()
         self.assertFalse([b for b in app.button if b.label.startswith('Pick')])
 
+    def _pick_motion_line(self, app, picks):
+        app.selectbox(key='selected_filter').select('deblur_motion').run()
+        next(b for b in app.button if b.label.startswith('Pick')).click().run()
+        app.session_state.picks = picks
+        app.run()
+
+    def test_a_tapped_motion_line_fills_length_and_angle(self):
+        # Two taps on the ghosts of one point are a measurement, not a
+        # parameter: what lands in the form is the length and angle they give
+        app = self._app()
+        self._pick_motion_line(app, [(100, 200), (160, 155)])
+
+        self.assertEqual(app.exception, [])
+        self.assertIsNone(app.session_state.picking_for)
+        self.assertAlmostEqual(app.session_state['param_deblur_motion_length'], 75.0)
+        self.assertAlmostEqual(app.session_state['param_deblur_motion_angle'], 36.9)
+
+        button(app, 'Apply filter').click().run()
+        self.assertEqual(app.exception, [])
+        step = app.session_state.pipeline.chain[0]
+        self.assertEqual(step.name, 'deblur_motion')
+        self.assertAlmostEqual(step.params['length'], 75.0, places=2)
+        self.assertAlmostEqual(step.params['angle'], 36.9, places=2)
+
+    def test_a_motion_line_longer_than_the_slider_says_it_was_limited(self):
+        app = self._app()
+        self._pick_motion_line(app, [(20, 100), (520, 100)])
+
+        self.assertEqual(app.exception, [])
+        self.assertEqual(app.session_state['param_deblur_motion_length'], 200.0)
+        self.assertTrue(any('measured 500' in note.value for note in app.success))
+
+    def test_a_motion_line_with_no_length_is_an_error_not_a_crash(self):
+        app = self._app()
+        self._pick_motion_line(app, [(100, 200), (100, 200)])
+
+        self.assertEqual(app.exception, [])
+        self.assertTrue(any('same point' in error.value for error in app.error))
+
+    def test_an_order_that_defeats_a_deblur_is_warned_about(self):
+        app = self._app()
+        for name in ('sharpen', 'deblur_defocus'):
+            app.selectbox(key='selected_filter').select(name).run()
+            button(app, 'Apply filter').click().run()
+
+        self.assertEqual(app.exception, [])
+        self.assertTrue(any('comes after sharpen (step 1)' in warning.value
+                            for warning in app.warning))
+
+        # The arrow beside the warning is what fixes it
+        app.button(key='up_1').click().run()
+        self.assertFalse(any('comes after' in warning.value
+                             for warning in app.warning))
+
     def test_measuring_from_taps_all_the_way_into_the_chain(self):
         """
         Pick, calibrate, apply - the path the measurement filters exist for.

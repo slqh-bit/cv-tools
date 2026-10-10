@@ -181,6 +181,38 @@ class TestTranslateStep(unittest.TestCase):
         self.assertEqual(translate_step('deblur_defocus', ['radius=4'], 'auto'),
                          ('deblur_defocus', {'radius': 4}))
 
+    def test_deblur_line_becomes_length_and_angle(self):
+        # The measurement is not what is recorded; the PSF it gave is
+        self.assertEqual(
+            translate_step('deblur', ['line=10,60,40,60', 'noise=0.02'], 'auto'),
+            ('deblur_motion', {'length': 30.0, 'angle': 0.0, 'noise_power': 0.02}))
+
+    def test_a_typed_length_corrects_the_measured_one(self):
+        name, params = translate_step('deblur', ['line=10,40,40,10', 'length=44'], 'auto')
+        self.assertEqual(name, 'deblur_motion')
+        self.assertEqual(params, {'length': 44, 'angle': 45.0})
+
+    def test_deblur_line_needs_two_points(self):
+        with self.assertRaises(ValueError):
+            translate_step('deblur', ['line=10,60,40'], 'auto')
+        with self.assertRaises(ValueError):
+            translate_step('deblur', ['line=10,60,10,60'], 'auto')
+
+    def test_deblur_solver_passes_through(self):
+        self.assertEqual(
+            translate_step('deblur', ['length=9', 'solver=richardson_lucy',
+                                      'iterations=20'], 'auto'),
+            ('deblur_motion', {'length': 9, 'solver': 'richardson_lucy',
+                               'iterations': 20}))
+
+    def test_deblur_grids_map_to_their_filters(self):
+        self.assertEqual(
+            translate_step('deblur_grid', ['line=10,60,40,60', 'length_step=1'], 'auto'),
+            ('deblur_motion_grid', {'length': 30.0, 'angle': 0.0, 'length_step': 1}))
+        self.assertEqual(
+            translate_step('deblur_defocus_grid', ['radius=3', 'noise=0.02'], 'auto'),
+            ('deblur_defocus_grid', {'radius': 3, 'noise_power': 0.02}))
+
     def test_noise_map_default_block(self):
         self.assertEqual(translate_step('noise_map', None, 'auto'),
                          ('noise_map', {'block_size': 32}))
@@ -501,12 +533,45 @@ class TestCLIRun(CLITestCase):
                      ['--remove-periodic'], ['--noise-map'], ['--noise-map', '16'],
                      ['--deblur', 'length=9', 'angle=0'],
                      ['--deblur-defocus', 'radius=3'],
+                     ['--deblur', 'line=5,20,14,20', 'thickness=1.5'],
+                     ['--deblur-grid', 'length=9', 'length_step=1'],
+                     ['--deblur-defocus-grid', 'radius=3'],
+                     ['--deblur', 'length=9', 'solver=richardson_lucy', 'iterations=5'],
+                     ['--deblur-defocus', 'radius=3', 'solver=richardson_lucy',
+                      'iterations=5'],
                      ['--ghost'], ['--ghost', 'block=8', 'min=40', 'max=100', 'step=10']):
             with self.subTest(flag=flag):
                 out = self.dir / 'f.png'
                 code, _ = self.run_cli([str(self.input)] + flag + ['-o', str(out)])
                 self.assertEqual(code, 0)
                 self.assertTrue(out.exists())
+
+    def _stderr_of(self, argv):
+        err = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(err):
+            code = main(argv)
+        return code, err.getvalue()
+
+    def test_an_unknown_deblur_solver_is_an_error(self):
+        code, err = self._stderr_of([str(self.input), '--deblur', 'length=9',
+                                     'solver=lucy', '-o', str(self.dir / 'x.png')])
+        self.assertEqual(code, 1)
+        self.assertIn('solver must be one of', err)
+
+    def test_an_order_that_defeats_a_deblur_is_warned_about_and_still_runs(self):
+        out = self.dir / 'w.png'
+        code, err = self._stderr_of([str(self.input), '--sharpen',
+                                     '--deblur-defocus', 'radius=3', '-o', str(out)])
+        self.assertEqual(code, 0)
+        self.assertTrue(out.exists())
+        self.assertIn('warning: deblur_defocus (step 2) comes after sharpen (step 1)',
+                      err)
+
+    def test_the_recommended_order_is_not_warned_about(self):
+        code, err = self._stderr_of([str(self.input), '--deblur-defocus', 'radius=3',
+                                     '--sharpen', '-o', str(self.dir / 'q.png')])
+        self.assertEqual(code, 0)
+        self.assertNotIn('warning', err)
 
     def test_clone_detect_runs(self):
         out = self.dir / 'clones.png'

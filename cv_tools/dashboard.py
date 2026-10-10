@@ -42,10 +42,13 @@ from cv_tools.filters import (
     CATEGORY_ORDER,
     POINT_PARAMETERS,
     FILTER_REGISTRY,
+    chain_warnings,
     dynamic_range_used,
     filter_description,
     filter_function,
     histogram_stats,
+    parameter_preview,
+    parameters_from_points,
     render_histogram,
     render_report,
     resolve_analysis,
@@ -388,6 +391,10 @@ def _chain_panel(pipeline: Pipeline) -> None:
             del chain[index]
             _replace(pipeline, chain)
 
+    # Beside the arrows that fix it: an order that works against a step
+    for warning in chain_warnings([step.name for step in pipeline.chain]):
+        st.sidebar.warning(warning)
+
     action_cols = st.sidebar.columns(3)
     if action_cols[0].button('Undo', disabled=not pipeline.can_undo):
         pipeline.undo()
@@ -456,6 +463,11 @@ def _add_filter_panel(pipeline: Pipeline) -> None:
 
     params = _param_form(spec)
 
+    preview = parameter_preview(name, params)
+    if preview is not None:
+        caption, picture = preview
+        st.sidebar.image(picture, caption=caption, width=160)
+
     if st.sidebar.button('Apply filter', type='primary', disabled=params is None):
         try:
             pipeline.apply(spec.fn, spec.name, spec.module, params)
@@ -495,9 +507,14 @@ def _picking_controls(name: str, plan) -> None:
         st.sidebar.caption('Turn on "Tap to pick coordinates" over the image.')
     else:
         # Every point collected: write them into the parameter fields
-        filled = _fill_from_picks(name, plan, picks)
         st.session_state.picking_for = None
-        st.sidebar.success(f'Filled {", ".join(filled)}')
+        try:
+            filled = _fill_from_picks(name, plan, picks)
+            st.sidebar.success(f'Filled {", ".join(filled)}')
+        except ValueError as exc:
+            # A measurement the taps cannot give, such as a motion line whose
+            # two ends are the same pixel
+            st.sidebar.error(str(exc))
 
     if st.sidebar.button('Cancel picking', key=f'cancel_{name}'):
         st.session_state.picking_for = None
@@ -511,15 +528,28 @@ def _fill_from_picks(name: str, plan, picks) -> List[str]:
     Written into the widgets' own session-state keys, which is how a value
     reaches a Streamlit control that has already been created once.
     """
-    filled, index = [], 0
-    for parameter, count, _prompt in plan:
-        taken = picks[index:index + count]
-        index += count
-        if len(taken) < count:
-            break
-        flat = [coordinate for point in taken for coordinate in point]
-        st.session_state[f'param_{name}_{parameter}'] = ','.join(
-            str(v) for v in flat)
+    defaults = {parameter.name: parameter.default for parameter in
+                inspect.signature(resolve_filter(name).fn).parameters.values()}
+
+    filled = []
+    for parameter, value in parameters_from_points(name, picks).items():
+        key = f'param_{name}_{parameter}'
+        if isinstance(value, (list, tuple)):
+            st.session_state[key] = ','.join(str(v) for v in value)
+        elif (parameter in SLIDER_RANGES
+              and isinstance(defaults.get(parameter), (int, float))):
+            # A measured value, such as the length of a drawn motion line,
+            # lands on a slider - which holds a number, and only inside its
+            # range
+            low, high = SLIDER_RANGES[parameter]
+            st.session_state[key] = float(min(max(value, low), high))
+            if not low <= value <= high:
+                # Never quietly: the field now holds a different number
+                # from the one that was measured
+                parameter = (f'{parameter} (measured {value:g}, limited to '
+                             f'{st.session_state[key]:g})')
+        else:
+            st.session_state[key] = str(value)
         filled.append(parameter)
     return filled
 

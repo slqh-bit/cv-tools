@@ -1,91 +1,125 @@
 # deblur_motion - validation result
 
-**Wiener deconvolution of linear motion blur**  
-`cv_tools.filters.motion_deblur` | family: Forensic | 2026-09-01T16:36:51
+**Deconvolution of linear motion blur: Wiener, or Richardson-Lucy for noisy, compressed footage**  
+`cv_tools.filters.motion_deblur` | family: Forensic | 2026-10-10T14:18:24
 
 ## Verdict
 
-**PASS** - 70 runs, no invariant broken, 2 specific checks passed.
+**PASS** - 100 runs, no invariant broken, 6 specific checks passed.
 
 ## What this filter specifically promises
 
-- PASS - some PSF raises high-frequency energy on a truly blurred plate: Laplacian variance 11 -> 176 at the best of 6 PSF guesses
-- PASS - a wrong PSF still changes the image rather than passing it through: output differs from input at 45 degrees
+- PASS - wiener: the true PSF moves every blurred frame towards the original: 15 px at 20 degrees, blurred in linear light by validation.degrade; PSNR gain +1.52 dB at worst (cctv/sharpest.jpg JPEG 60), +1.91 dB on average over 4 frames
+- PASS - richardson_lucy: the true PSF moves every blurred frame towards the original: 15 px at 20 degrees, blurred in linear light by validation.degrade; PSNR gain +2.15 dB at worst (cctv/sharpest.jpg JPEG 60), +2.46 dB on average over 4 frames
+- PASS - the true PSF restores better than every wrong one tried: closest wrong PSF, angle 35 on cctv/event_fall.jpg JPEG 60, was 1.75 dB behind; 20 comparisons
+- PASS - richardson_lucy earns its cost on compressed frames: +0.76 dB over wiener on average, both at default settings
+- PASS - a heavy noise term does not darken the frame: mean moved 0.04/255 at noise_power 0.5
+- PASS - a really blurred plate is changed, not passed through: no ground truth exists for this image; fidelity is judged on the frames above
 
 ## Runs
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 117.1 | [362, 640, 3] uint8 mean 159.17 | ok |
-| `cctv/brightest.jpg` | `length=1.0` | 128.1 | [362, 640, 3] uint8 mean 161.34 | ok |
-| `cctv/brightest.jpg` | `length=64.0` | 191.5 | [362, 640, 3] uint8 mean 157.75 | ok |
-| `cctv/brightest.jpg` | `angle=-180.0` | 122.0 | [362, 640, 3] uint8 mean 159.17 | ok |
-| `cctv/brightest.jpg` | `angle=180.0` | 114.0 | [362, 640, 3] uint8 mean 159.17 | ok |
-| `cctv/brightest.jpg` | `noise_power=0.0001` | 120.1 | [362, 640, 3] uint8 mean 145.32 | ok |
-| `cctv/brightest.jpg` | `noise_power=0.5` | 136.6 | [362, 640, 3] uint8 mean 108.62 | ok |
-| `cctv/darkest.jpg` | `defaults` | 122.6 | [362, 640, 3] uint8 mean 108.57 | ok |
-| `cctv/darkest.jpg` | `length=1.0` | 127.4 | [362, 640, 3] uint8 mean 109.29 | ok |
-| `cctv/darkest.jpg` | `length=64.0` | 154.0 | [362, 640, 3] uint8 mean 106.72 | ok |
-| `cctv/darkest.jpg` | `angle=-180.0` | 116.8 | [362, 640, 3] uint8 mean 108.57 | ok |
-| `cctv/darkest.jpg` | `angle=180.0` | 115.7 | [362, 640, 3] uint8 mean 108.57 | ok |
-| `cctv/darkest.jpg` | `noise_power=0.0001` | 119.3 | [362, 640, 3] uint8 mean 117.16 | ok |
-| `cctv/darkest.jpg` | `noise_power=0.5` | 118.4 | [362, 640, 3] uint8 mean 73.51 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 120.4 | [362, 640, 3] uint8 mean 123.98 | ok |
-| `cctv/event_fall.jpg` | `length=1.0` | 130.5 | [362, 640, 3] uint8 mean 123.74 | ok |
-| `cctv/event_fall.jpg` | `length=64.0` | 152.6 | [362, 640, 3] uint8 mean 124.23 | ok |
-| `cctv/event_fall.jpg` | `angle=-180.0` | 117.9 | [362, 640, 3] uint8 mean 123.98 | ok |
-| `cctv/event_fall.jpg` | `angle=180.0` | 121.6 | [362, 640, 3] uint8 mean 123.98 | ok |
-| `cctv/event_fall.jpg` | `noise_power=0.0001` | 114.1 | [362, 640, 3] uint8 mean 125.54 | ok |
-| `cctv/event_fall.jpg` | `noise_power=0.5` | 131.8 | [362, 640, 3] uint8 mean 83.26 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 116.2 | [362, 640, 3] uint8 mean 123.5 | ok |
-| `cctv/event_optflow.jpg` | `length=1.0` | 120.3 | [362, 640, 3] uint8 mean 123.66 | ok |
-| `cctv/event_optflow.jpg` | `length=64.0` | 144.2 | [362, 640, 3] uint8 mean 124.41 | ok |
-| `cctv/event_optflow.jpg` | `angle=-180.0` | 116.4 | [362, 640, 3] uint8 mean 123.5 | ok |
-| `cctv/event_optflow.jpg` | `angle=180.0` | 118.9 | [362, 640, 3] uint8 mean 123.5 | ok |
-| `cctv/event_optflow.jpg` | `noise_power=0.0001` | 116.3 | [362, 640, 3] uint8 mean 125.25 | ok |
-| `cctv/event_optflow.jpg` | `noise_power=0.5` | 136.9 | [362, 640, 3] uint8 mean 83.17 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 123.0 | [362, 640, 3] uint8 mean 156.49 | ok |
-| `cctv/event_tamper.jpg` | `length=1.0` | 129.0 | [362, 640, 3] uint8 mean 158.46 | ok |
-| `cctv/event_tamper.jpg` | `length=64.0` | 152.5 | [362, 640, 3] uint8 mean 155.38 | ok |
-| `cctv/event_tamper.jpg` | `angle=-180.0` | 129.7 | [362, 640, 3] uint8 mean 156.49 | ok |
-| `cctv/event_tamper.jpg` | `angle=180.0` | 124.6 | [362, 640, 3] uint8 mean 156.49 | ok |
-| `cctv/event_tamper.jpg` | `noise_power=0.0001` | 127.3 | [362, 640, 3] uint8 mean 144.0 | ok |
-| `cctv/event_tamper.jpg` | `noise_power=0.5` | 118.5 | [362, 640, 3] uint8 mean 106.67 | ok |
-| `cctv/flattest.jpg` | `defaults` | 125.2 | [362, 640, 3] uint8 mean 119.73 | ok |
-| `cctv/flattest.jpg` | `length=1.0` | 132.0 | [362, 640, 3] uint8 mean 119.76 | ok |
-| `cctv/flattest.jpg` | `length=64.0` | 151.4 | [362, 640, 3] uint8 mean 120.81 | ok |
-| `cctv/flattest.jpg` | `angle=-180.0` | 125.6 | [362, 640, 3] uint8 mean 119.73 | ok |
-| `cctv/flattest.jpg` | `angle=180.0` | 130.6 | [362, 640, 3] uint8 mean 119.73 | ok |
-| `cctv/flattest.jpg` | `noise_power=0.0001` | 120.1 | [362, 640, 3] uint8 mean 123.54 | ok |
-| `cctv/flattest.jpg` | `noise_power=0.5` | 124.5 | [362, 640, 3] uint8 mean 80.55 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 135.9 | [362, 640, 3] uint8 mean 134.79 | ok |
-| `cctv/most_blown.jpg` | `length=1.0` | 179.2 | [362, 640, 3] uint8 mean 136.18 | ok |
-| `cctv/most_blown.jpg` | `length=64.0` | 152.0 | [362, 640, 3] uint8 mean 131.35 | ok |
-| `cctv/most_blown.jpg` | `angle=-180.0` | 123.6 | [362, 640, 3] uint8 mean 134.79 | ok |
-| `cctv/most_blown.jpg` | `angle=180.0` | 116.0 | [362, 640, 3] uint8 mean 134.79 | ok |
-| `cctv/most_blown.jpg` | `noise_power=0.0001` | 116.1 | [362, 640, 3] uint8 mean 132.71 | ok |
-| `cctv/most_blown.jpg` | `noise_power=0.5` | 115.4 | [362, 640, 3] uint8 mean 91.63 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 115.8 | [362, 640, 3] uint8 mean 129.86 | ok |
-| `cctv/sharpest.jpg` | `length=1.0` | 130.5 | [362, 640, 3] uint8 mean 129.89 | ok |
-| `cctv/sharpest.jpg` | `length=64.0` | 143.0 | [362, 640, 3] uint8 mean 125.36 | ok |
-| `cctv/sharpest.jpg` | `angle=-180.0` | 120.7 | [362, 640, 3] uint8 mean 129.86 | ok |
-| `cctv/sharpest.jpg` | `angle=180.0` | 124.2 | [362, 640, 3] uint8 mean 129.86 | ok |
-| `cctv/sharpest.jpg` | `noise_power=0.0001` | 121.0 | [362, 640, 3] uint8 mean 128.19 | ok |
-| `cctv/sharpest.jpg` | `noise_power=0.5` | 114.9 | [362, 640, 3] uint8 mean 87.41 | ok |
-| `cctv/softest.jpg` | `defaults` | 115.3 | [362, 640, 3] uint8 mean 123.52 | ok |
-| `cctv/softest.jpg` | `length=1.0` | 137.4 | [362, 640, 3] uint8 mean 123.72 | ok |
-| `cctv/softest.jpg` | `length=64.0` | 144.3 | [362, 640, 3] uint8 mean 124.4 | ok |
-| `cctv/softest.jpg` | `angle=-180.0` | 116.9 | [362, 640, 3] uint8 mean 123.52 | ok |
-| `cctv/softest.jpg` | `angle=180.0` | 113.6 | [362, 640, 3] uint8 mean 123.52 | ok |
-| `cctv/softest.jpg` | `noise_power=0.0001` | 118.8 | [362, 640, 3] uint8 mean 125.52 | ok |
-| `cctv/softest.jpg` | `noise_power=0.5` | 115.9 | [362, 640, 3] uint8 mean 83.16 | ok |
-| `reference/motion_blur_plate.jpg` | `defaults` | 93.5 | [482, 600, 3] uint8 mean 123.11 | ok |
-| `reference/motion_blur_plate.jpg` | `length=1.0` | 121.3 | [482, 600, 3] uint8 mean 123.05 | ok |
-| `reference/motion_blur_plate.jpg` | `length=64.0` | 225.2 | [482, 600, 3] uint8 mean 123.71 | ok |
-| `reference/motion_blur_plate.jpg` | `angle=-180.0` | 86.9 | [482, 600, 3] uint8 mean 123.11 | ok |
-| `reference/motion_blur_plate.jpg` | `angle=180.0` | 86.4 | [482, 600, 3] uint8 mean 123.11 | ok |
-| `reference/motion_blur_plate.jpg` | `noise_power=0.0001` | 90.4 | [482, 600, 3] uint8 mean 123.49 | ok |
-| `reference/motion_blur_plate.jpg` | `noise_power=0.5` | 86.3 | [482, 600, 3] uint8 mean 82.73 | ok |
+| `cctv/brightest.jpg` | `defaults` | 29.7 | [362, 640, 3] uint8 mean 160.71 | ok |
+| `cctv/brightest.jpg` | `length=1.0` | 29.0 | [362, 640, 3] uint8 mean 163.47 | ok |
+| `cctv/brightest.jpg` | `length=200.0` | 119.9 | [362, 640, 3] uint8 mean 138.39 | ok |
+| `cctv/brightest.jpg` | `angle=-180.0` | 29.9 | [362, 640, 3] uint8 mean 160.71 | ok |
+| `cctv/brightest.jpg` | `angle=180.0` | 29.3 | [362, 640, 3] uint8 mean 160.71 | ok |
+| `cctv/brightest.jpg` | `noise_power=0.0001` | 28.6 | [362, 640, 3] uint8 mean 146.82 | ok |
+| `cctv/brightest.jpg` | `noise_power=0.5` | 28.7 | [362, 640, 3] uint8 mean 163.46 | ok |
+| `cctv/brightest.jpg` | `solver=richardson_lucy` | 1519.0 | [362, 640, 3] uint8 mean 158.58 | ok |
+| `cctv/brightest.jpg` | `iterations=5` | 30.1 | [362, 640, 3] uint8 mean 160.71 | ok |
+| `cctv/brightest.jpg` | `iterations=100` | 29.6 | [362, 640, 3] uint8 mean 160.71 | ok |
+| `cctv/darkest.jpg` | `defaults` | 29.8 | [362, 640, 3] uint8 mean 109.74 | ok |
+| `cctv/darkest.jpg` | `length=1.0` | 27.2 | [362, 640, 3] uint8 mean 110.95 | ok |
+| `cctv/darkest.jpg` | `length=200.0` | 120.7 | [362, 640, 3] uint8 mean 107.4 | ok |
+| `cctv/darkest.jpg` | `angle=-180.0` | 34.7 | [362, 640, 3] uint8 mean 109.74 | ok |
+| `cctv/darkest.jpg` | `angle=180.0` | 39.3 | [362, 640, 3] uint8 mean 109.74 | ok |
+| `cctv/darkest.jpg` | `noise_power=0.0001` | 42.1 | [362, 640, 3] uint8 mean 115.1 | ok |
+| `cctv/darkest.jpg` | `noise_power=0.5` | 34.0 | [362, 640, 3] uint8 mean 110.88 | ok |
+| `cctv/darkest.jpg` | `solver=richardson_lucy` | 1549.7 | [362, 640, 3] uint8 mean 105.62 | ok |
+| `cctv/darkest.jpg` | `iterations=5` | 29.1 | [362, 640, 3] uint8 mean 109.74 | ok |
+| `cctv/darkest.jpg` | `iterations=100` | 28.4 | [362, 640, 3] uint8 mean 109.74 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 29.9 | [362, 640, 3] uint8 mean 125.16 | ok |
+| `cctv/event_fall.jpg` | `length=1.0` | 25.5 | [362, 640, 3] uint8 mean 125.53 | ok |
+| `cctv/event_fall.jpg` | `length=200.0` | 120.7 | [362, 640, 3] uint8 mean 127.49 | ok |
+| `cctv/event_fall.jpg` | `angle=-180.0` | 29.4 | [362, 640, 3] uint8 mean 125.16 | ok |
+| `cctv/event_fall.jpg` | `angle=180.0` | 28.9 | [362, 640, 3] uint8 mean 125.16 | ok |
+| `cctv/event_fall.jpg` | `noise_power=0.0001` | 28.9 | [362, 640, 3] uint8 mean 125.07 | ok |
+| `cctv/event_fall.jpg` | `noise_power=0.5` | 30.8 | [362, 640, 3] uint8 mean 125.47 | ok |
+| `cctv/event_fall.jpg` | `solver=richardson_lucy` | 1508.7 | [362, 640, 3] uint8 mean 110.18 | ok |
+| `cctv/event_fall.jpg` | `iterations=5` | 28.6 | [362, 640, 3] uint8 mean 125.16 | ok |
+| `cctv/event_fall.jpg` | `iterations=100` | 29.2 | [362, 640, 3] uint8 mean 125.16 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 29.1 | [362, 640, 3] uint8 mean 124.91 | ok |
+| `cctv/event_optflow.jpg` | `length=1.0` | 25.6 | [362, 640, 3] uint8 mean 125.43 | ok |
+| `cctv/event_optflow.jpg` | `length=200.0` | 121.5 | [362, 640, 3] uint8 mean 127.44 | ok |
+| `cctv/event_optflow.jpg` | `angle=-180.0` | 29.7 | [362, 640, 3] uint8 mean 124.91 | ok |
+| `cctv/event_optflow.jpg` | `angle=180.0` | 29.4 | [362, 640, 3] uint8 mean 124.91 | ok |
+| `cctv/event_optflow.jpg` | `noise_power=0.0001` | 29.9 | [362, 640, 3] uint8 mean 124.11 | ok |
+| `cctv/event_optflow.jpg` | `noise_power=0.5` | 30.0 | [362, 640, 3] uint8 mean 125.38 | ok |
+| `cctv/event_optflow.jpg` | `solver=richardson_lucy` | 1517.8 | [362, 640, 3] uint8 mean 119.66 | ok |
+| `cctv/event_optflow.jpg` | `iterations=5` | 28.8 | [362, 640, 3] uint8 mean 124.91 | ok |
+| `cctv/event_optflow.jpg` | `iterations=100` | 29.1 | [362, 640, 3] uint8 mean 124.91 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 29.8 | [362, 640, 3] uint8 mean 158.05 | ok |
+| `cctv/event_tamper.jpg` | `length=1.0` | 28.3 | [362, 640, 3] uint8 mean 160.57 | ok |
+| `cctv/event_tamper.jpg` | `length=200.0` | 123.1 | [362, 640, 3] uint8 mean 136.83 | ok |
+| `cctv/event_tamper.jpg` | `angle=-180.0` | 29.1 | [362, 640, 3] uint8 mean 158.05 | ok |
+| `cctv/event_tamper.jpg` | `angle=180.0` | 33.7 | [362, 640, 3] uint8 mean 158.05 | ok |
+| `cctv/event_tamper.jpg` | `noise_power=0.0001` | 30.5 | [362, 640, 3] uint8 mean 145.19 | ok |
+| `cctv/event_tamper.jpg` | `noise_power=0.5` | 29.2 | [362, 640, 3] uint8 mean 160.55 | ok |
+| `cctv/event_tamper.jpg` | `solver=richardson_lucy` | 1506.9 | [362, 640, 3] uint8 mean 155.82 | ok |
+| `cctv/event_tamper.jpg` | `iterations=5` | 28.9 | [362, 640, 3] uint8 mean 158.05 | ok |
+| `cctv/event_tamper.jpg` | `iterations=100` | 29.4 | [362, 640, 3] uint8 mean 158.05 | ok |
+| `cctv/flattest.jpg` | `defaults` | 30.8 | [362, 640, 3] uint8 mean 121.11 | ok |
+| `cctv/flattest.jpg` | `length=1.0` | 25.7 | [362, 640, 3] uint8 mean 121.51 | ok |
+| `cctv/flattest.jpg` | `length=200.0` | 121.5 | [362, 640, 3] uint8 mean 124.78 | ok |
+| `cctv/flattest.jpg` | `angle=-180.0` | 28.7 | [362, 640, 3] uint8 mean 121.11 | ok |
+| `cctv/flattest.jpg` | `angle=180.0` | 28.8 | [362, 640, 3] uint8 mean 121.11 | ok |
+| `cctv/flattest.jpg` | `noise_power=0.0001` | 30.0 | [362, 640, 3] uint8 mean 122.0 | ok |
+| `cctv/flattest.jpg` | `noise_power=0.5` | 29.2 | [362, 640, 3] uint8 mean 121.46 | ok |
+| `cctv/flattest.jpg` | `solver=richardson_lucy` | 1522.6 | [362, 640, 3] uint8 mean 116.06 | ok |
+| `cctv/flattest.jpg` | `iterations=5` | 28.5 | [362, 640, 3] uint8 mean 121.11 | ok |
+| `cctv/flattest.jpg` | `iterations=100` | 28.7 | [362, 640, 3] uint8 mean 121.11 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 29.7 | [362, 640, 3] uint8 mean 136.04 | ok |
+| `cctv/most_blown.jpg` | `length=1.0` | 28.7 | [362, 640, 3] uint8 mean 138.08 | ok |
+| `cctv/most_blown.jpg` | `length=200.0` | 122.4 | [362, 640, 3] uint8 mean 127.31 | ok |
+| `cctv/most_blown.jpg` | `angle=-180.0` | 29.1 | [362, 640, 3] uint8 mean 136.04 | ok |
+| `cctv/most_blown.jpg` | `angle=180.0` | 29.3 | [362, 640, 3] uint8 mean 136.04 | ok |
+| `cctv/most_blown.jpg` | `noise_power=0.0001` | 35.6 | [362, 640, 3] uint8 mean 132.29 | ok |
+| `cctv/most_blown.jpg` | `noise_power=0.5` | 38.4 | [362, 640, 3] uint8 mean 138.02 | ok |
+| `cctv/most_blown.jpg` | `solver=richardson_lucy` | 1574.9 | [362, 640, 3] uint8 mean 132.41 | ok |
+| `cctv/most_blown.jpg` | `iterations=5` | 28.7 | [362, 640, 3] uint8 mean 136.04 | ok |
+| `cctv/most_blown.jpg` | `iterations=100` | 28.6 | [362, 640, 3] uint8 mean 136.04 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 28.9 | [362, 640, 3] uint8 mean 130.85 | ok |
+| `cctv/sharpest.jpg` | `length=1.0` | 25.9 | [362, 640, 3] uint8 mean 131.77 | ok |
+| `cctv/sharpest.jpg` | `length=200.0` | 119.2 | [362, 640, 3] uint8 mean 128.62 | ok |
+| `cctv/sharpest.jpg` | `angle=-180.0` | 28.8 | [362, 640, 3] uint8 mean 130.85 | ok |
+| `cctv/sharpest.jpg` | `angle=180.0` | 28.6 | [362, 640, 3] uint8 mean 130.85 | ok |
+| `cctv/sharpest.jpg` | `noise_power=0.0001` | 28.9 | [362, 640, 3] uint8 mean 127.76 | ok |
+| `cctv/sharpest.jpg` | `noise_power=0.5` | 28.8 | [362, 640, 3] uint8 mean 131.7 | ok |
+| `cctv/sharpest.jpg` | `solver=richardson_lucy` | 1521.7 | [362, 640, 3] uint8 mean 117.04 | ok |
+| `cctv/sharpest.jpg` | `iterations=5` | 28.5 | [362, 640, 3] uint8 mean 130.85 | ok |
+| `cctv/sharpest.jpg` | `iterations=100` | 28.8 | [362, 640, 3] uint8 mean 130.85 | ok |
+| `cctv/softest.jpg` | `defaults` | 29.6 | [362, 640, 3] uint8 mean 125.12 | ok |
+| `cctv/softest.jpg` | `length=1.0` | 26.2 | [362, 640, 3] uint8 mean 125.43 | ok |
+| `cctv/softest.jpg` | `length=200.0` | 120.1 | [362, 640, 3] uint8 mean 115.53 | ok |
+| `cctv/softest.jpg` | `angle=-180.0` | 28.8 | [362, 640, 3] uint8 mean 125.12 | ok |
+| `cctv/softest.jpg` | `angle=180.0` | 28.6 | [362, 640, 3] uint8 mean 125.12 | ok |
+| `cctv/softest.jpg` | `noise_power=0.0001` | 28.9 | [362, 640, 3] uint8 mean 125.26 | ok |
+| `cctv/softest.jpg` | `noise_power=0.5` | 28.6 | [362, 640, 3] uint8 mean 125.33 | ok |
+| `cctv/softest.jpg` | `solver=richardson_lucy` | 1537.8 | [362, 640, 3] uint8 mean 121.76 | ok |
+| `cctv/softest.jpg` | `iterations=5` | 28.9 | [362, 640, 3] uint8 mean 125.12 | ok |
+| `cctv/softest.jpg` | `iterations=100` | 28.5 | [362, 640, 3] uint8 mean 125.12 | ok |
+| `reference/motion_blur_plate.jpg` | `defaults` | 34.4 | [482, 600, 3] uint8 mean 124.79 | ok |
+| `reference/motion_blur_plate.jpg` | `length=1.0` | 35.7 | [482, 600, 3] uint8 mean 124.85 | ok |
+| `reference/motion_blur_plate.jpg` | `length=200.0` | 142.4 | [482, 600, 3] uint8 mean 124.31 | ok |
+| `reference/motion_blur_plate.jpg` | `angle=-180.0` | 34.7 | [482, 600, 3] uint8 mean 124.79 | ok |
+| `reference/motion_blur_plate.jpg` | `angle=180.0` | 34.6 | [482, 600, 3] uint8 mean 124.79 | ok |
+| `reference/motion_blur_plate.jpg` | `noise_power=0.0001` | 34.8 | [482, 600, 3] uint8 mean 123.72 | ok |
+| `reference/motion_blur_plate.jpg` | `noise_power=0.5` | 34.6 | [482, 600, 3] uint8 mean 124.84 | ok |
+| `reference/motion_blur_plate.jpg` | `solver=richardson_lucy` | 1765.6 | [482, 600, 3] uint8 mean 123.38 | ok |
+| `reference/motion_blur_plate.jpg` | `iterations=5` | 35.1 | [482, 600, 3] uint8 mean 124.79 | ok |
+| `reference/motion_blur_plate.jpg` | `iterations=100` | 34.2 | [482, 600, 3] uint8 mean 124.79 | ok |
 
 ## Artifacts
 

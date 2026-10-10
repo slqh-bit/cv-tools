@@ -46,7 +46,13 @@ from .filters.stabilise import (
     alignment_report,
 )
 from .filters.histogram import dynamic_range_used, histogram_stats, render_histogram
-from .filters.registry import resolve_filter, list_filters, filter_description
+from .filters.motion_deblur import motion_from_line
+from .filters.registry import (
+    chain_warnings,
+    filter_description,
+    list_filters,
+    resolve_filter,
+)
 from .filters.super_resolution import super_resolve, super_resolve_report
 from .filters.roi import ROI, analyze_roi
 from .utils.compare import side_by_side
@@ -318,11 +324,26 @@ def build_parser() -> argparse.ArgumentParser:
                           help='Highlight copy-move regions. Params: block (int), step (int), '
                                'matches (int), variance (float)')
     forensic.add_argument('--deblur', nargs='*', metavar='KEY=VALUE', action=ChainAction,
-                          help='Wiener motion deblur. Params: length (float), angle (float), '
-                               'noise (float)')
+                          help='Motion deblur. Params: length (float), angle (float), '
+                               'thickness (float), noise (float); or line=X1,Y1,X2,Y2 '
+                               'joining the two ghosts of one point, which sets length '
+                               'and angle. solver=richardson_lucy with iterations (int) '
+                               'is slower and better on noisy, compressed footage '
+                               '(default: wiener)')
     forensic.add_argument('--deblur-defocus', nargs='*', metavar='KEY=VALUE',
                           action=ChainAction,
-                          help='Wiener defocus deblur. Params: radius (float), noise (float)')
+                          help='Defocus deblur. Params: radius (float), noise (float), '
+                               'solver (wiener|richardson_lucy), iterations (int)')
+    forensic.add_argument('--deblur-grid', nargs='*', metavar='KEY=VALUE',
+                          action=ChainAction,
+                          help='Contact sheet of motion deblurs around an estimate, to '
+                               'choose from. Params: as --deblur, plus length_step '
+                               '(float), angle_step (float)')
+    forensic.add_argument('--deblur-defocus-grid', nargs='*', metavar='KEY=VALUE',
+                          action=ChainAction,
+                          help='Contact sheet of defocus deblurs across radius and '
+                               'noise. Params: radius (float), radius_step (float), '
+                               'noise (float)')
     forensic.add_argument('--ghost', nargs='*', metavar='KEY=VALUE', action=ChainAction,
                           help='JPEG ghost map: best-match quality per block. Params: '
                                'block (int), min (int), max (int), step (int) for the '
@@ -731,17 +752,23 @@ def translate_step(
             params['min_variance'] = float(params.pop('variance'))
         return 'clone_detect', params
 
-    if dest == 'deblur':
+    if dest in ('deblur', 'deblur_grid'):
         params = parse_kv(value or [])
         if 'noise' in params:
             params['noise_power'] = float(params.pop('noise'))
-        return 'deblur_motion', params
+        if 'line' in params:
+            # The line is a measurement, not a parameter: what is recorded is
+            # the length and angle it gave. One typed alongside it wins, so a
+            # measured angle can be kept while the length is corrected.
+            x1, y1, x2, y2 = parse_float_list(str(params.pop('line')), 4)
+            params = {**motion_from_line((x1, y1), (x2, y2)), **params}
+        return ('deblur_motion' if dest == 'deblur' else 'deblur_motion_grid'), params
 
-    if dest == 'deblur_defocus':
+    if dest in ('deblur_defocus', 'deblur_defocus_grid'):
         params = parse_kv(value or [])
         if 'noise' in params:
             params['noise_power'] = float(params.pop('noise'))
-        return 'deblur_defocus', params
+        return dest, params
 
     if dest == 'ghost':
         params = parse_kv(value or [])
@@ -1493,6 +1520,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         except (OSError, json.JSONDecodeError) as exc:
             print(f"error: could not read preset {args.load_preset}: {exc}", file=sys.stderr)
             return 1
+
+    # Said once, before any image is touched, rather than once per file of a
+    # batch. Advice only: the chain runs in the order it was given.
+    chain_names = [step['name'] for step in (preset or {}).get('filters', [])]
+    chain_names += [name for name, _params in steps]
+    for warning in chain_warnings(chain_names):
+        print(f"warning: {warning}", file=sys.stderr)
 
     input_path = Path(args.input)
 

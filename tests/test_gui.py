@@ -79,13 +79,14 @@ class TestParameterPanel(unittest.TestCase):
         """
         The whole point-picking path, for each filter with a click plan.
 
-        Clicks are distributed exactly as ``app._on_picks_complete`` does it -
-        one point stays a pair, several flatten - then go through the panel's
-        own round trip and into the filter. A plan that produces a value the
-        entry cannot parse back, or that the filter rejects, fails here rather
-        than under an operator's mouse.
+        Clicks are distributed by the function ``app._on_picks_complete``
+        itself calls - one point stays a pair, several flatten, a measured
+        line becomes a length and an angle - then go through the panel's own
+        round trip and into the filter. A plan that produces a value the entry
+        cannot parse back, or that the filter rejects, fails here rather than
+        under an operator's mouse.
         """
-        from cv_tools.filters.registry import POINT_PARAMETERS
+        from cv_tools.filters.registry import POINT_PARAMETERS, parameters_from_points
 
         image = sample_image(120, 160)
         panel = self.ParameterPanel(self.root)
@@ -97,12 +98,7 @@ class TestParameterPanel(unittest.TestCase):
             points = [(12 + index * 11, 18 + index * 7)
                       for index in range(sum(count for _p, count, _t in plan))]
 
-            values, index = {}, 0
-            for parameter, count, _prompt in plan:
-                taken = points[index:index + count]
-                index += count
-                values[parameter] = list(taken[0]) if count == 1 else [
-                    coordinate for point in taken for coordinate in point]
+            values = parameters_from_points(name, points)
 
             # Required parameters a click plan does not cover - a reference's
             # true length, a label's words - still have to be typed
@@ -536,6 +532,47 @@ class TestApp(unittest.TestCase):
         self.assertEqual(len(self.app.pipeline), 1)
         self.assertEqual(self.app.pipeline.chain[0].name, 'clahe')
         self.assertEqual(self.app.chain_list.size(), 1)
+
+    def test_a_deblur_shows_its_point_spread_function(self):
+        self._select('deblur_motion')
+        self.assertIsNotNone(self.app._preview_photo)
+        self.assertIn('spread', self.app.preview_label.cget('text'))
+
+        # And it goes away again, rather than describing the wrong filter
+        self._select('clahe')
+        self.assertIsNone(self.app._preview_photo)
+        self.assertEqual(self.app.preview_label.cget('text'), '')
+
+    def test_a_drawn_motion_line_fills_length_and_angle(self):
+        self._select('deblur_motion')
+        self.app.start_point_picking()
+        self.app._on_picks_complete([(10, 30), (40, 30)])
+
+        params = self.app.parameters.get_params()
+        self.assertAlmostEqual(params['length'], 30.0, places=3)
+        self.assertAlmostEqual(params['angle'], 0.0, places=3)
+        # Filled into ordinary fields, so the estimate can be corrected
+        self.app.parameters.set_values({'length': 31.5})
+        self.assertAlmostEqual(self.app.parameters.get_params()['length'], 31.5,
+                               places=3)
+
+    def test_a_motion_line_with_no_length_fills_nothing(self):
+        self._select('deblur_motion')
+        before = self.app.parameters.get_params()
+        self.app.start_point_picking()
+        self.app._on_picks_complete([(20, 20), (20, 20)])
+
+        self.assertEqual(self.app.parameters.get_params(), before)
+        self.assertIn('same point', self.app.status.cget('text'))
+
+    def test_an_order_that_defeats_a_deblur_is_reported(self):
+        for name in ('sharpen', 'deblur_defocus'):
+            self._select(name)
+            self.app.apply_filter()
+
+        info = self.app.info_text.get('1.0', 'end')
+        self.assertIn('ORDER', info)
+        self.assertIn('sharpen (step 1)', ' '.join(info.split()))
 
     def test_applied_image_differs_from_the_original(self):
         self._select('clahe')
