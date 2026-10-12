@@ -644,7 +644,7 @@ def _grid_label(canvas: np.ndarray, text: str, top_left: Tuple[int, int],
 
 # ---- tap to pick -------------------------------------------------------
 
-def _record_tap(picked: Optional[Dict[str, Any]], shape: Tuple[int, int]) -> None:
+def _record_tap(picked: Optional[Dict[str, Any]], shape: Tuple[int, int]) -> bool:
     """
     Store a tap, converted from displayed pixels back to image pixels.
 
@@ -657,19 +657,22 @@ def _record_tap(picked: Optional[Dict[str, Any]], shape: Tuple[int, int]) -> Non
     Each click carries a unix_time; the component replays its last value on
     every rerun, so that timestamp is what distinguishes a new tap from a
     redraw of the old one.
+
+    Returns:
+        Whether a new point was stored
     """
     if not picked:
-        return
+        return False
 
     stamp = picked.get('unix_time')
     if stamp is not None and stamp == st.session_state.get('last_tap'):
-        return
+        return False
     st.session_state.last_tap = stamp
 
     shown_width = picked.get('width') or 0
     shown_height = picked.get('height') or 0
     if shown_width <= 0 or shown_height <= 0:
-        return
+        return False
 
     height, width = shape[:2]
     x = int(round(picked['x'] * width / shown_width))
@@ -678,6 +681,7 @@ def _record_tap(picked: Optional[Dict[str, Any]], shape: Tuple[int, int]) -> Non
     y = max(0, min(y, height - 1))
 
     st.session_state.picks.append((x, y))
+    return True
 
 
 def _render_picks() -> None:
@@ -687,10 +691,13 @@ def _render_picks() -> None:
         st.caption('Tap the image to pick a point.')
         return
 
-    st.text_area(
-        f'Picked points ({len(picks)})',
-        '\n'.join(f'{index}. {x},{y}' for index, (x, y) in enumerate(picks, 1)),
-        height=min(40 + 24 * len(picks), 200), key='picks_text')
+    # Written to the widget's own state, not passed as its value: a keyed
+    # widget keeps whatever it was first given, so the list stopped at the
+    # first tap while the count in its label went on rising
+    st.session_state['picks_text'] = '\n'.join(
+        f'{index}. {x},{y}' for index, (x, y) in enumerate(picks, 1))
+    st.text_area(f'Picked points ({len(picks)})',
+                 height=min(40 + 24 * len(picks), 200), key='picks_text')
 
     if len(picks) >= 2:
         (x1, y1), (x2, y2) = picks[-2], picks[-1]
@@ -750,7 +757,13 @@ def _viewer_tab(pipeline: Pipeline) -> None:
 
         picked = streamlit_image_coordinates(
             Image.fromarray(frame), use_column_width='always', key='tap_picker')
-        _record_tap(picked, frame.shape)
+        if _record_tap(picked, frame.shape):
+            # The sidebar, and the prompt above the image, were drawn before
+            # this tap was known. Without a rerun the last point of a guided
+            # pick filled nothing until something else was clicked. The
+            # replayed tap is recognised on the way back round, so this
+            # happens once.
+            st.rerun()
         _render_picks()
     elif view == 'Side by side':
         cols = st.columns(2)

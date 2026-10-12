@@ -59,6 +59,12 @@ def button(app, label: str):
 
 
 
+def _picked_points_script():
+    """The picked-points list on its own, as a script AppTest can rerun."""
+    from cv_tools import dashboard
+    dashboard._render_picks()
+
+
 def png_bytes(height: int = 40, width: int = 60) -> bytes:
     """A PNG whose channels differ, so a channel swap is visible."""
     image = np.zeros((height, width, 3), dtype=np.uint8)
@@ -683,6 +689,16 @@ class TestRecordTap(DashboardTestCase):
         dash._record_tap(dict(tap), (160, 200))
         self.assertEqual(len(st.session_state.picks), 1)
 
+    def test_only_a_new_tap_asks_for_a_redraw(self):
+        # The viewer reruns on a new tap so the form fills at once; a replay
+        # must not, or the page would rerun forever
+        tap = {'x': 10, 'y': 10, 'width': 200, 'height': 160, 'unix_time': 7}
+        self.assertTrue(dash._record_tap(tap, (160, 200)))
+        self.assertFalse(dash._record_tap(dict(tap), (160, 200)))
+        self.assertFalse(dash._record_tap(None, (160, 200)))
+        self.assertFalse(dash._record_tap(
+            {'x': 5, 'y': 5, 'width': 0, 'height': 0, 'unix_time': 9}, (160, 200)))
+
     def test_a_new_tap_at_the_same_point_is_recorded(self):
         base = {'x': 10, 'y': 10, 'width': 200, 'height': 160}
         dash._record_tap({**base, 'unix_time': 7}, (160, 200))
@@ -704,6 +720,23 @@ class TestRecordTap(DashboardTestCase):
     def test_a_missing_render_size_is_ignored(self):
         dash._record_tap({'x': 5, 'y': 5, 'unix_time': 1}, (160, 200))
         self.assertEqual(st.session_state.picks, [])
+
+    def test_the_picked_points_list_follows_the_picks(self):
+        # Seen in the running dashboard: the label read "Picked points (3)"
+        # over a list still showing only the first tap
+        app = AppTest.from_function(_picked_points_script, default_timeout=60)
+        app.session_state.picks = [(200, 301)]
+        app.session_state.last_tap = None
+        app.run()
+        self.assertEqual(app.exception, [])
+        self.assertEqual(app.text_area[0].value, '1. 200,301')
+
+        app.session_state.picks = [(200, 301), (260, 256)]
+        app.run()
+        self.assertEqual(app.exception, [])
+        self.assertEqual(app.text_area[0].label, 'Picked points (2)')
+        self.assertEqual(app.text_area[0].value.splitlines(),
+                         ['1. 200,301', '2. 260,256'])
 
 
 if __name__ == '__main__':
