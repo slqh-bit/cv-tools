@@ -199,6 +199,12 @@ from .motion_deblur import (
     deblur_motion,
     deblur_defocus,
     deblur_sweep,
+    deconvolve,
+    richardson_lucy_deconvolution,
+    deblur_motion_grid,
+    deblur_defocus_grid,
+    motion_from_line,
+    psf_preview,
     focus_score,
 )
 from .noise_analysis import estimate_noise, estimate_snr, noise_map, noise_report
@@ -234,6 +240,8 @@ from .stabilise import (
 from .registry import (
     FILTER_REGISTRY,
     POINT_PARAMETERS,
+    POINT_CONVERSIONS,
+    PARAMETER_PREVIEWS,
     FilterSpec,
     CATEGORY_ORDER,
     resolve_filter,
@@ -243,6 +251,9 @@ from .registry import (
     roi_filter,
     list_filters,
     apply_preset,
+    parameters_from_points,
+    parameter_preview,
+    chain_warnings,
 )
 from .analysis import (
     ANALYSIS_REGISTRY,
@@ -290,6 +301,8 @@ __all__ = [
     # deblur
     'motion_blur_psf', 'defocus_psf', 'apply_psf', 'wiener_deconvolution',
     'deblur_motion', 'deblur_defocus', 'deblur_sweep', 'focus_score',
+    'deblur_motion_grid', 'deblur_defocus_grid', 'motion_from_line', 'psf_preview',
+    'deconvolve', 'richardson_lucy_deconvolution',
     # frame averaging
     'average_frames', 'median_frames', 'integrate_frames', 'frame_difference',
     'sharpest_frames',
@@ -364,6 +377,8 @@ __all__ = [
     'resolve_filter', 'filter_function', 'filter_description',
     'filters_with_all_defaults', 'roi_filter',
     'list_filters', 'apply_preset',
+    'POINT_CONVERSIONS', 'PARAMETER_PREVIEWS', 'parameters_from_points',
+    'parameter_preview', 'chain_warnings',
     # analysis registry
     'ANALYSIS_REGISTRY', 'AnalysisSpec', 'Row', 'list_analyses', 'render_report',
     'report_lines', 'resolve_analysis', 'run_analysis',

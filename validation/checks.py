@@ -81,7 +81,9 @@ from cv_tools.filters import (
     correct_barrel_distortion,
     correct_perspective,
     deblur_defocus,
+    deblur_defocus_grid,
     deblur_motion,
+    deblur_motion_grid,
     detect_copy_move,
     edge_density,
     estimate_noise,
@@ -368,39 +370,229 @@ def check_upscale(corpus) -> List[Tuple[str, bool, str]]:
     return out
 
 
-def check_deblur_motion(corpus) -> List[Tuple[str, bool, str]]:
-    plate = corpus.get('reference/motion_blur_plate.jpg')
+def _psnr(reference: np.ndarray, candidate: np.ndarray) -> float:
+    error = np.mean((reference.astype(np.float64) - candidate.astype(np.float64)) ** 2)
+    return float('inf') if error == 0 else float(10 * np.log10(255.0 ** 2 / error))
+
+
+def _disc_kernel(radius: float, oversample: int = 8) -> np.ndarray:
+    """
+    A defocus disc drawn here, not by the filter under test.
+
+    A deconvolution checked against a blur made with its own PSF is checked
+    against its own assumptions. This is rasterised large and averaged down.
+    """
+    size = int(np.ceil(radius)) * 2 + 3
+    canvas = np.zeros((size * oversample, size * oversample), dtype=np.float32)
+    centre = size * oversample // 2
+    cv2.circle(canvas, (centre, centre), int(round(radius * oversample)), 1.0, -1)
+    kernel = cv2.resize(canvas, (size, size), interpolation=cv2.INTER_AREA)
+    return kernel / kernel.sum()
+
+
+def _as_a_camera_blurs(frame: np.ndarray, blur_linear: Callable) -> np.ndarray:
+    """
+    Blur a frame the way a lens or a moving subject does: in linear light.
+
+    Light adds up on the sensor before the camera gamma-encodes it, so a real
+    blur is a blur of linear values. Blurring the stored values instead - what
+    an image editor does, and what these checks did at first - is a different
+    operation, and it happens to be the one the Wiener filter assumes: checked
+    that way, ``wiener`` beat ``richardson_lucy`` by about 0.2 dB on compressed
+    frames, where on a blur made in linear light it loses by about 0.8. The
+    sRGB curve is written out here so the check does not borrow the filter's.
+
+    Args:
+        frame: Sharp frame, uint8
+        blur_linear: float32 linear image -> blurred float32 linear image
+    """
+    encoded = frame.astype(np.float32) / 255.0
+    linear = np.where(encoded <= 0.04045, encoded / 12.92,
+                      ((encoded + 0.055) / 1.055) ** 2.4).astype(np.float32)
+    blurred = np.clip(blur_linear(linear), 0.0, 1.0)
+    display = np.where(blurred <= 0.0031308, blurred * 12.92,
+                       1.055 * np.power(blurred, 1 / 2.4) - 0.055)
+    return np.clip(np.rint(display * 255.0), 0, 255).astype(np.uint8)
+
+
+def _deblur_frames(corpus) -> List[Tuple[str, np.ndarray]]:
+    """Sharp CCTV frames: the footage the filters are for, with a known answer."""
+    return [(name, corpus[name]) for name in ('cctv/sharpest.jpg', 'cctv/event_fall.jpg')
+            if name in corpus]
+
+
+def _deblur_checks(frames, blur, restore, wrong, label) -> List[Tuple[str, bool, str]]:
+    """
+    The promises a deconvolution makes, measured against the frame as it was
+    before it was blurred.
+
+    Fidelity to the original, never sharpness. Variance of the Laplacian was
+    what these checks used to read, and it rises with ringing exactly as it
+    rises with detail: on a known blur it scored a PSF 45 degrees wrong three
+    times higher than the right one. A check that prefers the wrong answer is
+    worse than no check.
+
+    Args:
+        frames: (name, sharp frame) pairs
+        blur: sharp frame -> blurred frame, by a blur this module built
+        restore: (blurred frame, solver) -> restored frame with the true PSF
+        wrong: label -> (blurred frame -> restored frame) with a wrong PSF
+        label: What the true PSF is, for the detail text
+    """
     out = []
+    if not frames:
+        return [('sharp CCTV frames present', False, 'no cctv frames in the corpus')]
+
+    cases = []
+    for name, sharp in frames:
+        clean = blur(sharp)
+        cases.append((name, sharp, 'clean', clean))
+        cases.append((name, sharp, 'JPEG 60', _jpeg(clean, 60)))
+
+    for solver in ('wiener', 'richardson_lucy'):
+        gains = [(_psnr(sharp, restore(blurred, solver)) - _psnr(sharp, blurred),
+                  f'{name} {kind}') for name, sharp, kind, blurred in cases]
+        worst = min(gains)
+        out.append((f'{solver}: the true PSF moves every blurred frame towards '
+                    'the original',
+                    worst[0] > 0,
+                    f'{label}; PSNR gain {worst[0]:+.2f} dB at worst ({worst[1]}), '
+                    f'{np.mean([g for g, _ in gains]):+.2f} dB on average over '
+                    f'{len(gains)} frames'))
+
+    # The property the old checks could not see
+    margins = []
+    for name, sharp, kind, blurred in cases:
+        true_score = _psnr(sharp, restore(blurred, 'wiener'))
+        for wrong_label, wrong_restore in wrong.items():
+            margins.append((true_score - _psnr(sharp, wrong_restore(blurred)),
+                            f'{wrong_label} on {name} {kind}'))
+    closest = min(margins)
+    out.append(('the true PSF restores better than every wrong one tried',
+                closest[0] > 0,
+                f'closest wrong PSF, {closest[1]}, was {closest[0]:.2f} dB behind; '
+                f'{len(margins)} comparisons'))
+
+    compressed = [(sharp, blurred) for _n, sharp, kind, blurred in cases if kind != 'clean']
+    ahead = float(np.mean([_psnr(sharp, restore(blurred, 'richardson_lucy'))
+                           - _psnr(sharp, restore(blurred, 'wiener'))
+                           for sharp, blurred in compressed]))
+    out.append(('richardson_lucy earns its cost on compressed frames',
+                ahead > 0,
+                f'{ahead:+.2f} dB over wiener on average, both at default settings'))
+    return out
+
+
+def check_deblur_motion(corpus) -> List[Tuple[str, bool, str]]:
+    from cv_tools.validation.degrade import motion_blur
+
+    out = _deblur_checks(
+        _deblur_frames(corpus),
+        blur=lambda frame: _as_a_camera_blurs(
+            frame, lambda linear: motion_blur(linear, length=15, angle=20)),
+        restore=lambda blurred, solver: deblur_motion(blurred, length=15, angle=20,
+                                                      solver=solver),
+        wrong={
+            'length 11': lambda b: deblur_motion(b, length=11, angle=20),
+            'length 19': lambda b: deblur_motion(b, length=19, angle=20),
+            'angle 5': lambda b: deblur_motion(b, length=15, angle=5),
+            'angle 35': lambda b: deblur_motion(b, length=15, angle=35),
+            'angle 110': lambda b: deblur_motion(b, length=15, angle=110),
+        },
+        label='15 px at 20 degrees, blurred in linear light by validation.degrade')
+
+    frames = _deblur_frames(corpus)
+    if frames:
+        frame = frames[0][1]
+        heavy = deblur_motion(frame, length=15, angle=20, noise_power=0.5)
+        shift = abs(float(heavy.mean()) - float(frame.mean()))
+        out.append(('a heavy noise term does not darken the frame', shift < 1.0,
+                    f'mean moved {shift:.2f}/255 at noise_power 0.5'))
+
+    # A real blurred plate, with no original to compare against. It can show
+    # that the filter acts on real footage; it cannot show that it acts well.
+    plate = corpus.get('reference/motion_blur_plate.jpg')
     if plate is None:
-        return [('reference image present', False, 'motion_blur_plate.jpg missing')]
-
-    before = _high_frequency_energy(plate)
-    best = max((_high_frequency_energy(deblur_motion(plate, length=length, angle=angle))
-                for length in (9, 15, 21) for angle in (0, 90)), default=0.0)
-    out.append(('some PSF raises high-frequency energy on a truly blurred plate',
-                best > before,
-                f'Laplacian variance {before:.0f} -> {best:.0f} at the best of '
-                '6 PSF guesses'))
-
-    # Wiener deconvolution with a wrong PSF invents detail; the honest check is
-    # that it does not silently return the input either
-    same = deblur_motion(plate, length=15, angle=45)
-    out.append(('a wrong PSF still changes the image rather than passing it through',
-                not np.array_equal(same, plate),
-                'output differs from input at 45 degrees'))
+        out.append(('reference image present', False, 'motion_blur_plate.jpg missing'))
+    else:
+        changed = deblur_motion(plate, length=15, angle=0)
+        out.append(('a really blurred plate is changed, not passed through',
+                    not np.array_equal(changed, plate),
+                    'no ground truth exists for this image; fidelity is judged on '
+                    'the frames above'))
     return out
 
 
 def check_deblur_defocus(corpus) -> List[Tuple[str, bool, str]]:
+    kernel = _disc_kernel(4.0)
+
+    out = _deblur_checks(
+        _deblur_frames(corpus),
+        blur=lambda frame: _as_a_camera_blurs(
+            frame, lambda linear: cv2.filter2D(linear, -1, kernel,
+                                               borderType=cv2.BORDER_REFLECT)),
+        restore=lambda blurred, solver: deblur_defocus(blurred, radius=4.0,
+                                                       solver=solver),
+        wrong={
+            'radius 2.5': lambda b: deblur_defocus(b, radius=2.5),
+            'radius 5.5': lambda b: deblur_defocus(b, radius=5.5),
+            'radius 8': lambda b: deblur_defocus(b, radius=8.0),
+        },
+        label='radius 4 px, blurred in linear light by a disc drawn in '
+              'validation.checks')
+
     text = corpus.get('reference/defocus_text.jpg')
     if text is None:
-        return [('reference image present', False, 'defocus_text.jpg missing')]
-    before = _high_frequency_energy(text)
-    best = max(_high_frequency_energy(deblur_defocus(text, radius=r))
-               for r in (3, 5, 8, 12))
-    return [('some radius raises high-frequency energy on defocused text',
-             best > before,
-             f'Laplacian variance {before:.0f} -> {best:.0f} over radius 3-12')]
+        out.append(('reference image present', False, 'defocus_text.jpg missing'))
+    else:
+        changed = deblur_defocus(text, radius=5)
+        out.append(('really defocused text is changed, not passed through',
+                    not np.array_equal(changed, text),
+                    'no ground truth exists for this image; fidelity is judged on '
+                    'the frames above'))
+    return out
+
+
+def _grid_check(grid: np.ndarray, frame: np.ndarray, expected: np.ndarray,
+                row: int, column: int) -> Tuple[bool, str]:
+    """Is the tile at (row, column) of a 3 x 3 sheet exactly ``expected``?"""
+    height, width = frame.shape[:2]
+    strip = grid.shape[0] // 3 - height
+    if strip < 0 or grid.shape[1] != 3 * width:
+        return False, (f'sheet is {grid.shape[1]}x{grid.shape[0]}, which is not three '
+                       f'full-size {width}x{height} tiles a side')
+    top = row * (height + strip) + strip
+    tile = grid[top:top + height, column * width:(column + 1) * width]
+    same = np.array_equal(tile, expected)
+    return same, ('tile is pixel-identical to the filter run on its own' if same else
+                  f'tile differs from the filter by up to '
+                  f'{int(np.abs(tile.astype(int) - expected.astype(int)).max())} levels')
+
+
+def check_deblur_motion_grid(corpus) -> List[Tuple[str, bool, str]]:
+    # A crop, as the sheet is meant to be used: the whole frame three across
+    # would be scaled down, and a scaled tile hides the ringing being judged
+    frame = corpus['cctv/sharpest.jpg'][60:260, 150:450]
+    grid = deblur_motion_grid(frame, length=12, angle=20, length_step=2, angle_step=5)
+    out = []
+    ok, detail = _grid_check(grid, frame, deblur_motion(frame, length=12, angle=20), 1, 1)
+    out.append(('the middle tile is the estimate itself, at full resolution', ok, detail))
+    ok, detail = _grid_check(grid, frame, deblur_motion(frame, length=14, angle=25), 2, 2)
+    out.append(('rows step the length and columns the angle', ok, detail))
+    return out
+
+
+def check_deblur_defocus_grid(corpus) -> List[Tuple[str, bool, str]]:
+    frame = corpus['cctv/sharpest.jpg'][60:260, 150:450]
+    grid = deblur_defocus_grid(frame, radius=3, radius_step=1, noise_power=0.03)
+    out = []
+    ok, detail = _grid_check(grid, frame,
+                             deblur_defocus(frame, radius=3, noise_power=0.03), 1, 1)
+    out.append(('the middle tile is the estimate itself, at full resolution', ok, detail))
+    ok, detail = _grid_check(grid, frame,
+                             deblur_defocus(frame, radius=4, noise_power=0.01), 2, 0)
+    out.append(('rows step the radius and columns the noise term', ok, detail))
+    return out
 
 
 # ---- Correct --------------------------------------------------------------
@@ -620,6 +812,8 @@ CHECKS: Dict[str, Callable] = {
     'upscale': check_upscale,
     'deblur_motion': check_deblur_motion,
     'deblur_defocus': check_deblur_defocus,
+    'deblur_motion_grid': check_deblur_motion_grid,
+    'deblur_defocus_grid': check_deblur_defocus_grid,
     'perspective': check_perspective,
     'barrel': check_barrel,
     'redact': check_redact,

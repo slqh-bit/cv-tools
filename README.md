@@ -39,7 +39,7 @@ exported as a JSON preset or a forensic-style processing report.
 | Clone Detection | `filters/clone_detection.py` | Copy-move forgery detection |
 | JPEG Ghost | `filters/jpeg_ghost.py` | Per-block prior JPEG quality from pixel evidence |
 | Metadata Forensics | `filters/metadata_forensics.py` | EXIF and JPEG segment inconsistencies |
-| Motion Deblur | `filters/motion_deblur.py` | Wiener deconvolution, PSF construction |
+| Motion Deblur | `filters/motion_deblur.py` | Wiener and Richardson-Lucy deconvolution, PSF construction |
 | Frame Averaging | `filters/frame_averaging.py` | Multi-frame denoise, background reconstruction |
 
 **Remaining catalogue — Adjust, Enhance, Correct, Special**
@@ -375,9 +375,17 @@ cv-tools scan.png --fft -o spectrum.png
 cv-tools scan.png --remove-periodic -o cleaned.png
 cv-tools scan.png --fft-filter type=lowpass cutoff=30 -o smoothed.png
 
-# Wiener deblurring — you must supply the correct PSF
+# Deblurring — you must supply the correct PSF
 cv-tools blurred.jpg --deblur length=15 angle=30 noise=0.01 -o sharp.jpg
 cv-tools blurred.jpg --deblur-defocus radius=5 noise=0.01 -o sharp.jpg
+# Slower, and better on noisy, compressed footage. Crop first.
+cv-tools plate.jpg --deblur length=15 angle=30 solver=richardson_lucy -o sharp.jpg
+
+# Measure a motion blur from the two ghosts of one point, then close in on it
+cv-tools plate.jpg --deblur-grid line=412,300,455,268 length_step=1 -o candidates.png
+cv-tools plate.jpg --deblur line=412,300,455,268 -o sharp.jpg
+# Defocus has no line to draw: compare radii and noise settings side by side
+cv-tools plate.jpg --deblur-defocus-grid radius=3 radius_step=0.5 -o candidates.png
 ```
 
 ### Multi-frame video processing

@@ -1,7 +1,7 @@
 # scale_bar - validation result
 
 **Draw a calibrated scale bar, so sizes can be read off directly**  
-`cv_tools.filters.annotate` | family: Special | 2026-09-01T16:37:19
+`cv_tools.filters.annotate` | family: Special | 2026-10-10T14:19:18
 
 ## Verdict
 
@@ -33,7 +33,7 @@ Rejected on purpose, with the message the user would see.
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 162.71 | ok |
+| `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 162.71 | ok |
 | `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 155.85 | ok |
 | `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 162.41 | ok |
@@ -42,12 +42,12 @@ Rejected on purpose, with the message the user would see.
 | `cctv/darkest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/darkest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 107.82 | ok |
 | `cctv/darkest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 110.62 | ok |
-| `cctv/darkest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 110.75 | ok |
+| `cctv/darkest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 110.75 | ok |
 | `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 125.14 | ok |
 | `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 120.12 | ok |
 | `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 125.39 | ok |
-| `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 125.25 | ok |
+| `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 125.25 | ok |
 | `cctv/event_optflow.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 125.04 | ok |
 | `cctv/event_optflow.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/event_optflow.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 120.17 | ok |
@@ -76,7 +76,7 @@ Rejected on purpose, with the message the user would see.
 | `cctv/softest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 124.9 | ok |
 | `cctv/softest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/softest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 120.3 | ok |
-| `cctv/softest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 124.77 | ok |
+| `cctv/softest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 124.77 | ok |
 | `cctv/softest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 124.6 | ok |
 
 ## Artifacts

@@ -1,7 +1,7 @@
 # arrow - validation result
 
 **Draw a labelled arrow pointing at something**  
-`cv_tools.filters.annotate` | family: Special | 2026-09-01T16:37:20
+`cv_tools.filters.annotate` | family: Special | 2026-10-10T14:19:18
 
 ## Verdict
 
@@ -13,11 +13,11 @@
 |---|---|---|---|---|
 | `cctv/brightest.jpg` | `start=[500, 120], end=[340, 260]` | 0.1 | [362, 640, 3] uint8 mean 163.53 | ok |
 | `cctv/darkest.jpg` | `start=[500, 120], end=[340, 260]` | 0.1 | [362, 640, 3] uint8 mean 111.03 | ok |
-| `cctv/event_fall.jpg` | `start=[500, 120], end=[340, 260]` | 0.2 | [362, 640, 3] uint8 mean 125.51 | ok |
-| `cctv/event_optflow.jpg` | `start=[500, 120], end=[340, 260]` | 0.2 | [362, 640, 3] uint8 mean 125.41 | ok |
-| `cctv/event_tamper.jpg` | `start=[500, 120], end=[340, 260]` | 0.2 | [362, 640, 3] uint8 mean 160.63 | ok |
-| `cctv/flattest.jpg` | `start=[500, 120], end=[340, 260]` | 0.2 | [362, 640, 3] uint8 mean 121.5 | ok |
-| `cctv/most_blown.jpg` | `start=[500, 120], end=[340, 260]` | 0.2 | [362, 640, 3] uint8 mean 138.11 | ok |
+| `cctv/event_fall.jpg` | `start=[500, 120], end=[340, 260]` | 0.1 | [362, 640, 3] uint8 mean 125.51 | ok |
+| `cctv/event_optflow.jpg` | `start=[500, 120], end=[340, 260]` | 0.1 | [362, 640, 3] uint8 mean 125.41 | ok |
+| `cctv/event_tamper.jpg` | `start=[500, 120], end=[340, 260]` | 0.1 | [362, 640, 3] uint8 mean 160.63 | ok |
+| `cctv/flattest.jpg` | `start=[500, 120], end=[340, 260]` | 0.1 | [362, 640, 3] uint8 mean 121.5 | ok |
+| `cctv/most_blown.jpg` | `start=[500, 120], end=[340, 260]` | 0.1 | [362, 640, 3] uint8 mean 138.11 | ok |
 | `cctv/sharpest.jpg` | `start=[500, 120], end=[340, 260]` | 0.2 | [362, 640, 3] uint8 mean 131.76 | ok |
 | `cctv/softest.jpg` | `start=[500, 120], end=[340, 260]` | 0.2 | [362, 640, 3] uint8 mean 125.46 | ok |
 

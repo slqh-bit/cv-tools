@@ -41,7 +41,7 @@ REM Open the browser a few seconds from now, while the server starts here.
 REM headless keeps Streamlit from asking for an email address on first run.
 start "" /b cmd /c "timeout /t 5 /nobreak >nul & start "" http://localhost:%PORT%"
 
-"%PY%" -m streamlit run src\dashboard.py ^
+"%PY%" -m streamlit run cv_tools\dashboard.py ^
     --server.address=127.0.0.1 ^
     --server.port=%PORT% ^
     --server.headless=true ^

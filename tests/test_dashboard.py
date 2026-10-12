@@ -59,6 +59,12 @@ def button(app, label: str):
 
 
 
+def _picked_points_script():
+    """The picked-points list on its own, as a script AppTest can rerun."""
+    from cv_tools import dashboard
+    dashboard._render_picks()
+
+
 def png_bytes(height: int = 40, width: int = 60) -> bytes:
     """A PNG whose channels differ, so a channel swap is visible."""
     image = np.zeros((height, width, 3), dtype=np.uint8)
@@ -186,6 +192,60 @@ class TestDashboard(unittest.TestCase):
         app = self._app()
         app.selectbox(key='selected_filter').select('clahe').run()
         self.assertFalse([b for b in app.button if b.label.startswith('Pick')])
+
+    def _pick_motion_line(self, app, picks):
+        app.selectbox(key='selected_filter').select('deblur_motion').run()
+        next(b for b in app.button if b.label.startswith('Pick')).click().run()
+        app.session_state.picks = picks
+        app.run()
+
+    def test_a_tapped_motion_line_fills_length_and_angle(self):
+        # Two taps on the ghosts of one point are a measurement, not a
+        # parameter: what lands in the form is the length and angle they give
+        app = self._app()
+        self._pick_motion_line(app, [(100, 200), (160, 155)])
+
+        self.assertEqual(app.exception, [])
+        self.assertIsNone(app.session_state.picking_for)
+        self.assertAlmostEqual(app.session_state['param_deblur_motion_length'], 75.0)
+        self.assertAlmostEqual(app.session_state['param_deblur_motion_angle'], 36.9)
+
+        button(app, 'Apply filter').click().run()
+        self.assertEqual(app.exception, [])
+        step = app.session_state.pipeline.chain[0]
+        self.assertEqual(step.name, 'deblur_motion')
+        self.assertAlmostEqual(step.params['length'], 75.0, places=2)
+        self.assertAlmostEqual(step.params['angle'], 36.9, places=2)
+
+    def test_a_motion_line_longer_than_the_slider_says_it_was_limited(self):
+        app = self._app()
+        self._pick_motion_line(app, [(20, 100), (520, 100)])
+
+        self.assertEqual(app.exception, [])
+        self.assertEqual(app.session_state['param_deblur_motion_length'], 200.0)
+        self.assertTrue(any('measured 500' in note.value for note in app.success))
+
+    def test_a_motion_line_with_no_length_is_an_error_not_a_crash(self):
+        app = self._app()
+        self._pick_motion_line(app, [(100, 200), (100, 200)])
+
+        self.assertEqual(app.exception, [])
+        self.assertTrue(any('same point' in error.value for error in app.error))
+
+    def test_an_order_that_defeats_a_deblur_is_warned_about(self):
+        app = self._app()
+        for name in ('sharpen', 'deblur_defocus'):
+            app.selectbox(key='selected_filter').select(name).run()
+            button(app, 'Apply filter').click().run()
+
+        self.assertEqual(app.exception, [])
+        self.assertTrue(any('comes after sharpen (step 1)' in warning.value
+                            for warning in app.warning))
+
+        # The arrow beside the warning is what fixes it
+        app.button(key='up_1').click().run()
+        self.assertFalse(any('comes after' in warning.value
+                             for warning in app.warning))
 
     def test_measuring_from_taps_all_the_way_into_the_chain(self):
         """
@@ -629,6 +689,16 @@ class TestRecordTap(DashboardTestCase):
         dash._record_tap(dict(tap), (160, 200))
         self.assertEqual(len(st.session_state.picks), 1)
 
+    def test_only_a_new_tap_asks_for_a_redraw(self):
+        # The viewer reruns on a new tap so the form fills at once; a replay
+        # must not, or the page would rerun forever
+        tap = {'x': 10, 'y': 10, 'width': 200, 'height': 160, 'unix_time': 7}
+        self.assertTrue(dash._record_tap(tap, (160, 200)))
+        self.assertFalse(dash._record_tap(dict(tap), (160, 200)))
+        self.assertFalse(dash._record_tap(None, (160, 200)))
+        self.assertFalse(dash._record_tap(
+            {'x': 5, 'y': 5, 'width': 0, 'height': 0, 'unix_time': 9}, (160, 200)))
+
     def test_a_new_tap_at_the_same_point_is_recorded(self):
         base = {'x': 10, 'y': 10, 'width': 200, 'height': 160}
         dash._record_tap({**base, 'unix_time': 7}, (160, 200))
@@ -650,6 +720,23 @@ class TestRecordTap(DashboardTestCase):
     def test_a_missing_render_size_is_ignored(self):
         dash._record_tap({'x': 5, 'y': 5, 'unix_time': 1}, (160, 200))
         self.assertEqual(st.session_state.picks, [])
+
+    def test_the_picked_points_list_follows_the_picks(self):
+        # Seen in the running dashboard: the label read "Picked points (3)"
+        # over a list still showing only the first tap
+        app = AppTest.from_function(_picked_points_script, default_timeout=60)
+        app.session_state.picks = [(200, 301)]
+        app.session_state.last_tap = None
+        app.run()
+        self.assertEqual(app.exception, [])
+        self.assertEqual(app.text_area[0].value, '1. 200,301')
+
+        app.session_state.picks = [(200, 301), (260, 256)]
+        app.run()
+        self.assertEqual(app.exception, [])
+        self.assertEqual(app.text_area[0].label, 'Picked points (2)')
+        self.assertEqual(app.text_area[0].value.splitlines(),
+                         ['1. 200,301', '2. 260,256'])
 
 
 if __name__ == '__main__':

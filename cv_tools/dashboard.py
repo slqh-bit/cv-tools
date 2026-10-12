@@ -42,10 +42,13 @@ from cv_tools.filters import (
     CATEGORY_ORDER,
     POINT_PARAMETERS,
     FILTER_REGISTRY,
+    chain_warnings,
     dynamic_range_used,
     filter_description,
     filter_function,
     histogram_stats,
+    parameter_preview,
+    parameters_from_points,
     render_histogram,
     render_report,
     resolve_analysis,
@@ -388,6 +391,10 @@ def _chain_panel(pipeline: Pipeline) -> None:
             del chain[index]
             _replace(pipeline, chain)
 
+    # Beside the arrows that fix it: an order that works against a step
+    for warning in chain_warnings([step.name for step in pipeline.chain]):
+        st.sidebar.warning(warning)
+
     action_cols = st.sidebar.columns(3)
     if action_cols[0].button('Undo', disabled=not pipeline.can_undo):
         pipeline.undo()
@@ -456,6 +463,11 @@ def _add_filter_panel(pipeline: Pipeline) -> None:
 
     params = _param_form(spec)
 
+    preview = parameter_preview(name, params)
+    if preview is not None:
+        caption, picture = preview
+        st.sidebar.image(picture, caption=caption, width=160)
+
     if st.sidebar.button('Apply filter', type='primary', disabled=params is None):
         try:
             pipeline.apply(spec.fn, spec.name, spec.module, params)
@@ -495,9 +507,14 @@ def _picking_controls(name: str, plan) -> None:
         st.sidebar.caption('Turn on "Tap to pick coordinates" over the image.')
     else:
         # Every point collected: write them into the parameter fields
-        filled = _fill_from_picks(name, plan, picks)
         st.session_state.picking_for = None
-        st.sidebar.success(f'Filled {", ".join(filled)}')
+        try:
+            filled = _fill_from_picks(name, plan, picks)
+            st.sidebar.success(f'Filled {", ".join(filled)}')
+        except ValueError as exc:
+            # A measurement the taps cannot give, such as a motion line whose
+            # two ends are the same pixel
+            st.sidebar.error(str(exc))
 
     if st.sidebar.button('Cancel picking', key=f'cancel_{name}'):
         st.session_state.picking_for = None
@@ -511,15 +528,28 @@ def _fill_from_picks(name: str, plan, picks) -> List[str]:
     Written into the widgets' own session-state keys, which is how a value
     reaches a Streamlit control that has already been created once.
     """
-    filled, index = [], 0
-    for parameter, count, _prompt in plan:
-        taken = picks[index:index + count]
-        index += count
-        if len(taken) < count:
-            break
-        flat = [coordinate for point in taken for coordinate in point]
-        st.session_state[f'param_{name}_{parameter}'] = ','.join(
-            str(v) for v in flat)
+    defaults = {parameter.name: parameter.default for parameter in
+                inspect.signature(resolve_filter(name).fn).parameters.values()}
+
+    filled = []
+    for parameter, value in parameters_from_points(name, picks).items():
+        key = f'param_{name}_{parameter}'
+        if isinstance(value, (list, tuple)):
+            st.session_state[key] = ','.join(str(v) for v in value)
+        elif (parameter in SLIDER_RANGES
+              and isinstance(defaults.get(parameter), (int, float))):
+            # A measured value, such as the length of a drawn motion line,
+            # lands on a slider - which holds a number, and only inside its
+            # range
+            low, high = SLIDER_RANGES[parameter]
+            st.session_state[key] = float(min(max(value, low), high))
+            if not low <= value <= high:
+                # Never quietly: the field now holds a different number
+                # from the one that was measured
+                parameter = (f'{parameter} (measured {value:g}, limited to '
+                             f'{st.session_state[key]:g})')
+        else:
+            st.session_state[key] = str(value)
         filled.append(parameter)
     return filled
 
@@ -614,7 +644,7 @@ def _grid_label(canvas: np.ndarray, text: str, top_left: Tuple[int, int],
 
 # ---- tap to pick -------------------------------------------------------
 
-def _record_tap(picked: Optional[Dict[str, Any]], shape: Tuple[int, int]) -> None:
+def _record_tap(picked: Optional[Dict[str, Any]], shape: Tuple[int, int]) -> bool:
     """
     Store a tap, converted from displayed pixels back to image pixels.
 
@@ -627,19 +657,22 @@ def _record_tap(picked: Optional[Dict[str, Any]], shape: Tuple[int, int]) -> Non
     Each click carries a unix_time; the component replays its last value on
     every rerun, so that timestamp is what distinguishes a new tap from a
     redraw of the old one.
+
+    Returns:
+        Whether a new point was stored
     """
     if not picked:
-        return
+        return False
 
     stamp = picked.get('unix_time')
     if stamp is not None and stamp == st.session_state.get('last_tap'):
-        return
+        return False
     st.session_state.last_tap = stamp
 
     shown_width = picked.get('width') or 0
     shown_height = picked.get('height') or 0
     if shown_width <= 0 or shown_height <= 0:
-        return
+        return False
 
     height, width = shape[:2]
     x = int(round(picked['x'] * width / shown_width))
@@ -648,6 +681,7 @@ def _record_tap(picked: Optional[Dict[str, Any]], shape: Tuple[int, int]) -> Non
     y = max(0, min(y, height - 1))
 
     st.session_state.picks.append((x, y))
+    return True
 
 
 def _render_picks() -> None:
@@ -657,10 +691,13 @@ def _render_picks() -> None:
         st.caption('Tap the image to pick a point.')
         return
 
-    st.text_area(
-        f'Picked points ({len(picks)})',
-        '\n'.join(f'{index}. {x},{y}' for index, (x, y) in enumerate(picks, 1)),
-        height=min(40 + 24 * len(picks), 200), key='picks_text')
+    # Written to the widget's own state, not passed as its value: a keyed
+    # widget keeps whatever it was first given, so the list stopped at the
+    # first tap while the count in its label went on rising
+    st.session_state['picks_text'] = '\n'.join(
+        f'{index}. {x},{y}' for index, (x, y) in enumerate(picks, 1))
+    st.text_area(f'Picked points ({len(picks)})',
+                 height=min(40 + 24 * len(picks), 200), key='picks_text')
 
     if len(picks) >= 2:
         (x1, y1), (x2, y2) = picks[-2], picks[-1]
@@ -720,7 +757,13 @@ def _viewer_tab(pipeline: Pipeline) -> None:
 
         picked = streamlit_image_coordinates(
             Image.fromarray(frame), use_column_width='always', key='tap_picker')
-        _record_tap(picked, frame.shape)
+        if _record_tap(picked, frame.shape):
+            # The sidebar, and the prompt above the image, were drawn before
+            # this tap was known. Without a rerun the last point of a guided
+            # pick filled nothing until something else was clicked. The
+            # replayed tap is recognised on the way back round, so this
+            # happens once.
+            st.rerun()
         _render_picks()
     elif view == 'Side by side':
         cols = st.columns(2)

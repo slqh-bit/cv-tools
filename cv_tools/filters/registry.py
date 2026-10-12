@@ -44,7 +44,16 @@ from .fisheye_correction import correct_barrel_distortion, correct_fisheye
 from .invert import invert, invert_channel, invert_luminance, solarize
 from .jpeg_ghost import ghost_map
 from .measure_3d import draw_height_measurement
-from .motion_deblur import deblur_defocus, deblur_motion
+from .motion_deblur import (
+    deblur_defocus,
+    deblur_defocus_grid,
+    deblur_motion,
+    deblur_motion_grid,
+    defocus_psf,
+    motion_blur_psf,
+    motion_from_line,
+    psf_preview,
+)
 from .nl_means_denoise import nl_means_denoise, nl_means_denoise_auto
 from .noise_analysis import noise_map
 from .perspective_correction import auto_correct_perspective, correct_perspective
@@ -134,7 +143,71 @@ POINT_PARAMETERS: Dict[str, Tuple[Tuple[str, int, str], ...]] = {
     'shape': (
         ('points', 2, 'a defining point of the shape'),
     ),
+    # Not a parameter but a measurement: see POINT_CONVERSIONS
+    'deblur_motion': (
+        ('motion_line', 2, 'one point the blur drew TWICE - each of its ghosts'),
+    ),
+    'deblur_motion_grid': (
+        ('motion_line', 2, 'one point the blur drew TWICE - each of its ghosts'),
+    ),
 }
+
+
+# Clicks that measure something instead of being a parameter themselves. The
+# name in the click plan is then a label for the measurement, and the function
+# here turns its points into the parameters the filter does take.
+#
+# Motion deblurring is the case: the operator joins the two ghosts of one
+# point, and what the filter needs is the length and angle of that line. They
+# land in the ordinary length and angle fields, so the estimate can be nudged
+# afterwards - a hand-drawn line is a starting point, never the answer - and
+# it is the PSF that was used, not two click positions, that the preset and
+# the report record.
+POINT_CONVERSIONS: Dict[str, Dict[str, Callable[..., Dict[str, Any]]]] = {
+    'deblur_motion': {'motion_line': motion_from_line},
+    'deblur_motion_grid': {'motion_line': motion_from_line},
+}
+
+
+def parameters_from_points(
+    name: str,
+    points: Sequence[Sequence[float]],
+) -> Dict[str, Any]:
+    """
+    Distribute clicked points across the parameters of the filter that asked.
+
+    One point stays a pair and several flatten, which is how a parameter
+    field parses them back - four corners become eight numbers. Points a
+    conversion claims become whatever parameters it returns instead.
+
+    Args:
+        name: Registry name of a filter with a click plan
+        points: The clicks, in the order the plan asked for them
+
+    Returns:
+        Parameter name to value, for as much of the plan as the points cover
+
+    Raises:
+        KeyError: If the filter has no click plan
+    """
+    conversions = POINT_CONVERSIONS.get(name, {})
+    values: Dict[str, Any] = {}
+    index = 0
+
+    for parameter, count, _prompt in POINT_PARAMETERS[name]:
+        taken = points[index:index + count]
+        index += count
+        if len(taken) < count:
+            break
+
+        if parameter in conversions:
+            values.update(conversions[parameter](*taken))
+        elif count == 1:
+            values[parameter] = list(taken[0])
+        else:
+            values[parameter] = [coordinate for point in taken for coordinate in point]
+
+    return values
 
 
 # Display order for anything that groups filters by family instead of A-Z,
@@ -481,6 +554,14 @@ FILTER_REGISTRY: Dict[str, FilterSpec] = {
                    'Per-region JPEG blocking map', 'Analyze'),
         FilterSpec('deblock', deblock, 'cv_tools.filters.compression_analysis',
                    'Soften JPEG block edges', 'Analyze'),
+        FilterSpec('deblur_motion_grid', deblur_motion_grid,
+                   'cv_tools.filters.motion_deblur',
+                   'Contact sheet of motion deblurs around an estimated length '
+                   'and angle, for closing in on the right one', 'Analyze'),
+        FilterSpec('deblur_defocus_grid', deblur_defocus_grid,
+                   'cv_tools.filters.motion_deblur',
+                   'Contact sheet of defocus deblurs across radius and noise, '
+                   'for finding a radius that cannot be measured', 'Analyze'),
         # ---- Forensic ----
         FilterSpec('ela', error_level_analysis, 'cv_tools.filters.ela',
                    'Error Level Analysis map', 'Forensic'),
@@ -495,9 +576,11 @@ FILTER_REGISTRY: Dict[str, FilterSpec] = {
         FilterSpec('clone_detect', highlight_clones, 'cv_tools.filters.clone_detection',
                    'Highlight copy-move duplicated regions', 'Forensic'),
         FilterSpec('deblur_motion', deblur_motion, 'cv_tools.filters.motion_deblur',
-                   'Wiener deconvolution of linear motion blur', 'Forensic'),
+                   'Deconvolution of linear motion blur: Wiener, or '
+                   'Richardson-Lucy for noisy, compressed footage', 'Forensic'),
         FilterSpec('deblur_defocus', deblur_defocus, 'cv_tools.filters.motion_deblur',
-                   'Wiener deconvolution of defocus blur', 'Forensic'),
+                   'Deconvolution of defocus blur: Wiener, or '
+                   'Richardson-Lucy for noisy, compressed footage', 'Forensic'),
         FilterSpec('ghost', ghost_map, 'cv_tools.filters.jpeg_ghost',
                    'JPEG ghost: the recompression sweep frame with the most '
                    'structure, dark where the pixels match that quality',
@@ -601,6 +684,123 @@ def filter_description(name: str) -> str:
 def list_filters() -> List[Tuple[str, str]]:
     """Return (name, description) pairs for every registered filter."""
     return [(spec.name, spec.description) for spec in FILTER_REGISTRY.values()]
+
+
+# ---- Parameter previews ---------------------------------------------------
+# For a few filters the numbers alone do not say what is being asked for. A
+# motion length and angle describe a streak, and whether they describe the
+# streak in the frame is far easier to judge from a picture of it than from
+# 74.2 and 37.3. Both front ends show the picture beside the form.
+
+def _motion_psf_picture(length: float, angle: float, thickness: float,
+                        **_unused: Any) -> np.ndarray:
+    return psf_preview(motion_blur_psf(length, angle, thickness))
+
+
+def _defocus_psf_picture(radius: float, **_unused: Any) -> np.ndarray:
+    return psf_preview(defocus_psf(radius))
+
+
+PARAMETER_PREVIEWS: Dict[str, Tuple[str, Callable[..., np.ndarray]]] = {
+    'deblur_motion': ('Point spread function', _motion_psf_picture),
+    'deblur_motion_grid': ('Point spread function', _motion_psf_picture),
+    'deblur_defocus': ('Point spread function', _defocus_psf_picture),
+    'deblur_defocus_grid': ('Point spread function', _defocus_psf_picture),
+}
+
+
+def parameter_preview(
+    name: str,
+    params: Optional[Dict[str, Any]] = None,
+) -> Optional[Tuple[str, np.ndarray]]:
+    """
+    Picture of what a filter's current parameters mean, if it has one.
+
+    Args:
+        name: Registry name of the filter
+        params: Parameters as entered so far; anything missing takes the
+            filter's own default
+
+    Returns:
+        (caption, RGB image), or None when the filter has no preview or the
+        parameters do not describe one yet - a form is redrawn on every
+        keystroke, and a half-typed value is not an error worth raising
+    """
+    import inspect
+
+    entry = PARAMETER_PREVIEWS.get(name)
+    if entry is None:
+        return None
+    caption, render = entry
+
+    signature = inspect.signature(resolve_filter(name).fn)
+    values = {parameter.name: parameter.default
+              for parameter in list(signature.parameters.values())[1:]
+              if parameter.default is not inspect.Parameter.empty}
+    values.update(params or {})
+
+    try:
+        return caption, render(**values)
+    except (TypeError, ValueError):
+        return None
+
+
+# ---- Chain order ----------------------------------------------------------
+# Defects are undone in the reverse of the order the camera introduced them,
+# which makes some orders of otherwise valid steps wrong. Only the cases
+# where the reason is certain are listed; a warning that fires on a chain an
+# examiner can defend teaches them to ignore warnings.
+
+_DEFOCUS_STEPS = frozenset({'deblur_defocus', 'deblur_defocus_grid'})
+_DEBLUR_STEPS = _DEFOCUS_STEPS | {'deblur_motion', 'deblur_motion_grid'}
+
+# Defocus happens in the lens, to the frame as recorded: there the blur is
+# one circle everywhere. Motion is left out on purpose - a subject moves in
+# the scene, and its streak can be straighter after rectifying than before.
+_WARPS = frozenset({'perspective', 'auto_perspective', 'barrel', 'fisheye',
+                    'undistort'})
+_SHARPENERS = frozenset({'sharpen', 'sharpen_laplacian', 'local_contrast',
+                         'detail_enhance', 'multiscale_detail', 'texture_boost'})
+
+
+def chain_warnings(names: Sequence[str]) -> List[str]:
+    """
+    Point out steps that are in an order that works against them.
+
+    Advice, not a rule: the chain still runs. Each warning names the two
+    steps by position, so it can be acted on in a chain that uses a filter
+    more than once.
+
+    Args:
+        names: Registry names of the chain's steps, in order
+
+    Returns:
+        One sentence per problem, empty when there is none
+    """
+    warnings = []
+
+    for position, name in enumerate(names):
+        if name not in _DEBLUR_STEPS:
+            continue
+
+        for earlier_position, earlier in enumerate(names[:position]):
+            if earlier in _WARPS and name in _DEFOCUS_STEPS:
+                reason = ('it stretches the frame by a different amount in each '
+                          'place, so the blur circle is no longer one shape and '
+                          'no single radius fits it. Deblur first, then correct '
+                          'the geometry')
+            elif earlier in _SHARPENERS:
+                reason = ('sharpening reshapes edges in a way the point spread '
+                          'function does not describe, and deconvolution turns '
+                          'the mismatch into ringing. Deblur first, then '
+                          'sharpen what is left')
+            else:
+                continue
+
+            warnings.append(f"{name} (step {position + 1}) comes after {earlier} "
+                            f"(step {earlier_position + 1}): {reason}.")
+
+    return warnings
 
 
 def apply_preset(pipeline, preset: Dict[str, Any]) -> np.ndarray:
