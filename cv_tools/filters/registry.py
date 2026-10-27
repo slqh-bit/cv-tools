@@ -45,14 +45,19 @@ from .invert import invert, invert_channel, invert_luminance, solarize
 from .jpeg_ghost import ghost_map
 from .measure_3d import draw_height_measurement
 from .motion_deblur import (
+    deblur_blind,
     deblur_defocus,
     deblur_defocus_grid,
     deblur_motion,
     deblur_motion_grid,
+    deblur_nonlinear,
+    deblur_turbulence,
     defocus_psf,
     motion_blur_psf,
     motion_from_line,
+    path_psf,
     psf_preview,
+    turbulence_psf,
 )
 from .nl_means_denoise import nl_means_denoise, nl_means_denoise_auto
 from .noise_analysis import noise_map
@@ -149,6 +154,11 @@ POINT_PARAMETERS: Dict[str, Tuple[Tuple[str, int, str], ...]] = {
     ),
     'deblur_motion_grid': (
         ('motion_line', 2, 'one point the blur drew TWICE - each of its ghosts'),
+    ),
+    # Four, because a click plan needs a fixed count and three segments bend
+    # as far as most streaks do. A longer path can be typed into the field.
+    'deblur_nonlinear': (
+        ('path', 4, 'the next point ALONG the streak of one point light'),
     ),
 }
 
@@ -581,6 +591,17 @@ FILTER_REGISTRY: Dict[str, FilterSpec] = {
         FilterSpec('deblur_defocus', deblur_defocus, 'cv_tools.filters.motion_deblur',
                    'Deconvolution of defocus blur: Wiener, or '
                    'Richardson-Lucy for noisy, compressed footage', 'Forensic'),
+        FilterSpec('deblur_nonlinear', deblur_nonlinear, 'cv_tools.filters.motion_deblur',
+                   'Deconvolution of motion blur along a bent path, traced '
+                   'off the streak of one point', 'Forensic'),
+        FilterSpec('deblur_turbulence', deblur_turbulence,
+                   'cv_tools.filters.motion_deblur',
+                   'Deconvolution of air turbulence blur: heat haze over a '
+                   'long sight line', 'Forensic'),
+        FilterSpec('deblur_blind', deblur_blind, 'cv_tools.filters.motion_deblur',
+                   'Blind deconvolution: estimates the blur from the frame. '
+                   'For defocus and haze, not straight motion; harms a sharp '
+                   'frame', 'Forensic'),
         FilterSpec('ghost', ghost_map, 'cv_tools.filters.jpeg_ghost',
                    'JPEG ghost: the recompression sweep frame with the most '
                    'structure, dark where the pixels match that quality',
@@ -701,11 +722,21 @@ def _defocus_psf_picture(radius: float, **_unused: Any) -> np.ndarray:
     return psf_preview(defocus_psf(radius))
 
 
+def _path_psf_picture(path: Sequence, thickness: float, **_unused: Any) -> np.ndarray:
+    return psf_preview(path_psf(path, thickness))
+
+
+def _turbulence_psf_picture(size: float, **_unused: Any) -> np.ndarray:
+    return psf_preview(turbulence_psf(size))
+
+
 PARAMETER_PREVIEWS: Dict[str, Tuple[str, Callable[..., np.ndarray]]] = {
     'deblur_motion': ('Point spread function', _motion_psf_picture),
     'deblur_motion_grid': ('Point spread function', _motion_psf_picture),
     'deblur_defocus': ('Point spread function', _defocus_psf_picture),
     'deblur_defocus_grid': ('Point spread function', _defocus_psf_picture),
+    'deblur_nonlinear': ('Point spread function', _path_psf_picture),
+    'deblur_turbulence': ('Point spread function', _turbulence_psf_picture),
 }
 
 
@@ -751,8 +782,12 @@ def parameter_preview(
 # where the reason is certain are listed; a warning that fires on a chain an
 # examiner can defend teaches them to ignore warnings.
 
-_DEFOCUS_STEPS = frozenset({'deblur_defocus', 'deblur_defocus_grid'})
-_DEBLUR_STEPS = _DEFOCUS_STEPS | {'deblur_motion', 'deblur_motion_grid'}
+# Turbulence with defocus: the air is in front of the lens, so that blur too
+# is one shape across the frame as recorded
+_DEFOCUS_STEPS = frozenset({'deblur_defocus', 'deblur_defocus_grid',
+                            'deblur_turbulence'})
+_DEBLUR_STEPS = _DEFOCUS_STEPS | {'deblur_motion', 'deblur_motion_grid',
+                                  'deblur_nonlinear', 'deblur_blind'}
 
 # Defocus happens in the lens, to the frame as recorded: there the blur is
 # one circle everywhere. Motion is left out on purpose - a subject moves in

@@ -1,7 +1,7 @@
 # curves - validation result
 
 **Tonal curve from control points or a preset**  
-`cv_tools.filters.curves` | family: Adjust | 2026-10-10T14:11:54
+`cv_tools.filters.curves` | family: Adjust | 2026-10-12T19:03:00
 
 ## Verdict
 

@@ -60,6 +60,7 @@ SLIDER_RANGES: Dict[str, Tuple[float, float]] = {
     'radius': (0.1, 50.0),
     'scale': (0.1, 8.0),
     'sigma': (0.01, 1.0),
+    'size': (0.5, 20.0),
     'sigma_color': (1.0, 200.0),
     'sigma_r': (0.01, 1.0),
     'sigma_s': (1.0, 200.0),

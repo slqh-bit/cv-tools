@@ -1,7 +1,7 @@
 # roi_draw - validation result
 
 **Draw a region of interest rectangle**  
-`cv_tools.filters.roi` | family: Adjust | 2026-10-10T14:11:53
+`cv_tools.filters.roi` | family: Adjust | 2026-10-12T19:02:59
 
 ## Verdict
 
@@ -13,34 +13,34 @@
 |---|---|---|---|---|
 | `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [362, 640, 3] uint8 mean 162.92 | ok |
 | `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.6 | [362, 640, 3] uint8 mean 160.23 | ok |
-| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, alpha=0.0` | 0.1 | [362, 640, 3] uint8 mean 162.92 | ok |
+| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, alpha=0.0` | 0.2 | [362, 640, 3] uint8 mean 162.92 | ok |
 | `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, alpha=1.0` | 0.1 | [362, 640, 3] uint8 mean 162.92 | ok |
 | `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [362, 640, 3] uint8 mean 110.44 | ok |
 | `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.4 | [362, 640, 3] uint8 mean 108.57 | ok |
 | `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, alpha=0.0` | 0.1 | [362, 640, 3] uint8 mean 110.44 | ok |
 | `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, alpha=1.0` | 0.1 | [362, 640, 3] uint8 mean 110.44 | ok |
 | `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [362, 640, 3] uint8 mean 125.29 | ok |
-| `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.5 | [362, 640, 3] uint8 mean 124.1 | ok |
+| `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.6 | [362, 640, 3] uint8 mean 124.1 | ok |
 | `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, alpha=0.0` | 0.1 | [362, 640, 3] uint8 mean 125.29 | ok |
-| `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, alpha=1.0` | 0.0 | [362, 640, 3] uint8 mean 125.29 | ok |
+| `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, alpha=1.0` | 0.1 | [362, 640, 3] uint8 mean 125.29 | ok |
 | `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [362, 640, 3] uint8 mean 125.16 | ok |
 | `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.4 | [362, 640, 3] uint8 mean 123.69 | ok |
 | `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, alpha=0.0` | 0.1 | [362, 640, 3] uint8 mean 125.16 | ok |
 | `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, alpha=1.0` | 0.1 | [362, 640, 3] uint8 mean 125.16 | ok |
 | `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [362, 640, 3] uint8 mean 160.03 | ok |
-| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.7 | [362, 640, 3] uint8 mean 157.45 | ok |
+| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.4 | [362, 640, 3] uint8 mean 157.45 | ok |
 | `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, alpha=0.0` | 0.1 | [362, 640, 3] uint8 mean 160.03 | ok |
 | `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, alpha=1.0` | 0.1 | [362, 640, 3] uint8 mean 160.03 | ok |
 | `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [362, 640, 3] uint8 mean 121.27 | ok |
-| `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.6 | [362, 640, 3] uint8 mean 119.9 | ok |
+| `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.5 | [362, 640, 3] uint8 mean 119.9 | ok |
 | `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, alpha=0.0` | 0.1 | [362, 640, 3] uint8 mean 121.27 | ok |
 | `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, alpha=1.0` | 0.1 | [362, 640, 3] uint8 mean 121.27 | ok |
-| `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140` | 0.2 | [362, 640, 3] uint8 mean 137.29 | ok |
+| `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [362, 640, 3] uint8 mean 137.29 | ok |
 | `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.4 | [362, 640, 3] uint8 mean 134.51 | ok |
 | `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140, alpha=0.0` | 0.1 | [362, 640, 3] uint8 mean 137.29 | ok |
 | `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140, alpha=1.0` | 0.1 | [362, 640, 3] uint8 mean 137.29 | ok |
 | `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [362, 640, 3] uint8 mean 131.04 | ok |
-| `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.4 | [362, 640, 3] uint8 mean 128.79 | ok |
+| `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, filled=True` | 0.3 | [362, 640, 3] uint8 mean 128.79 | ok |
 | `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, alpha=0.0` | 0.1 | [362, 640, 3] uint8 mean 131.04 | ok |
 | `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, alpha=1.0` | 0.1 | [362, 640, 3] uint8 mean 131.04 | ok |
 | `cctv/softest.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [362, 640, 3] uint8 mean 125.09 | ok |

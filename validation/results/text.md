@@ -1,7 +1,7 @@
 # text - validation result
 
 **Draw a text label on a dark plate**  
-`cv_tools.filters.annotate` | family: Special | 2026-10-10T14:19:19
+`cv_tools.filters.annotate` | family: Special | 2026-10-12T19:15:03
 
 ## Verdict
 
@@ -23,9 +23,9 @@
 | `cctv/event_tamper.jpg` | `text=exhibit A, position=[60, 60], background=False` | 0.1 | [362, 640, 3] uint8 mean 160.68 | ok |
 | `cctv/flattest.jpg` | `text=exhibit A, position=[60, 60]` | 0.1 | [362, 640, 3] uint8 mean 120.36 | ok |
 | `cctv/flattest.jpg` | `text=exhibit A, position=[60, 60], background=False` | 0.1 | [362, 640, 3] uint8 mean 121.63 | ok |
-| `cctv/most_blown.jpg` | `text=exhibit A, position=[60, 60]` | 0.1 | [362, 640, 3] uint8 mean 135.92 | ok |
+| `cctv/most_blown.jpg` | `text=exhibit A, position=[60, 60]` | 0.2 | [362, 640, 3] uint8 mean 135.92 | ok |
 | `cctv/most_blown.jpg` | `text=exhibit A, position=[60, 60], background=False` | 0.1 | [362, 640, 3] uint8 mean 138.11 | ok |
-| `cctv/sharpest.jpg` | `text=exhibit A, position=[60, 60]` | 0.1 | [362, 640, 3] uint8 mean 129.69 | ok |
+| `cctv/sharpest.jpg` | `text=exhibit A, position=[60, 60]` | 0.2 | [362, 640, 3] uint8 mean 129.69 | ok |
 | `cctv/sharpest.jpg` | `text=exhibit A, position=[60, 60], background=False` | 0.1 | [362, 640, 3] uint8 mean 131.79 | ok |
 | `cctv/softest.jpg` | `text=exhibit A, position=[60, 60]` | 0.1 | [362, 640, 3] uint8 mean 123.94 | ok |
 | `cctv/softest.jpg` | `text=exhibit A, position=[60, 60], background=False` | 0.1 | [362, 640, 3] uint8 mean 125.48 | ok |

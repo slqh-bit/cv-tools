@@ -1,7 +1,7 @@
 # measure - validation result
 
 **Measure between two points, against a reference of known length in the same plane**  
-`cv_tools.filters.annotate` | family: Special | 2026-10-10T14:19:18
+`cv_tools.filters.annotate` | family: Special | 2026-10-12T19:15:02
 
 ## Verdict
 
@@ -12,11 +12,11 @@
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
 | `cctv/brightest.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.2 | [362, 640, 3] uint8 mean 162.74 | ok |
-| `cctv/darkest.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.1 | [362, 640, 3] uint8 mean 110.47 | ok |
+| `cctv/darkest.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.2 | [362, 640, 3] uint8 mean 110.47 | ok |
 | `cctv/event_fall.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.2 | [362, 640, 3] uint8 mean 124.47 | ok |
 | `cctv/event_optflow.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.2 | [362, 640, 3] uint8 mean 124.43 | ok |
 | `cctv/event_tamper.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.2 | [362, 640, 3] uint8 mean 159.86 | ok |
-| `cctv/flattest.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.3 | [362, 640, 3] uint8 mean 120.55 | ok |
+| `cctv/flattest.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.2 | [362, 640, 3] uint8 mean 120.55 | ok |
 | `cctv/most_blown.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.2 | [362, 640, 3] uint8 mean 137.31 | ok |
 | `cctv/sharpest.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.2 | [362, 640, 3] uint8 mean 130.96 | ok |
 | `cctv/softest.jpg` | `point_a=[180, 300], point_b=[420, 300]` | 0.2 | [362, 640, 3] uint8 mean 124.94 | ok |

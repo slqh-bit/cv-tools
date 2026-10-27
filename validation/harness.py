@@ -89,6 +89,8 @@ REQUIRED_BY_FILTER: Dict[str, Dict[str, Any]] = {
     # Vertices that are actually a region of the frame, rather than the curve
     # control points the shared name would otherwise supply
     'measure_area': {'points': [[120, 100], [420, 100], [420, 300], [120, 300]]},
+    # A bent streak some twenty pixels long; only its shape is used
+    'deblur_nonlinear': {'path': [[100, 100], [108, 97], [114, 97], [120, 104]]},
 }
 
 

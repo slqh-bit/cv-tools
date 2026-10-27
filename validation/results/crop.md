@@ -1,7 +1,7 @@
 # crop - validation result
 
 **Crop to x, y, width, height**  
-`cv_tools.filters.crop_resize` | family: Adjust | 2026-10-10T14:11:53
+`cv_tools.filters.crop_resize` | family: Adjust | 2026-10-12T19:02:59
 
 ## Verdict
 

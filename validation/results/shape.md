@@ -1,7 +1,7 @@
 # shape - validation result
 
 **Draw a rectangle, circle, ellipse, line or polygon**  
-`cv_tools.filters.annotate` | family: Special | 2026-10-10T14:19:19
+`cv_tools.filters.annotate` | family: Special | 2026-10-12T19:15:03
 
 ## Verdict
 
@@ -19,7 +19,7 @@
 | `cctv/flattest.jpg` | `shape=rectangle, points=[[80, 60], [420, 320]]` | 0.2 | [362, 640, 3] uint8 mean 121.33 | ok |
 | `cctv/most_blown.jpg` | `shape=rectangle, points=[[80, 60], [420, 320]]` | 0.2 | [362, 640, 3] uint8 mean 137.4 | ok |
 | `cctv/sharpest.jpg` | `shape=rectangle, points=[[80, 60], [420, 320]]` | 0.2 | [362, 640, 3] uint8 mean 131.32 | ok |
-| `cctv/softest.jpg` | `shape=rectangle, points=[[80, 60], [420, 320]]` | 0.1 | [362, 640, 3] uint8 mean 125.21 | ok |
+| `cctv/softest.jpg` | `shape=rectangle, points=[[80, 60], [420, 320]]` | 0.2 | [362, 640, 3] uint8 mean 125.21 | ok |
 
 ## Artifacts
 

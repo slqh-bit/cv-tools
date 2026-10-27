@@ -1,7 +1,7 @@
 # invert - validation result
 
 **Invert all colour channels**  
-`cv_tools.filters.invert` | family: Adjust | 2026-10-10T14:11:59
+`cv_tools.filters.invert` | family: Adjust | 2026-10-12T19:03:05
 
 ## Verdict
 

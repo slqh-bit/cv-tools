@@ -1,7 +1,7 @@
 # clone_detect - validation result
 
 **Highlight copy-move duplicated regions**  
-`cv_tools.filters.clone_detection` | family: Forensic | 2026-10-10T14:18:00
+`cv_tools.filters.clone_detection` | family: Forensic | 2026-10-12T19:09:31
 
 ## Verdict
 
@@ -35,39 +35,39 @@ Not defects: a parameter at the end of its range doing exactly what it says.
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 505.8 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
-| `cctv/brightest.jpg` | `alpha=0.0` | 526.1 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
-| `cctv/brightest.jpg` | `alpha=1.0` | 529.6 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
-| `cctv/darkest.jpg` | `defaults` | 443.5 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
-| `cctv/darkest.jpg` | `alpha=0.0` | 441.6 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
-| `cctv/darkest.jpg` | `alpha=1.0` | 442.8 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
-| `cctv/event_fall.jpg` | `defaults` | 599.8 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
-| `cctv/event_fall.jpg` | `alpha=0.0` | 597.5 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
-| `cctv/event_fall.jpg` | `alpha=1.0` | 631.5 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
-| `cctv/event_optflow.jpg` | `defaults` | 468.7 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
-| `cctv/event_optflow.jpg` | `alpha=0.0` | 456.9 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
-| `cctv/event_optflow.jpg` | `alpha=1.0` | 452.0 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
-| `cctv/event_tamper.jpg` | `defaults` | 516.2 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
-| `cctv/event_tamper.jpg` | `alpha=0.0` | 503.8 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
-| `cctv/event_tamper.jpg` | `alpha=1.0` | 508.3 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
-| `cctv/flattest.jpg` | `defaults` | 446.6 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
-| `cctv/flattest.jpg` | `alpha=0.0` | 436.7 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
-| `cctv/flattest.jpg` | `alpha=1.0` | 445.7 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
-| `cctv/most_blown.jpg` | `defaults` | 455.4 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
-| `cctv/most_blown.jpg` | `alpha=0.0` | 454.0 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
-| `cctv/most_blown.jpg` | `alpha=1.0` | 453.8 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
-| `cctv/sharpest.jpg` | `defaults` | 574.9 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
-| `cctv/sharpest.jpg` | `alpha=0.0` | 566.0 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
-| `cctv/sharpest.jpg` | `alpha=1.0` | 585.0 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
-| `cctv/softest.jpg` | `defaults` | 477.4 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
-| `cctv/softest.jpg` | `alpha=0.0` | 447.3 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
-| `cctv/softest.jpg` | `alpha=1.0` | 445.5 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
-| `ground_truth/copy_move.png` | `defaults` | 593.2 | [362, 640, 3] uint8 mean 131.93 | ok |
-| `ground_truth/copy_move.png` | `alpha=0.0` | 582.0 | [362, 640, 3] uint8 mean 135.37 | output identical to input |
-| `ground_truth/copy_move.png` | `alpha=1.0` | 591.2 | [362, 640, 3] uint8 mean 126.79 | ok |
-| `ground_truth/clean_control.jpg` | `defaults` | 580.0 | [362, 640, 3] uint8 mean 131.75 | output identical to input |
-| `ground_truth/clean_control.jpg` | `alpha=0.0` | 583.9 | [362, 640, 3] uint8 mean 131.75 | output identical to input |
-| `ground_truth/clean_control.jpg` | `alpha=1.0` | 574.9 | [362, 640, 3] uint8 mean 131.75 | output identical to input |
+| `cctv/brightest.jpg` | `defaults` | 531.5 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
+| `cctv/brightest.jpg` | `alpha=0.0` | 527.6 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
+| `cctv/brightest.jpg` | `alpha=1.0` | 525.9 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
+| `cctv/darkest.jpg` | `defaults` | 459.5 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
+| `cctv/darkest.jpg` | `alpha=0.0` | 496.7 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
+| `cctv/darkest.jpg` | `alpha=1.0` | 471.0 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
+| `cctv/event_fall.jpg` | `defaults` | 626.5 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
+| `cctv/event_fall.jpg` | `alpha=0.0` | 633.2 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
+| `cctv/event_fall.jpg` | `alpha=1.0` | 630.8 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
+| `cctv/event_optflow.jpg` | `defaults` | 483.2 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_optflow.jpg` | `alpha=0.0` | 476.4 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_optflow.jpg` | `alpha=1.0` | 473.8 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_tamper.jpg` | `defaults` | 534.0 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
+| `cctv/event_tamper.jpg` | `alpha=0.0` | 535.8 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
+| `cctv/event_tamper.jpg` | `alpha=1.0` | 524.6 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
+| `cctv/flattest.jpg` | `defaults` | 460.5 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
+| `cctv/flattest.jpg` | `alpha=0.0` | 473.0 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
+| `cctv/flattest.jpg` | `alpha=1.0` | 465.7 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
+| `cctv/most_blown.jpg` | `defaults` | 483.0 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
+| `cctv/most_blown.jpg` | `alpha=0.0` | 489.2 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
+| `cctv/most_blown.jpg` | `alpha=1.0` | 479.0 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
+| `cctv/sharpest.jpg` | `defaults` | 615.7 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
+| `cctv/sharpest.jpg` | `alpha=0.0` | 607.6 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
+| `cctv/sharpest.jpg` | `alpha=1.0` | 600.3 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
+| `cctv/softest.jpg` | `defaults` | 475.9 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
+| `cctv/softest.jpg` | `alpha=0.0` | 469.5 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
+| `cctv/softest.jpg` | `alpha=1.0` | 463.7 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
+| `ground_truth/copy_move.png` | `defaults` | 624.0 | [362, 640, 3] uint8 mean 131.93 | ok |
+| `ground_truth/copy_move.png` | `alpha=0.0` | 615.8 | [362, 640, 3] uint8 mean 135.37 | output identical to input |
+| `ground_truth/copy_move.png` | `alpha=1.0` | 604.8 | [362, 640, 3] uint8 mean 126.79 | ok |
+| `ground_truth/clean_control.jpg` | `defaults` | 593.7 | [362, 640, 3] uint8 mean 131.75 | output identical to input |
+| `ground_truth/clean_control.jpg` | `alpha=0.0` | 602.8 | [362, 640, 3] uint8 mean 131.75 | output identical to input |
+| `ground_truth/clean_control.jpg` | `alpha=1.0` | 604.0 | [362, 640, 3] uint8 mean 131.75 | output identical to input |
 
 ## Artifacts
 

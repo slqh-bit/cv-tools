@@ -205,6 +205,22 @@ class TestTranslateStep(unittest.TestCase):
             ('deblur_motion', {'length': 9, 'solver': 'richardson_lucy',
                                'iterations': 20}))
 
+    def test_the_other_deblur_filters_map_to_themselves(self):
+        self.assertEqual(
+            translate_step('deblur_nonlinear', ['path=0,0,8,-3,14,-3', 'noise=0.02'], 'auto'),
+            ('deblur_nonlinear', {'path': [0.0, 0.0, 8.0, -3.0, 14.0, -3.0],
+                                  'noise_power': 0.02}))
+        self.assertEqual(translate_step('deblur_turbulence', ['size=4'], 'auto'),
+                         ('deblur_turbulence', {'size': 4}))
+        self.assertEqual(translate_step('deblur_blind', ['psf_size=15', 'passes=50'], 'auto'),
+                         ('deblur_blind', {'psf_size': 15, 'passes': 50}))
+
+    def test_deblur_nonlinear_needs_a_path_of_numbers(self):
+        with self.assertRaises(ValueError):
+            translate_step('deblur_nonlinear', ['noise=0.02'], 'auto')
+        with self.assertRaises(ValueError):
+            translate_step('deblur_nonlinear', ['path=0,0,a,b'], 'auto')
+
     def test_deblur_grids_map_to_their_filters(self):
         self.assertEqual(
             translate_step('deblur_grid', ['line=10,60,40,60', 'length_step=1'], 'auto'),
@@ -536,6 +552,9 @@ class TestCLIRun(CLITestCase):
                      ['--deblur', 'line=5,20,14,20', 'thickness=1.5'],
                      ['--deblur-grid', 'length=9', 'length_step=1'],
                      ['--deblur-defocus-grid', 'radius=3'],
+                     ['--deblur-nonlinear', 'path=0,0,5,-2,9,-2,12,3'],
+                     ['--deblur-turbulence', 'size=2'],
+                     ['--deblur-blind', 'psf_size=9', 'passes=5'],
                      ['--deblur', 'length=9', 'solver=richardson_lucy', 'iterations=5'],
                      ['--deblur-defocus', 'radius=3', 'solver=richardson_lucy',
                       'iterations=5'],

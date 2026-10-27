@@ -1,7 +1,7 @@
 # redact - validation result
 
 **Obscure a region (fill/noise destroy, blur/pixelate do not)**  
-`cv_tools.filters.redaction` | family: Special | 2026-10-10T14:19:17
+`cv_tools.filters.redaction` | family: Special | 2026-10-12T19:15:01
 
 ## Verdict
 
@@ -10,7 +10,7 @@
 ## What this filter specifically promises
 
 - PASS - fill destroys the region beyond recovery: is_reversible=False, safe=True, residual correlation with the original 0.0000
-- PASS - noise destroys the region beyond recovery: is_reversible=False, safe=True, residual correlation with the original 0.0050
+- PASS - noise destroys the region beyond recovery: is_reversible=False, safe=True, residual correlation with the original 0.0030
 - PASS - blur is correctly reported as not safe: residual correlation 0.8702 - recoverable, which is why it is not offered as redaction
 - PASS - pixelate is correctly reported as not safe: residual correlation 0.9090 - recoverable, which is why it is not offered as redaction
 - PASS - a seed makes noise redaction replay identically: the same seed reproduces the frame exactly; without one the noise differs every run
@@ -22,50 +22,50 @@
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
 | `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140` | 0.3 | [362, 640, 3] uint8 mean 143.98 | ok |
-| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.5 | [362, 640, 3] uint8 mean 159.32 | ok |
-| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 8.5 | [362, 640, 3] uint8 mean 163.54 | ok |
+| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.4 | [362, 640, 3] uint8 mean 159.39 | ok |
+| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.3 | [362, 640, 3] uint8 mean 163.54 | ok |
 | `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.3 | [362, 640, 3] uint8 mean 143.98 | ok |
-| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.3 | [362, 640, 3] uint8 mean 143.98 | ok |
-| `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140` | 0.3 | [362, 640, 3] uint8 mean 94.17 | ok |
-| `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.4 | [362, 640, 3] uint8 mean 109.59 | ok |
-| `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 8.0 | [362, 640, 3] uint8 mean 110.94 | ok |
-| `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.4 | [362, 640, 3] uint8 mean 94.17 | ok |
+| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.2 | [362, 640, 3] uint8 mean 143.98 | ok |
+| `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140` | 0.5 | [362, 640, 3] uint8 mean 94.17 | ok |
+| `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.4 | [362, 640, 3] uint8 mean 109.63 | ok |
+| `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 8.2 | [362, 640, 3] uint8 mean 110.94 | ok |
+| `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.3 | [362, 640, 3] uint8 mean 94.17 | ok |
 | `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.3 | [362, 640, 3] uint8 mean 94.17 | ok |
 | `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140` | 0.3 | [362, 640, 3] uint8 mean 111.13 | ok |
-| `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.4 | [362, 640, 3] uint8 mean 126.55 | ok |
-| `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 8.4 | [362, 640, 3] uint8 mean 125.5 | ok |
+| `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.3 | [362, 640, 3] uint8 mean 126.52 | ok |
+| `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.7 | [362, 640, 3] uint8 mean 125.5 | ok |
 | `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.3 | [362, 640, 3] uint8 mean 111.13 | ok |
 | `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.3 | [362, 640, 3] uint8 mean 111.13 | ok |
 | `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140` | 0.3 | [362, 640, 3] uint8 mean 110.08 | ok |
-| `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.3 | [362, 640, 3] uint8 mean 125.5 | ok |
-| `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 6.9 | [362, 640, 3] uint8 mean 125.41 | ok |
-| `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 110.08 | ok |
+| `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.3 | [362, 640, 3] uint8 mean 125.47 | ok |
+| `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 8.2 | [362, 640, 3] uint8 mean 125.41 | ok |
+| `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.3 | [362, 640, 3] uint8 mean 110.08 | ok |
 | `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.2 | [362, 640, 3] uint8 mean 110.08 | ok |
-| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140` | 0.3 | [362, 640, 3] uint8 mean 141.42 | ok |
-| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.2 | [362, 640, 3] uint8 mean 156.82 | ok |
-| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.3 | [362, 640, 3] uint8 mean 160.63 | ok |
+| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140` | 0.5 | [362, 640, 3] uint8 mean 141.42 | ok |
+| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.3 | [362, 640, 3] uint8 mean 156.83 | ok |
+| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.4 | [362, 640, 3] uint8 mean 160.63 | ok |
 | `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.3 | [362, 640, 3] uint8 mean 141.42 | ok |
-| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.2 | [362, 640, 3] uint8 mean 141.42 | ok |
+| `cctv/event_tamper.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.3 | [362, 640, 3] uint8 mean 141.42 | ok |
 | `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140` | 0.3 | [362, 640, 3] uint8 mean 106.55 | ok |
-| `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.2 | [362, 640, 3] uint8 mean 121.92 | ok |
-| `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.4 | [362, 640, 3] uint8 mean 121.49 | ok |
+| `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.3 | [362, 640, 3] uint8 mean 121.94 | ok |
+| `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 6.9 | [362, 640, 3] uint8 mean 121.49 | ok |
 | `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.3 | [362, 640, 3] uint8 mean 106.55 | ok |
 | `cctv/flattest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.3 | [362, 640, 3] uint8 mean 106.55 | ok |
-| `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140` | 0.3 | [362, 640, 3] uint8 mean 118.13 | ok |
-| `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.2 | [362, 640, 3] uint8 mean 133.54 | ok |
-| `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.7 | [362, 640, 3] uint8 mean 138.08 | ok |
+| `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140` | 0.4 | [362, 640, 3] uint8 mean 118.13 | ok |
+| `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.4 | [362, 640, 3] uint8 mean 133.55 | ok |
+| `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.6 | [362, 640, 3] uint8 mean 138.08 | ok |
 | `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.3 | [362, 640, 3] uint8 mean 118.13 | ok |
 | `cctv/most_blown.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.3 | [362, 640, 3] uint8 mean 118.13 | ok |
 | `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140` | 0.3 | [362, 640, 3] uint8 mean 113.6 | ok |
-| `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.3 | [362, 640, 3] uint8 mean 129.03 | ok |
-| `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.6 | [362, 640, 3] uint8 mean 131.75 | ok |
+| `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.3 | [362, 640, 3] uint8 mean 128.95 | ok |
+| `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.8 | [362, 640, 3] uint8 mean 131.75 | ok |
 | `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.3 | [362, 640, 3] uint8 mean 113.6 | ok |
-| `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.2 | [362, 640, 3] uint8 mean 113.6 | ok |
+| `cctv/sharpest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.3 | [362, 640, 3] uint8 mean 113.6 | ok |
 | `cctv/softest.jpg` | `x=120, y=80, width=200, height=140` | 0.3 | [362, 640, 3] uint8 mean 110.46 | ok |
-| `cctv/softest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.3 | [362, 640, 3] uint8 mean 125.86 | ok |
-| `cctv/softest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 8.1 | [362, 640, 3] uint8 mean 125.39 | ok |
+| `cctv/softest.jpg` | `x=120, y=80, width=200, height=140, method=noise` | 0.4 | [362, 640, 3] uint8 mean 125.88 | ok |
+| `cctv/softest.jpg` | `x=120, y=80, width=200, height=140, method=blur` | 7.5 | [362, 640, 3] uint8 mean 125.39 | ok |
 | `cctv/softest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=0.1` | 0.3 | [362, 640, 3] uint8 mean 110.46 | ok |
-| `cctv/softest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.2 | [362, 640, 3] uint8 mean 110.46 | ok |
+| `cctv/softest.jpg` | `x=120, y=80, width=200, height=140, blur_radius=50.0` | 0.3 | [362, 640, 3] uint8 mean 110.46 | ok |
 
 ## Artifacts
 

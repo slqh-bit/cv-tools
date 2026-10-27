@@ -24,6 +24,10 @@ from cv_tools.filters import (
     apply_psf,
     average_frames,
     chain_warnings,
+    deblur_blind,
+    deblur_nonlinear,
+    deblur_turbulence,
+    estimate_psf,
     deblur_defocus,
     deblur_defocus_grid,
     deblur_motion,
@@ -1277,6 +1281,164 @@ class TestRichardsonLucy(unittest.TestCase):
     def test_the_form_offers_exactly_the_solvers_there_are(self):
         from cv_tools.utils.params import CHOICES
         self.assertEqual(tuple(CHOICES['solver']), motion_deblur.SOLVERS)
+
+
+class TestNonlinearTurbulenceAndBlind(unittest.TestCase):
+    """The rest of Amped FIVE's Deblurring group."""
+
+    PATH = [0, 0, 8, -3, 14, -3, 20, 4]
+
+    @staticmethod
+    def _error(a, b):
+        return float(np.abs(a.astype(float) - b.astype(float)).mean())
+
+    @staticmethod
+    def _larger():
+        return cv2.resize(detailed(), None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+
+    @staticmethod
+    def _scene(seed=3, height=240, width=320):
+        """
+        Shapes of many sizes at many angles, as a real frame has edges in
+        every direction. Blind estimation needs that: on the bars and
+        gridlines of ``detailed`` there is no telling a blur from the scene.
+        """
+        rng = np.random.default_rng(seed)
+        image = np.full((height, width, 3), 90, dtype=np.uint8)
+        for _ in range(60):
+            colour = tuple(int(v) for v in rng.integers(20, 235, 3))
+            centre = (int(rng.integers(0, width)), int(rng.integers(0, height)))
+            if rng.random() < 0.5:
+                box = cv2.boxPoints((centre, (int(rng.integers(8, 70)),
+                                              int(rng.integers(4, 40))),
+                                     float(rng.uniform(0, 180))))
+                cv2.fillConvexPoly(image, box.astype(np.int32), colour, cv2.LINE_AA)
+            else:
+                cv2.circle(image, centre, int(rng.integers(3, 22)), colour, -1,
+                           cv2.LINE_AA)
+        return image
+
+    def test_a_blurred_point_is_the_psf_and_not_its_mirror(self):
+        # filter2D correlates; unflipped, a bent path came out reversed and
+        # deconvolving with the path as drawn made the frame worse
+        psf = motion_deblur.path_psf(self.PATH)
+        half = psf.shape[0] // 2
+        point = np.zeros((2 * half + 9, 2 * half + 9), dtype=np.uint8)
+        point[half + 4, half + 4] = 255
+
+        streak = apply_psf(point, psf)[4:-4, 4:-4].astype(float) / 255.0
+        self.assertFalse(np.allclose(psf, psf[::-1, ::-1], atol=0.01))
+        np.testing.assert_allclose(streak, psf, atol=0.01)
+
+    def test_path_psf_takes_flat_numbers_or_pairs(self):
+        flat = motion_deblur.path_psf(self.PATH)
+        pairs = motion_deblur.path_psf([[0, 0], [8, -3], [14, -3], [20, 4]])
+        np.testing.assert_array_equal(flat, pairs)
+        self.assertAlmostEqual(float(flat.sum()), 1.0, places=5)
+
+    def test_path_psf_depends_on_shape_not_position(self):
+        moved = [value + 200 for value in self.PATH]
+        np.testing.assert_array_equal(motion_deblur.path_psf(self.PATH),
+                                      motion_deblur.path_psf(moved))
+
+    def test_path_psf_rejects_what_is_not_a_path(self):
+        for bad in ([5, 5], [1, 2, 3], [7, 7, 7, 7]):
+            with self.subTest(path=bad):
+                with self.assertRaises(ValueError):
+                    motion_deblur.path_psf(bad)
+        with self.assertRaises(ValueError):
+            motion_deblur.path_psf(self.PATH, thickness=0)
+
+    def test_the_traced_path_restores_better_than_a_straight_line(self):
+        image = self._larger()
+        blurred = apply_psf(image, motion_deblur.path_psf(self.PATH))
+
+        traced = deblur_nonlinear(blurred, self.PATH, noise_power=0.005)
+        straight = deblur_motion(blurred, noise_power=0.005,
+                                 **motion_from_line((0, 0), (20, 4)))
+        self.assertLess(self._error(traced, image), self._error(blurred, image))
+        self.assertLess(self._error(traced, image), self._error(straight, image))
+
+    def test_turbulence_psf_is_as_wide_as_asked(self):
+        for size in (2.0, 5.0):
+            with self.subTest(size=size):
+                psf = motion_deblur.turbulence_psf(size)
+                self.assertAlmostEqual(float(psf.sum()), 1.0, places=5)
+                row = psf[psf.shape[0] // 2]
+                fine = np.interp(np.linspace(0, len(row) - 1, 2000),
+                                 np.arange(len(row)), row)
+                width = (fine >= fine.max() / 2).sum() / 2000 * (len(row) - 1)
+                self.assertAlmostEqual(width, size, delta=0.25)
+
+    def test_turbulence_psf_rejects_no_blur(self):
+        with self.assertRaises(ValueError):
+            motion_deblur.turbulence_psf(0.2)
+
+    def test_turbulence_deblur_recovers_detail_with_either_solver(self):
+        image = self._larger()
+        # In linear light, as haze blurs: richardson_lucy assumes it
+        blurred = TestRichardsonLucy._camera(image, motion_deblur.turbulence_psf(3.0))
+        for solver in ('wiener', 'richardson_lucy'):
+            with self.subTest(solver=solver):
+                restored = deblur_turbulence(blurred, size=3.0, solver=solver)
+                self.assertLess(self._error(restored, image),
+                                self._error(blurred, image))
+
+    def test_the_blind_estimate_finds_a_defocus_blur(self):
+        true = defocus_psf(3.0)
+        blurred = TestRichardsonLucy._camera(self._scene(), true)
+        found = estimate_psf(blurred, psf_size=21, passes=300)
+
+        self.assertEqual(found.shape, (21, 21))
+        self.assertAlmostEqual(float(found.sum()), 1.0, places=4)
+        # Compared as pictures of the same size, centre to centre
+        padded = np.zeros_like(found)
+        offset = (21 - true.shape[0]) // 2
+        padded[offset:offset + true.shape[0], offset:offset + true.shape[1]] = true
+        alike = float((found * padded).sum()
+                      / (np.linalg.norm(found) * np.linalg.norm(padded)))
+        self.assertGreater(alike, 0.8)
+
+    def test_blind_deblur_moves_a_defocused_frame_towards_the_original(self):
+        image = self._scene()
+        blurred = TestRichardsonLucy._camera(image, defocus_psf(3.0))
+        restored = deblur_blind(blurred)
+        self.assertEqual(restored.shape, blurred.shape)
+        self.assertLess(self._error(restored, image), self._error(blurred, image))
+
+    def test_the_blind_estimate_repeats(self):
+        blurred = apply_psf(detailed(), defocus_psf(2.0))
+        np.testing.assert_array_equal(estimate_psf(blurred, 9, 20),
+                                      estimate_psf(blurred, 9, 20))
+
+    def test_blind_rejects_bad_arguments(self):
+        for kwargs in ({'psf_size': 3}, {'passes': 0}, {'psf_size': 999}):
+            with self.subTest(**kwargs):
+                with self.assertRaises(ValueError):
+                    estimate_psf(detailed(), **kwargs)
+
+    def test_all_three_are_registered_and_warned_about_like_the_others(self):
+        from cv_tools.filters import FILTER_REGISTRY
+
+        for name in ('deblur_nonlinear', 'deblur_turbulence', 'deblur_blind'):
+            with self.subTest(name=name):
+                self.assertEqual(FILTER_REGISTRY[name].category, 'Forensic')
+                self.assertEqual(len(chain_warnings(['sharpen', name])), 1)
+        # Haze is in front of the lens, so like defocus it goes before a warp
+        self.assertEqual(len(chain_warnings(['perspective', 'deblur_turbulence'])), 1)
+        self.assertEqual(chain_warnings(['perspective', 'deblur_nonlinear']), [])
+
+    def test_four_clicks_trace_the_path(self):
+        clicks = [(120, 80), (128, 77), (134, 77), (140, 84)]
+        params = parameters_from_points('deblur_nonlinear', clicks)
+        self.assertEqual(params, {'path': [120, 80, 128, 77, 134, 77, 140, 84]})
+
+        caption, picture = parameter_preview('deblur_nonlinear', params)
+        self.assertIn('spread', caption)
+        self.assertEqual(picture.shape[2], 3)
+        # Nothing to draw until there is a path
+        self.assertIsNone(parameter_preview('deblur_nonlinear'))
+        self.assertIsNotNone(parameter_preview('deblur_turbulence'))
 
 
 class TestDeblurWorkflow(unittest.TestCase):
