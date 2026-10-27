@@ -93,6 +93,8 @@ ARGUMENTS: Dict[str, Dict[str, Any]] = {
     'shape': {'shape': 'rectangle', 'points': [[0.2, 0.25], [0.7, 0.66]],
               'label': 'region', '_relative_polygons': ('points',)},
     'undistort': {'calibration_path': None},   # written during the run
+    # Offsets in pixels, not a place on the sample: only the shape is used
+    'deblur_nonlinear': {'path': [0, 0, 8, -3, 14, -3, 20, 4]},
 }
 
 # Filters whose output is meaningless on the default sample. `ghost` reads JPEG

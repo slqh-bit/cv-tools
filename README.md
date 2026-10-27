@@ -380,6 +380,10 @@ cv-tools blurred.jpg --deblur length=15 angle=30 noise=0.01 -o sharp.jpg
 cv-tools blurred.jpg --deblur-defocus radius=5 noise=0.01 -o sharp.jpg
 # Slower, and better on noisy, compressed footage. Crop first.
 cv-tools plate.jpg --deblur length=15 angle=30 solver=richardson_lucy -o sharp.jpg
+# A bent streak, traced point by point; heat haze; and a blur you cannot measure
+cv-tools plate.jpg --deblur-nonlinear path=120,80,128,77,134,77,140,84 -o sharp.jpg
+cv-tools far.jpg --deblur-turbulence size=3 -o sharp.jpg
+cv-tools soft.jpg --deblur-blind -o sharp.jpg   # defocus and haze only; see docs
 
 # Measure a motion blur from the two ghosts of one point, then close in on it
 cv-tools plate.jpg --deblur-grid line=412,300,455,268 length_step=1 -o candidates.png

@@ -155,7 +155,9 @@ def apply_psf(image: np.ndarray, psf: np.ndarray) -> np.ndarray:
         raise ValueError("Input image is empty")
 
     img = image.astype(np.uint8) if image.dtype != np.uint8 else image
-    blurred = cv2.filter2D(img.astype(np.float32), cv2.CV_32F, psf,
+    # filter2D correlates. Flipped, it convolves - the same for a line or a
+    # disc, and the difference between a path and its mirror image
+    blurred = cv2.filter2D(img.astype(np.float32), cv2.CV_32F, cv2.flip(psf, -1),
                            borderType=cv2.BORDER_REFLECT)
     return np.clip(blurred, 0, 255).astype(np.uint8)
 
@@ -548,6 +550,280 @@ def deblur_defocus(
         Deblurred image in uint8
     """
     return deconvolve(image, defocus_psf(radius), noise_power, solver, iterations)
+
+
+def path_psf(path: Sequence, thickness: float = 1.0) -> np.ndarray:
+    """
+    Build the PSF of a motion that did not follow a straight line.
+
+    A camera that shook, or a subject that turned during the exposure, draws
+    each point of the scene as a bent streak. The path is that streak, traced
+    point by point off the frame - the trail a point light left is the PSF
+    itself. Only its shape matters, not where on the frame it was traced.
+
+    Args:
+        path: The streak as points in order from one end, either flat
+              (x1, y1, x2, y2, ...) or as pairs. Two points is a straight
+              line; use ``motion_blur_psf`` for that.
+        thickness: Width of the streak in pixels
+
+    Returns:
+        Normalized float32 PSF that sums to 1
+
+    Example:
+        >>> psf = path_psf([120, 80, 128, 77, 134, 77, 140, 84])
+    """
+    points = np.asarray(path, dtype=np.float64)
+    if points.size < 4 or points.size % 2:
+        raise ValueError("path needs at least two points, as x,y pairs")
+    if thickness <= 0:
+        raise ValueError(f"thickness must be positive, got {thickness}")
+
+    points = points.reshape(-1, 2)
+    points = points - (points.min(axis=0) + points.max(axis=0)) / 2.0
+    if np.abs(points).max() < 0.5:
+        raise ValueError("The points of the path are all the same point")
+
+    oversample = 8
+    half = int(np.ceil(np.abs(points).max() + thickness / 2.0)) + 1
+    size = 2 * half + 1
+    canvas = np.zeros((size * oversample, size * oversample), dtype=np.uint8)
+    drawn = np.rint((points + half + 0.5) * oversample - 0.5).astype(np.int32)
+    cv2.polylines(canvas, [drawn.reshape(-1, 1, 2)], False, 255,
+                  thickness=max(int(round(thickness * oversample)), 1),
+                  lineType=cv2.LINE_AA)
+
+    return _area_sample(canvas.astype(np.float32), oversample)
+
+
+def turbulence_psf(size: float = 3.0) -> np.ndarray:
+    """
+    Build the PSF of air turbulence over a long exposure.
+
+    Heat haze over a long sight line smears each point into a blob with a
+    sharp core and wide skirts - not a disc, and not a Gaussian. Its transfer
+    function is the Kolmogorov one, ``exp(-3.44 (f / f0) ** (5/3))``, here
+    scaled so that ``size`` is the blob's full width at half its peak.
+
+    Args:
+        size: Full width at half maximum of the blur, in pixels
+
+    Returns:
+        Normalized float32 PSF that sums to 1
+    """
+    if size < 0.5:
+        raise ValueError(f"size must be at least 0.5, got {size}")
+
+    half = int(np.ceil(3 * size)) + 1
+    # Built on a grid eight times wider than is kept: the skirts fall off
+    # slowly, and on a tight grid they wrap round and fold back in
+    grid = 8 * half + 1
+    frequency = np.fft.fftfreq(grid)
+    radius = np.hypot(*np.meshgrid(frequency, frequency))
+    transfer = np.exp(-3.44 * (radius * size / 0.976) ** (5.0 / 3.0))
+    psf = np.fft.fftshift(np.real(np.fft.ifft2(transfer)))
+
+    centre = grid // 2
+    psf = np.clip(psf[centre - half:centre + half + 1,
+                      centre - half:centre + half + 1], 0, None)
+    return (psf / psf.sum()).astype(np.float32)
+
+
+def _centre_psf(psf: np.ndarray) -> np.ndarray:
+    """
+    Shift a PSF so its centre of mass is its middle.
+
+    Nothing in a blurred frame says where in its square the PSF sits: moved
+    one way, with the picture moved the other, it explains the frame equally
+    well. Left alone an estimate drifts to the edge of its square and is cut
+    off there, and an off-centre PSF restores the right picture in the wrong
+    place.
+    """
+    size = psf.shape[0]
+    rows, cols = np.mgrid[0:size, 0:size]
+    total = psf.sum()
+    shift = np.float32([[1, 0, size // 2 - (psf * cols).sum() / total],
+                        [0, 1, size // 2 - (psf * rows).sum() / total]])
+    psf = np.clip(cv2.warpAffine(psf, shift, (size, size)), 0, None)
+    return psf / psf.sum()
+
+
+def _blind_richardson_lucy(observed: np.ndarray, size: int, passes: int,
+                           seed: Optional[np.ndarray]) -> np.ndarray:
+    """
+    Alternate Richardson-Lucy updates of the PSF and of the image
+    (Fish et al. 1995), at one scale. Returns the PSF.
+    """
+    observed = np.maximum(observed.astype(np.float32), 1e-4)
+    height, width = observed.shape
+    shape = (cv2.getOptimalDFTSize(height), cv2.getOptimalDFTSize(width))
+    data = np.full(shape, float(observed.mean()), dtype=np.float32)
+    data[:height, :width] = observed
+
+    if seed is None:
+        psf = np.ones((size, size), dtype=np.float32)
+    else:
+        psf = cv2.resize(seed, (size, size), interpolation=cv2.INTER_LINEAR) + 1e-4
+    psf /= psf.sum()
+    estimate = data.copy()
+    half = size // 2
+
+    for _ in range(passes):
+        blur = _psf_transfer_function(psf, shape)
+        ratio = data / np.maximum(irfft2(rfft2(estimate) * blur, s=shape), 1e-6)
+        # Correlate the estimate with the ratio; the PSF is the part of that
+        # within its own reach of the origin
+        match = irfft2(np.conj(rfft2(estimate)) * rfft2(ratio), s=shape)
+        psf = np.maximum(psf * np.roll(match, (half, half), axis=(0, 1))[:size, :size], 0)
+        psf /= max(float(psf.sum()), 1e-12)
+
+        blur = _psf_transfer_function(psf, shape)
+        ratio = data / np.maximum(irfft2(rfft2(estimate) * blur, s=shape), 1e-6)
+        estimate = estimate * irfft2(rfft2(ratio) * np.conj(blur), s=shape)
+
+    return psf
+
+
+def estimate_psf(image: np.ndarray, psf_size: int = 21, passes: int = 300) -> np.ndarray:
+    """
+    Estimate a frame's blur from the frame alone.
+
+    Blind deconvolution: the PSF and the sharp image are both unknown, and
+    each is refined in turn against the other, first on a shrunken copy of
+    the frame and then at each size up to full.
+
+    Read the limits before trusting it. Over simulated CCTV captures the PSF
+    it finds is close to the true one for defocus and for turbulence, and is
+    not for straight motion blur, where it comes back smeared. It has no way
+    to answer "none": given a sharp frame it still returns a blur. Look at
+    the result with ``psf_preview`` - if it is not a plausible shape for what
+    the camera did, it is wrong.
+
+    Args:
+        image: Blurred image
+        psf_size: Side of the square the PSF must fit in, in pixels. About
+                  three times the blur's extent: in a square that only just
+                  holds it, the estimate spreads to fill the square.
+        passes: Refinement passes at each size
+
+    Returns:
+        Normalized float32 PSF that sums to 1, centred on its centre of mass
+    """
+    if image is None or image.size == 0:
+        raise ValueError("Input image is empty")
+    if psf_size < 5:
+        raise ValueError(f"psf_size must be at least 5, got {psf_size}")
+    if passes < 1:
+        raise ValueError(f"passes must be at least 1, got {passes}")
+
+    psf_size = int(psf_size) | 1          # odd, so there is a true centre
+    img = image.astype(np.uint8) if image.dtype != np.uint8 else image
+    if psf_size > min(img.shape[:2]):
+        raise ValueError(f"psf_size {psf_size} is larger than the image "
+                         f"({img.shape[1]}x{img.shape[0]})")
+    gray = cv2.cvtColor(img[:, :, :3], cv2.COLOR_RGB2GRAY) if img.ndim == 3 else img
+    linear = _TO_LINEAR[gray]
+
+    sizes = []
+    size = psf_size
+    while size >= 5:
+        sizes.append(size | 1)
+        size //= 2
+
+    psf = None
+    for size in reversed(sizes):
+        scale = size / psf_size
+        level = linear if scale >= 1 else cv2.resize(
+            linear, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        psf = _centre_psf(_blind_richardson_lucy(level, size, int(passes), psf))
+
+    # What is left under a tenth of the peak is the estimate's own noise
+    psf[psf < 0.1 * psf.max()] = 0
+    return _centre_psf(psf)
+
+
+def deblur_nonlinear(
+    image: np.ndarray,
+    path: Sequence,
+    noise_power: float = 0.01,
+    thickness: float = 1.0,
+    solver: str = 'wiener',
+    iterations: int = 40,
+) -> np.ndarray:
+    """
+    Remove motion blur that did not follow a straight line.
+
+    Args:
+        image: Blurred image
+        path: The streak one point of the scene was drawn into, as points in
+              order from one end; see ``path_psf``
+        noise_power: Regularization term; raise it on noisy footage
+        thickness: Width of the streak in pixels
+        solver: 'wiener' or 'richardson_lucy'; see ``deconvolve``
+        iterations: Correction passes, for 'richardson_lucy' only
+
+    Returns:
+        Deblurred image in uint8
+    """
+    return deconvolve(image, path_psf(path, thickness), noise_power, solver, iterations)
+
+
+def deblur_turbulence(
+    image: np.ndarray,
+    size: float = 3.0,
+    noise_power: float = 0.01,
+    solver: str = 'wiener',
+    iterations: int = 40,
+) -> np.ndarray:
+    """
+    Remove the blur of air turbulence: heat haze over a long sight line.
+
+    One frame, one blur across it. It sharpens what the air softened; it does
+    not undo the shimmer that bends straight edges differently from frame to
+    frame - average or stabilise a run of frames for that, then deblur.
+
+    Args:
+        image: Blurred image
+        size: Full width at half maximum of the blur, in pixels; see
+              ``turbulence_psf``
+        noise_power: Regularization term; raise it on noisy footage
+        solver: 'wiener' or 'richardson_lucy'; see ``deconvolve``
+        iterations: Correction passes, for 'richardson_lucy' only
+
+    Returns:
+        Deblurred image in uint8
+    """
+    return deconvolve(image, turbulence_psf(size), noise_power, solver, iterations)
+
+
+def deblur_blind(
+    image: np.ndarray,
+    psf_size: int = 21,
+    noise_power: float = 0.01,
+    passes: int = 300,
+) -> np.ndarray:
+    """
+    Deblur a frame whose blur is not known, by estimating it first.
+
+    The last resort, for a blur with no line to draw and no shape to assume.
+    ``estimate_psf`` finds the PSF and ``richardson_lucy_deconvolution``
+    applies it. It helps on defocus and turbulence; on straight motion blur
+    it does little, and ``deblur_motion`` with a drawn line does far better.
+    On a frame that is not blurred it does harm, because it finds a blur
+    regardless. Crop to the subject first, and compare with the original.
+
+    Args:
+        image: Blurred image
+        psf_size: Side of the square the blur must fit in, in pixels;
+                  about three times its extent
+        noise_power: Regularization term; raise it on noisy footage
+        passes: Refinement passes of the PSF estimate at each size
+
+    Returns:
+        Deblurred image in uint8
+    """
+    return richardson_lucy_deconvolution(
+        image, estimate_psf(image, psf_size, passes), noise_power)
 
 
 def focus_score(image: np.ndarray) -> float:

@@ -46,6 +46,7 @@ compression, JPEG ghost and metadata — are not chain steps and are listed sepa
 | `deblur_motion` | `deblur_motion` | `cv_tools.filters.motion_deblur` | 3 |
 | `deblur_defocus` | `deblur_defocus` | `cv_tools.filters.motion_deblur` | 3 |
 | `deblur_motion_grid` / `deblur_defocus_grid` | `deblur_motion_grid` / `deblur_defocus_grid` | `cv_tools.filters.motion_deblur` | — |
+| `deblur_nonlinear` / `deblur_turbulence` / `deblur_blind` | same names | `cv_tools.filters.motion_deblur` | — |
 | `curves` / `s_curve` | `apply_curve` / `s_curve` | `cv_tools.filters.curves` | — |
 | `white_balance` / `white_balance_patch` / `temperature` | `auto_white_balance` / `white_balance_from_patch` / `adjust_temperature` | `cv_tools.filters.white_balance` | — |
 | `saturation` / `vibrance` / `desaturate` / `selective_saturation` | see module | `cv_tools.filters.saturation` | — |
@@ -802,6 +803,65 @@ when the candidates are not a step either side of one estimate. `motion_from_lin
 end)` is the measurement the two clicks make.
 `focus_score(image)` is the variance of the Laplacian; it rises with ringing as readily as
 with recovered detail, so a wrong PSF can outscore the right one. Do not pick a PSF by it.
+
+## Nonlinear, Turbulence and Blind Deblurring — `deblur_nonlinear`, `deblur_turbulence`, `deblur_blind`
+
+The rest of Amped FIVE's Deblurring group. Each differs from `deblur_motion` and
+`deblur_defocus` only in where its point spread function comes from; the deconvolution, the
+`solver` choice and the order warnings are the ones described above. Amped does not publish
+these filters' parameters or algorithms, so the parameters here are this toolkit's own.
+
+| Filter | The PSF is | Param | Type | Default | Notes |
+|---|---|---|---|---|---|
+| `deblur_nonlinear` | a bent streak you trace | `path` | points | required | The streak of one point, in order from one end: `x1,y1,x2,y2,...` |
+| | | `thickness` | float | `1.0` | Width of the streak in pixels |
+| `deblur_turbulence` | the Kolmogorov blur of air | `size` | float | `3.0` | Full width at half maximum of the blur, in pixels |
+| `deblur_blind` | estimated from the frame | `psf_size` | int | `21` | Side of the square the blur must fit in; about three times its extent |
+| | | `passes` | int | `300` | Refinement passes of the estimate at each scale |
+
+All three take `noise_power`. `deblur_nonlinear` and `deblur_turbulence` also take `solver`
+and `iterations`; `deblur_blind` always finishes with `richardson_lucy`.
+
+**Nonlinear.** For a camera that shook or a subject that turned during the exposure, so that
+one point was drawn as a bent streak and no straight line fits. Find the streak a point light
+left, select `deblur_nonlinear`, press *Pick points on the image* and click four points along
+it from one end to the other; a longer path can be typed into the field. Only the shape of
+the path is used, not where on the frame it was traced. On simulated captures of a 20-pixel
+bent blur, the traced path gained 4.0 dB with `wiener` and 5.6 dB with `richardson_lucy`; a
+straight line through the same two ends gained 0.3 and 1.5.
+
+**Turbulence.** Heat haze over a long sight line smears each point into a blob with a sharp
+core and wide skirts — neither a disc nor a Gaussian. Its transfer function is the Kolmogorov
+long-exposure one, `exp(-3.44 (f / f0)^(5/3))`. There is nothing to measure it from, so
+`size` is found by trying: on a true size of 3, assuming 2, 3 and 4 gained 0.7, 1.7 and 1.6 dB
+with `wiener` and 1.6, 3.3 and 2.0 with `richardson_lucy`. This removes the softening only.
+The shimmer that bends edges differently from frame to frame is a different defect: stabilise
+and average a run of frames first, then deblur the result.
+
+**Blind.** The last resort, for a blur with no line to draw and no shape to assume. The PSF
+and the sharp image are refined in turn against each other (Fish et al., 1995), from a
+shrunken copy of the frame up to full size. Measured on the same simulated captures, at its
+defaults, against `richardson_lucy` given the true PSF:
+
+| Blur | `deblur_blind` | with the true PSF |
+|---|---|---|
+| Defocus, radius 3 | +2.6 dB | +2.8 |
+| Turbulence, size 3 | +2.3 | +3.4 |
+| Straight motion, 9 px | +0.2 | +3.3 |
+| Straight motion, 13 px | −0.4 | +3.3 |
+| Bent motion, 20 px | 0.0 | +5.6 |
+| No blur at all | −2.7 (worst −8.2) | — |
+
+So it is worth trying on defocus and haze, and is no substitute for a drawn line on motion
+blur. It cannot answer "none": given a sharp frame it still finds a blur, and removing a blur
+that is not there damages the frame. Crop to the subject, compare the result with the
+original, and look at what it found — `psf_preview(estimate_psf(image))` — before relying on
+it. A shape the camera could not have made is a wrong answer.
+
+CLI: `--deblur-nonlinear path=120,80,128,77,134,77,140,84 noise=0.01`,
+`--deblur-turbulence size=3 solver=richardson_lucy`, `--deblur-blind psf_size=21 passes=300`
+
+`path_psf`, `turbulence_psf` and `estimate_psf` build or find the PSFs.
 
 ---
 

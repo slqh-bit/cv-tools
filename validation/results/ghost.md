@@ -1,7 +1,7 @@
 # ghost - validation result
 
 **JPEG ghost: the recompression sweep frame with the most structure, dark where the pixels match that quality**  
-`cv_tools.filters.jpeg_ghost` | family: Forensic | 2026-10-10T14:19:13
+`cv_tools.filters.jpeg_ghost` | family: Forensic | 2026-10-12T19:14:56
 
 ## Verdict
 
@@ -21,28 +21,28 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 72.1 | [352, 640] uint8 mean 187.37 | ok |
-| `cctv/brightest.jpg` | `upscale=False` | 75.9 | [22, 40] uint8 mean 187.37 | ok |
+| `cctv/brightest.jpg` | `defaults` | 77.1 | [352, 640] uint8 mean 187.37 | ok |
+| `cctv/brightest.jpg` | `upscale=False` | 75.2 | [22, 40] uint8 mean 187.37 | ok |
 | `cctv/darkest.jpg` | `defaults` | 74.9 | [352, 640] uint8 mean 187.06 | ok |
-| `cctv/darkest.jpg` | `upscale=False` | 72.9 | [22, 40] uint8 mean 187.06 | ok |
-| `cctv/event_fall.jpg` | `defaults` | 76.2 | [352, 640] uint8 mean 111.09 | ok |
-| `cctv/event_fall.jpg` | `upscale=False` | 75.4 | [22, 40] uint8 mean 111.09 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 72.6 | [352, 640] uint8 mean 100.51 | ok |
-| `cctv/event_optflow.jpg` | `upscale=False` | 72.8 | [22, 40] uint8 mean 100.51 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 71.6 | [352, 640] uint8 mean 68.97 | ok |
-| `cctv/event_tamper.jpg` | `upscale=False` | 75.7 | [22, 40] uint8 mean 68.97 | ok |
-| `cctv/flattest.jpg` | `defaults` | 73.9 | [352, 640] uint8 mean 102.21 | ok |
-| `cctv/flattest.jpg` | `upscale=False` | 74.7 | [22, 40] uint8 mean 102.21 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 71.5 | [352, 640] uint8 mean 207.03 | ok |
-| `cctv/most_blown.jpg` | `upscale=False` | 71.7 | [22, 40] uint8 mean 207.03 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 76.0 | [352, 640] uint8 mean 237.36 | ok |
-| `cctv/sharpest.jpg` | `upscale=False` | 75.3 | [22, 40] uint8 mean 237.36 | ok |
-| `cctv/softest.jpg` | `defaults` | 71.8 | [352, 640] uint8 mean 140.26 | ok |
-| `cctv/softest.jpg` | `upscale=False` | 71.4 | [22, 40] uint8 mean 140.26 | ok |
-| `ground_truth/quality_splice.jpg` | `defaults` | 77.3 | [352, 640] uint8 mean 233.84 | ok |
-| `ground_truth/quality_splice.jpg` | `upscale=False` | 75.2 | [22, 40] uint8 mean 233.84 | ok |
-| `ground_truth/clean_control.jpg` | `defaults` | 74.9 | [352, 640] uint8 mean 237.94 | ok |
-| `ground_truth/clean_control.jpg` | `upscale=False` | 76.2 | [22, 40] uint8 mean 237.94 | ok |
+| `cctv/darkest.jpg` | `upscale=False` | 75.0 | [22, 40] uint8 mean 187.06 | ok |
+| `cctv/event_fall.jpg` | `defaults` | 77.2 | [352, 640] uint8 mean 111.09 | ok |
+| `cctv/event_fall.jpg` | `upscale=False` | 80.6 | [22, 40] uint8 mean 111.09 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 76.3 | [352, 640] uint8 mean 100.51 | ok |
+| `cctv/event_optflow.jpg` | `upscale=False` | 75.1 | [22, 40] uint8 mean 100.51 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 75.4 | [352, 640] uint8 mean 68.97 | ok |
+| `cctv/event_tamper.jpg` | `upscale=False` | 76.7 | [22, 40] uint8 mean 68.97 | ok |
+| `cctv/flattest.jpg` | `defaults` | 77.2 | [352, 640] uint8 mean 102.21 | ok |
+| `cctv/flattest.jpg` | `upscale=False` | 75.4 | [22, 40] uint8 mean 102.21 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 76.9 | [352, 640] uint8 mean 207.03 | ok |
+| `cctv/most_blown.jpg` | `upscale=False` | 78.1 | [22, 40] uint8 mean 207.03 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 77.1 | [352, 640] uint8 mean 237.36 | ok |
+| `cctv/sharpest.jpg` | `upscale=False` | 79.1 | [22, 40] uint8 mean 237.36 | ok |
+| `cctv/softest.jpg` | `defaults` | 75.4 | [352, 640] uint8 mean 140.26 | ok |
+| `cctv/softest.jpg` | `upscale=False` | 75.4 | [22, 40] uint8 mean 140.26 | ok |
+| `ground_truth/quality_splice.jpg` | `defaults` | 77.4 | [352, 640] uint8 mean 233.84 | ok |
+| `ground_truth/quality_splice.jpg` | `upscale=False` | 76.8 | [22, 40] uint8 mean 233.84 | ok |
+| `ground_truth/clean_control.jpg` | `defaults` | 76.6 | [352, 640] uint8 mean 237.94 | ok |
+| `ground_truth/clean_control.jpg` | `upscale=False` | 76.1 | [22, 40] uint8 mean 237.94 | ok |
 
 ## Artifacts
 

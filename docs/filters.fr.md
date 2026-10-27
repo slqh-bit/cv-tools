@@ -48,6 +48,7 @@ regroupées à part, sous [Rapports d'analyse](#rapports-danalyse-pas-des-étape
 | `deblur_motion` | `deblur_motion` | `cv_tools.filters.motion_deblur` | 3 |
 | `deblur_defocus` | `deblur_defocus` | `cv_tools.filters.motion_deblur` | 3 |
 | `deblur_motion_grid` / `deblur_defocus_grid` | `deblur_motion_grid` / `deblur_defocus_grid` | `cv_tools.filters.motion_deblur` | — |
+| `deblur_nonlinear` / `deblur_turbulence` / `deblur_blind` | mêmes noms | `cv_tools.filters.motion_deblur` | — |
 | `curves` / `s_curve` | `apply_curve` / `s_curve` | `cv_tools.filters.curves` | — |
 | `white_balance` / `white_balance_patch` / `temperature` | `auto_white_balance` / `white_balance_from_patch` / `adjust_temperature` | `cv_tools.filters.white_balance` | — |
 | `saturation` / `vibrance` / `desaturate` / `selective_saturation` | voir le module | `cv_tools.filters.saturation` | — |
@@ -849,6 +850,69 @@ estimation. `motion_from_line(start, end)` est la mesure que font les deux clics
 `focus_score(image)` est la variance du laplacien ; elle augmente avec les oscillations autant
 qu'avec le détail retrouvé, de sorte qu'une mauvaise PSF peut obtenir un meilleur score que la
 bonne. Ne choisissez pas une PSF d'après elle.
+
+## Défloutage non linéaire, de turbulence et aveugle — `deblur_nonlinear`, `deblur_turbulence`, `deblur_blind`
+
+Le reste du groupe Deblurring d'Amped FIVE. Chacun ne diffère de `deblur_motion` et de
+`deblur_defocus` que par l'origine de sa fonction d'étalement du point ; la déconvolution, le
+choix du `solver` et les avertissements sur l'ordre sont ceux décrits plus haut. Amped ne
+publie ni les paramètres ni les algorithmes de ces filtres ; les paramètres sont donc ici ceux
+de cette boîte à outils.
+
+| Filtre | La PSF est | Paramètre | Type | Défaut | Remarques |
+|---|---|---|---|---|---|
+| `deblur_nonlinear` | une traînée courbe que vous tracez | `path` | points | requis | La traînée d'un point, dans l'ordre depuis une extrémité : `x1,y1,x2,y2,...` |
+| | | `thickness` | float | `1.0` | Largeur de la traînée en pixels |
+| `deblur_turbulence` | le flou de Kolmogorov de l'air | `size` | float | `3.0` | Largeur à mi-hauteur du flou, en pixels |
+| `deblur_blind` | estimée à partir de l'image | `psf_size` | int | `21` | Côté du carré dans lequel le flou doit tenir ; environ trois fois son étendue |
+| | | `passes` | int | `300` | Passes d'affinage de l'estimation à chaque échelle |
+
+Les trois acceptent `noise_power`. `deblur_nonlinear` et `deblur_turbulence` acceptent aussi
+`solver` et `iterations` ; `deblur_blind` se termine toujours par `richardson_lucy`.
+
+**Non linéaire.** Pour une caméra qui a tremblé ou un sujet qui a tourné pendant l'exposition,
+de sorte qu'un point a été dessiné comme une traînée courbe et qu'aucune ligne droite ne
+convient. Trouvez la traînée laissée par un point lumineux, sélectionnez `deblur_nonlinear`,
+appuyez sur *Pick points on the image* et cliquez quatre points le long de celle-ci, d'une
+extrémité à l'autre ; un chemin plus long peut être saisi dans le champ. Seule la forme du
+chemin est utilisée, pas l'endroit de l'image où il a été tracé. Sur des captures simulées
+d'un flou courbe de 20 pixels, le chemin tracé gagnait 4,0 dB avec `wiener` et 5,6 dB avec
+`richardson_lucy` ; une ligne droite passant par les deux mêmes extrémités gagnait 0,3 et 1,5.
+
+**Turbulence.** La brume de chaleur sur une longue ligne de visée étale chaque point en une
+tache au cœur net et aux bords larges — ni un disque ni une gaussienne. Sa fonction de
+transfert est celle de Kolmogorov en longue pose, `exp(-3.44 (f / f0)^(5/3))`. Rien ne permet
+de la mesurer ; `size` se trouve donc par essais : pour une taille réelle de 3, supposer 2, 3
+et 4 gagnait 0,7, 1,7 et 1,6 dB avec `wiener`, et 1,6, 3,3 et 2,0 avec `richardson_lucy`. Ce
+filtre ne retire que l'adoucissement. Le scintillement qui déforme les contours différemment
+d'une image à l'autre est un autre défaut : stabilisez et moyennez d'abord une série d'images,
+puis défloutez le résultat.
+
+**Aveugle.** Le dernier recours, pour un flou sans ligne à tracer ni forme à supposer. La PSF
+et l'image nette sont affinées tour à tour l'une par rapport à l'autre (Fish et al., 1995),
+d'une copie réduite de l'image jusqu'à sa taille réelle. Mesuré sur les mêmes captures
+simulées, avec les valeurs par défaut, face à `richardson_lucy` muni de la vraie PSF :
+
+| Flou | `deblur_blind` | avec la vraie PSF |
+|---|---|---|
+| Défocalisation, rayon 3 | +2,6 dB | +2,8 |
+| Turbulence, taille 3 | +2,3 | +3,4 |
+| Mouvement rectiligne, 9 px | +0,2 | +3,3 |
+| Mouvement rectiligne, 13 px | −0,4 | +3,3 |
+| Mouvement courbe, 20 px | 0,0 | +5,6 |
+| Aucun flou | −2,7 (pire cas −8,2) | — |
+
+Il vaut donc la peine d'être essayé sur la défocalisation et la brume, et ne remplace pas une
+ligne tracée pour un flou de mouvement. Il ne sait pas répondre « aucun » : face à une image
+nette, il trouve quand même un flou, et retirer un flou qui n'existe pas abîme l'image.
+Recadrez sur le sujet, comparez le résultat à l'original, et regardez ce qu'il a trouvé —
+`psf_preview(estimate_psf(image))` — avant de vous y fier. Une forme que la caméra n'aurait
+pas pu produire est une mauvaise réponse.
+
+CLI : `--deblur-nonlinear path=120,80,128,77,134,77,140,84 noise=0.01`,
+`--deblur-turbulence size=3 solver=richardson_lucy`, `--deblur-blind psf_size=21 passes=300`
+
+`path_psf`, `turbulence_psf` et `estimate_psf` construisent ou trouvent les PSF.
 
 ---
 

@@ -1,7 +1,7 @@
 # flip - validation result
 
 **Flip horizontally, vertically or both**  
-`cv_tools.filters.crop_resize` | family: Adjust | 2026-10-10T14:11:54
+`cv_tools.filters.crop_resize` | family: Adjust | 2026-10-12T19:03:00
 
 ## Verdict
 
@@ -18,7 +18,7 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 163.53 | ok |
+| `cctv/brightest.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 163.53 | ok |
 | `cctv/brightest.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 163.53 | ok |
 | `cctv/brightest.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 163.53 | ok |
 | `cctv/darkest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 110.93 | ok |
@@ -30,7 +30,7 @@
 | `cctv/event_optflow.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 125.42 | ok |
 | `cctv/event_optflow.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 125.42 | ok |
 | `cctv/event_optflow.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 125.42 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 160.62 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 160.62 | ok |
 | `cctv/event_tamper.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 160.62 | ok |
 | `cctv/event_tamper.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 160.62 | ok |
 | `cctv/flattest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 121.5 | ok |
@@ -42,7 +42,7 @@
 | `cctv/sharpest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 131.76 | ok |
 | `cctv/sharpest.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 131.76 | ok |
 | `cctv/sharpest.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 131.76 | ok |
-| `cctv/softest.jpg` | `defaults` | 0.1 | [362, 640, 3] uint8 mean 125.38 | ok |
+| `cctv/softest.jpg` | `defaults` | 0.2 | [362, 640, 3] uint8 mean 125.38 | ok |
 | `cctv/softest.jpg` | `direction=vertical` | 0.1 | [362, 640, 3] uint8 mean 125.38 | ok |
 | `cctv/softest.jpg` | `direction=both` | 0.1 | [362, 640, 3] uint8 mean 125.38 | ok |
 

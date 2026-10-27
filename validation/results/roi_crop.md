@@ -1,7 +1,7 @@
 # roi_crop - validation result
 
 **Crop to a region of interest**  
-`cv_tools.filters.roi` | family: Adjust | 2026-10-10T14:11:53
+`cv_tools.filters.roi` | family: Adjust | 2026-10-12T19:02:59
 
 ## Verdict
 
@@ -16,7 +16,7 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 161.8 | ok |
+| `cctv/brightest.jpg` | `x=120, y=80, width=200, height=140` | 0.1 | [140, 200, 3] uint8 mean 161.8 | ok |
 | `cctv/darkest.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 138.63 | ok |
 | `cctv/event_fall.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 119.01 | ok |
 | `cctv/event_optflow.jpg` | `x=120, y=80, width=200, height=140` | 0.0 | [140, 200, 3] uint8 mean 126.91 | ok |

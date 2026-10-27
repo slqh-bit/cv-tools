@@ -1,7 +1,7 @@
 # noise - validation result
 
 **Global and per-block noise level, and how evenly it is spread**  
-`cv_tools.filters.noise_analysis` | family: Analysis | 2026-10-10T14:19:19
+`cv_tools.filters.noise_analysis` | family: Analysis | 2026-10-12T19:15:03
 
 ## Verdict
 
@@ -21,14 +21,14 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 2.3 | None None mean None | ok |
-| `cctv/darkest.jpg` | `defaults` | 2.0 | None None mean None | ok |
-| `cctv/event_fall.jpg` | `defaults` | 2.0 | None None mean None | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 2.0 | None None mean None | ok |
+| `cctv/brightest.jpg` | `defaults` | 2.5 | None None mean None | ok |
+| `cctv/darkest.jpg` | `defaults` | 1.9 | None None mean None | ok |
+| `cctv/event_fall.jpg` | `defaults` | 1.9 | None None mean None | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 1.9 | None None mean None | ok |
 | `cctv/event_tamper.jpg` | `defaults` | 2.0 | None None mean None | ok |
-| `cctv/flattest.jpg` | `defaults` | 2.0 | None None mean None | ok |
+| `cctv/flattest.jpg` | `defaults` | 1.9 | None None mean None | ok |
 | `cctv/most_blown.jpg` | `defaults` | 1.9 | None None mean None | ok |
-| `cctv/sharpest.jpg` | `defaults` | 2.0 | None None mean None | ok |
+| `cctv/sharpest.jpg` | `defaults` | 1.9 | None None mean None | ok |
 
 ## Reports
 

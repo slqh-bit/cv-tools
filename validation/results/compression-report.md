@@ -1,7 +1,7 @@
 # compression - validation result
 
 **Blocking measures, plus the quality read from the file**  
-`cv_tools.filters.compression_analysis` | family: Analysis | 2026-10-10T14:19:23
+`cv_tools.filters.compression_analysis` | family: Analysis | 2026-10-12T19:15:07
 
 ## Verdict
 
@@ -20,14 +20,14 @@
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `defaults` | 17.0 | None None mean None | ok |
-| `cctv/darkest.jpg` | `defaults` | 16.6 | None None mean None | ok |
-| `cctv/event_fall.jpg` | `defaults` | 17.7 | None None mean None | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 16.8 | None None mean None | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 17.4 | None None mean None | ok |
-| `cctv/flattest.jpg` | `defaults` | 18.8 | None None mean None | ok |
-| `cctv/most_blown.jpg` | `defaults` | 18.7 | None None mean None | ok |
-| `cctv/sharpest.jpg` | `defaults` | 17.8 | None None mean None | ok |
+| `cctv/brightest.jpg` | `defaults` | 17.9 | None None mean None | ok |
+| `cctv/darkest.jpg` | `defaults` | 17.2 | None None mean None | ok |
+| `cctv/event_fall.jpg` | `defaults` | 16.8 | None None mean None | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 16.7 | None None mean None | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 16.8 | None None mean None | ok |
+| `cctv/flattest.jpg` | `defaults` | 16.6 | None None mean None | ok |
+| `cctv/most_blown.jpg` | `defaults` | 17.5 | None None mean None | ok |
+| `cctv/sharpest.jpg` | `defaults` | 18.8 | None None mean None | ok |
 
 ## Reports
 

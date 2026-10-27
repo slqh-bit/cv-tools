@@ -344,6 +344,22 @@ def build_parser() -> argparse.ArgumentParser:
                           help='Contact sheet of defocus deblurs across radius and '
                                'noise. Params: radius (float), radius_step (float), '
                                'noise (float)')
+    forensic.add_argument('--deblur-nonlinear', nargs='*', metavar='KEY=VALUE',
+                          action=ChainAction,
+                          help='Deblur motion along a bent path. Params: '
+                               'path=X1,Y1,X2,Y2,... tracing the streak of one point, '
+                               'thickness (float), noise (float), solver, iterations')
+    forensic.add_argument('--deblur-turbulence', nargs='*', metavar='KEY=VALUE',
+                          action=ChainAction,
+                          help='Deblur air turbulence (heat haze). Params: size '
+                               '(float, width of the blur in pixels), noise (float), '
+                               'solver, iterations')
+    forensic.add_argument('--deblur-blind', nargs='*', metavar='KEY=VALUE',
+                          action=ChainAction,
+                          help='Blind deconvolution: estimate the blur, then remove it. '
+                               'For defocus and haze, not straight motion; harms a '
+                               'sharp frame. Params: psf_size (int), noise (float), '
+                               'passes (int)')
     forensic.add_argument('--ghost', nargs='*', metavar='KEY=VALUE', action=ChainAction,
                           help='JPEG ghost map: best-match quality per block. Params: '
                                'block (int), min (int), max (int), step (int) for the '
@@ -764,10 +780,18 @@ def translate_step(
             params = {**motion_from_line((x1, y1), (x2, y2)), **params}
         return ('deblur_motion' if dest == 'deblur' else 'deblur_motion_grid'), params
 
-    if dest in ('deblur_defocus', 'deblur_defocus_grid'):
+    if dest in ('deblur_defocus', 'deblur_defocus_grid', 'deblur_nonlinear',
+                'deblur_turbulence', 'deblur_blind'):
         params = parse_kv(value or [])
         if 'noise' in params:
             params['noise_power'] = float(params.pop('noise'))
+        if 'path' in params:
+            try:
+                params['path'] = [float(v) for v in str(params['path']).split(',')]
+            except ValueError:
+                raise ValueError(f"path must be numbers, got {params['path']!r}") from None
+        elif dest == 'deblur_nonlinear':
+            raise ValueError("needs path=X1,Y1,X2,Y2,... tracing the streak of one point")
         return dest, params
 
     if dest == 'ghost':

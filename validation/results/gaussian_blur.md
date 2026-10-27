@@ -1,7 +1,7 @@
 # gaussian_blur - validation result
 
 **Gaussian smoothing**  
-`cv_tools.filters.smoothing` | family: Enhance | 2026-10-10T14:12:03
+`cv_tools.filters.smoothing` | family: Enhance | 2026-10-12T19:03:09
 
 ## Verdict
 
@@ -38,31 +38,31 @@ Not defects: a parameter at the end of its range doing exactly what it says.
 |---|---|---|---|---|
 | `cctv/brightest.jpg` | `defaults` | 0.5 | [362, 640, 3] uint8 mean 163.73 | ok |
 | `cctv/brightest.jpg` | `radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 163.53 | output identical to input |
-| `cctv/brightest.jpg` | `radius=50.0` | 277.4 | [362, 640, 3] uint8 mean 163.84 | ok |
+| `cctv/brightest.jpg` | `radius=50.0` | 235.8 | [362, 640, 3] uint8 mean 163.84 | ok |
 | `cctv/darkest.jpg` | `defaults` | 0.5 | [362, 640, 3] uint8 mean 111.08 | ok |
 | `cctv/darkest.jpg` | `radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 110.93 | output identical to input |
-| `cctv/darkest.jpg` | `radius=50.0` | 256.1 | [362, 640, 3] uint8 mean 111.12 | ok |
+| `cctv/darkest.jpg` | `radius=50.0` | 231.0 | [362, 640, 3] uint8 mean 111.12 | ok |
 | `cctv/event_fall.jpg` | `defaults` | 0.5 | [362, 640, 3] uint8 mean 125.74 | ok |
-| `cctv/event_fall.jpg` | `radius=0.1` | 0.1 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
-| `cctv/event_fall.jpg` | `radius=50.0` | 407.7 | [362, 640, 3] uint8 mean 125.78 | ok |
-| `cctv/event_optflow.jpg` | `defaults` | 0.5 | [362, 640, 3] uint8 mean 125.59 | ok |
-| `cctv/event_optflow.jpg` | `radius=0.1` | 0.1 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
-| `cctv/event_optflow.jpg` | `radius=50.0` | 252.3 | [362, 640, 3] uint8 mean 125.63 | ok |
-| `cctv/event_tamper.jpg` | `defaults` | 0.6 | [362, 640, 3] uint8 mean 160.81 | ok |
+| `cctv/event_fall.jpg` | `radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 125.51 | output identical to input |
+| `cctv/event_fall.jpg` | `radius=50.0` | 230.1 | [362, 640, 3] uint8 mean 125.78 | ok |
+| `cctv/event_optflow.jpg` | `defaults` | 0.6 | [362, 640, 3] uint8 mean 125.59 | ok |
+| `cctv/event_optflow.jpg` | `radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 125.42 | output identical to input |
+| `cctv/event_optflow.jpg` | `radius=50.0` | 224.1 | [362, 640, 3] uint8 mean 125.63 | ok |
+| `cctv/event_tamper.jpg` | `defaults` | 0.5 | [362, 640, 3] uint8 mean 160.81 | ok |
 | `cctv/event_tamper.jpg` | `radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 160.62 | output identical to input |
-| `cctv/event_tamper.jpg` | `radius=50.0` | 243.1 | [362, 640, 3] uint8 mean 160.92 | ok |
-| `cctv/flattest.jpg` | `defaults` | 0.5 | [362, 640, 3] uint8 mean 121.66 | ok |
+| `cctv/event_tamper.jpg` | `radius=50.0` | 217.9 | [362, 640, 3] uint8 mean 160.92 | ok |
+| `cctv/flattest.jpg` | `defaults` | 0.4 | [362, 640, 3] uint8 mean 121.66 | ok |
 | `cctv/flattest.jpg` | `radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 121.5 | output identical to input |
-| `cctv/flattest.jpg` | `radius=50.0` | 229.2 | [362, 640, 3] uint8 mean 121.7 | ok |
-| `cctv/most_blown.jpg` | `defaults` | 0.6 | [362, 640, 3] uint8 mean 138.27 | ok |
+| `cctv/flattest.jpg` | `radius=50.0` | 224.6 | [362, 640, 3] uint8 mean 121.7 | ok |
+| `cctv/most_blown.jpg` | `defaults` | 0.5 | [362, 640, 3] uint8 mean 138.27 | ok |
 | `cctv/most_blown.jpg` | `radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 138.08 | output identical to input |
-| `cctv/most_blown.jpg` | `radius=50.0` | 214.7 | [362, 640, 3] uint8 mean 138.31 | ok |
-| `cctv/sharpest.jpg` | `defaults` | 0.3 | [362, 640, 3] uint8 mean 131.94 | ok |
-| `cctv/sharpest.jpg` | `radius=0.1` | 0.1 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
-| `cctv/sharpest.jpg` | `radius=50.0` | 208.1 | [362, 640, 3] uint8 mean 131.99 | ok |
-| `cctv/softest.jpg` | `defaults` | 0.4 | [362, 640, 3] uint8 mean 125.53 | ok |
-| `cctv/softest.jpg` | `radius=0.1` | 0.1 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
-| `cctv/softest.jpg` | `radius=50.0` | 224.5 | [362, 640, 3] uint8 mean 125.62 | ok |
+| `cctv/most_blown.jpg` | `radius=50.0` | 227.6 | [362, 640, 3] uint8 mean 138.31 | ok |
+| `cctv/sharpest.jpg` | `defaults` | 0.5 | [362, 640, 3] uint8 mean 131.94 | ok |
+| `cctv/sharpest.jpg` | `radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 131.76 | output identical to input |
+| `cctv/sharpest.jpg` | `radius=50.0` | 236.6 | [362, 640, 3] uint8 mean 131.99 | ok |
+| `cctv/softest.jpg` | `defaults` | 0.5 | [362, 640, 3] uint8 mean 125.53 | ok |
+| `cctv/softest.jpg` | `radius=0.1` | 0.2 | [362, 640, 3] uint8 mean 125.38 | output identical to input |
+| `cctv/softest.jpg` | `radius=50.0` | 222.7 | [362, 640, 3] uint8 mean 125.62 | ok |
 
 ## Artifacts
 

@@ -1,7 +1,7 @@
 # scale_bar - validation result
 
 **Draw a calibrated scale bar, so sizes can be read off directly**  
-`cv_tools.filters.annotate` | family: Special | 2026-10-10T14:19:18
+`cv_tools.filters.annotate` | family: Special | 2026-10-12T19:15:02
 
 ## Verdict
 
@@ -33,7 +33,7 @@ Rejected on purpose, with the message the user would see.
 
 | image | parameters | ms | output | note |
 |---|---|---|---|---|
-| `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 162.71 | ok |
+| `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 162.71 | ok |
 | `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 155.85 | ok |
 | `cctv/brightest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 162.41 | ok |
@@ -46,8 +46,8 @@ Rejected on purpose, with the message the user would see.
 | `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 125.14 | ok |
 | `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 120.12 | ok |
-| `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 125.39 | ok |
-| `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 125.25 | ok |
+| `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 125.39 | ok |
+| `cctv/event_fall.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 125.25 | ok |
 | `cctv/event_optflow.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 125.04 | ok |
 | `cctv/event_optflow.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/event_optflow.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 120.17 | ok |
@@ -58,7 +58,7 @@ Rejected on purpose, with the message the user would see.
 | `cctv/event_tamper.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 153.09 | ok |
 | `cctv/event_tamper.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 159.57 | ok |
 | `cctv/event_tamper.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 159.53 | ok |
-| `cctv/flattest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 121.15 | ok |
+| `cctv/flattest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.3 | [362, 640, 3] uint8 mean 121.15 | ok |
 | `cctv/flattest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/flattest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 116.39 | ok |
 | `cctv/flattest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 121.56 | ok |
@@ -72,7 +72,7 @@ Rejected on purpose, with the message the user would see.
 | `cctv/sharpest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/sharpest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 127.21 | ok |
 | `cctv/sharpest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 131.34 | ok |
-| `cctv/sharpest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 131.3 | ok |
+| `cctv/sharpest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 131.3 | ok |
 | `cctv/softest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.2 | [362, 640, 3] uint8 mean 124.9 | ok |
 | `cctv/softest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.0 | - | refused: ValueError: A 1.0 mm bar is only 0px at this scale; choose a larger len |
 | `cctv/softest.jpg` | `reference_a=[180, 180], reference_b=[380, 180], reference...` | 0.1 | [362, 640, 3] uint8 mean 120.3 | ok |
